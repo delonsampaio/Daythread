@@ -34,6 +34,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Models/EventCategoryTests.swift,
+				Models/TripDayTests.swift,
 			);
 			target = 148992162FC679CD009A7629 /* DaythreadTests */;
 		};
