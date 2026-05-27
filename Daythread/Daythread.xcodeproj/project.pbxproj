@@ -14,7 +14,7 @@
 			remoteGlobalIDString = 148991B42FC6736E009A7629;
 			remoteInfo = Daythread;
 		};
-		148991EC2FC67575009A7629 /* PBXContainerItemProxy */ = {
+		1489921B2FC679CD009A7629 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 148991AD2FC6736E009A7629 /* Project object */;
 			proxyType = 1;
@@ -26,8 +26,18 @@
 /* Begin PBXFileReference section */
 		148991B52FC6736E009A7629 /* Daythread.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Daythread.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		148991CE2FC67371009A7629 /* DaythreadUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DaythreadUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		148991E62FC67575009A7629 /* DaythreadTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DaythreadTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		148992172FC679CD009A7629 /* DaythreadTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DaythreadTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		1489922E2FC6804E009A7629 /* Exceptions for "DaythreadTests" folder in "DaythreadTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Models/EventCategoryTests.swift,
+			);
+			target = 148992162FC679CD009A7629 /* DaythreadTests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		148991B72FC6736E009A7629 /* Daythread */ = {
@@ -40,8 +50,11 @@
 			path = DaythreadUITests;
 			sourceTree = "<group>";
 		};
-		148991E72FC67575009A7629 /* DaythreadTests */ = {
+		148992182FC679CD009A7629 /* DaythreadTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				1489922E2FC6804E009A7629 /* Exceptions for "DaythreadTests" folder in "DaythreadTests" target */,
+			);
 			path = DaythreadTests;
 			sourceTree = "<group>";
 		};
@@ -62,7 +75,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		148991E32FC67575009A7629 /* Frameworks */ = {
+		148992142FC679CD009A7629 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -77,7 +90,7 @@
 			children = (
 				148991B72FC6736E009A7629 /* Daythread */,
 				148991D12FC67371009A7629 /* DaythreadUITests */,
-				148991E72FC67575009A7629 /* DaythreadTests */,
+				148992182FC679CD009A7629 /* DaythreadTests */,
 				148991B62FC6736E009A7629 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -87,7 +100,7 @@
 			children = (
 				148991B52FC6736E009A7629 /* Daythread.app */,
 				148991CE2FC67371009A7629 /* DaythreadUITests.xctest */,
-				148991E62FC67575009A7629 /* DaythreadTests.xctest */,
+				148992172FC679CD009A7629 /* DaythreadTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -140,28 +153,28 @@
 			productReference = 148991CE2FC67371009A7629 /* DaythreadUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
-		148991E52FC67575009A7629 /* DaythreadTests */ = {
+		148992162FC679CD009A7629 /* DaythreadTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 148991EE2FC67575009A7629 /* Build configuration list for PBXNativeTarget "DaythreadTests" */;
+			buildConfigurationList = 1489921D2FC679CD009A7629 /* Build configuration list for PBXNativeTarget "DaythreadTests" */;
 			buildPhases = (
-				148991E22FC67575009A7629 /* Sources */,
-				148991E32FC67575009A7629 /* Frameworks */,
-				148991E42FC67575009A7629 /* Resources */,
+				148992132FC679CD009A7629 /* Sources */,
+				148992142FC679CD009A7629 /* Frameworks */,
+				148992152FC679CD009A7629 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				148991ED2FC67575009A7629 /* PBXTargetDependency */,
+				1489921C2FC679CD009A7629 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				148991E72FC67575009A7629 /* DaythreadTests */,
+				148992182FC679CD009A7629 /* DaythreadTests */,
 			);
 			name = DaythreadTests;
 			packageProductDependencies = (
 			);
 			productName = DaythreadTests;
-			productReference = 148991E62FC67575009A7629 /* DaythreadTests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
+			productReference = 148992172FC679CD009A7629 /* DaythreadTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -180,7 +193,7 @@
 						CreatedOnToolsVersion = 26.5;
 						TestTargetID = 148991B42FC6736E009A7629;
 					};
-					148991E52FC67575009A7629 = {
+					148992162FC679CD009A7629 = {
 						CreatedOnToolsVersion = 26.5;
 						TestTargetID = 148991B42FC6736E009A7629;
 					};
@@ -202,7 +215,7 @@
 			targets = (
 				148991B42FC6736E009A7629 /* Daythread */,
 				148991CD2FC67371009A7629 /* DaythreadUITests */,
-				148991E52FC67575009A7629 /* DaythreadTests */,
+				148992162FC679CD009A7629 /* DaythreadTests */,
 			);
 		};
 /* End PBXProject section */
@@ -222,7 +235,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		148991E42FC67575009A7629 /* Resources */ = {
+		148992152FC679CD009A7629 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -246,7 +259,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		148991E22FC67575009A7629 /* Sources */ = {
+		148992132FC679CD009A7629 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -261,10 +274,10 @@
 			target = 148991B42FC6736E009A7629 /* Daythread */;
 			targetProxy = 148991CF2FC67371009A7629 /* PBXContainerItemProxy */;
 		};
-		148991ED2FC67575009A7629 /* PBXTargetDependency */ = {
+		1489921C2FC679CD009A7629 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 148991B42FC6736E009A7629 /* Daythread */;
-			targetProxy = 148991EC2FC67575009A7629 /* PBXContainerItemProxy */;
+			targetProxy = 1489921B2FC679CD009A7629 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -496,9 +509,10 @@
 			};
 			name = Release;
 		};
-		148991EF2FC67575009A7629 /* Debug */ = {
+		1489921E2FC679CD009A7629 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 4CD86DZ6WP;
@@ -512,13 +526,14 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Daythread;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Daythread.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Daythread";
 			};
 			name = Debug;
 		};
-		148991F02FC67575009A7629 /* Release */ = {
+		1489921F2FC679CD009A7629 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 4CD86DZ6WP;
@@ -532,7 +547,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Daythread;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Daythread.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Daythread";
 			};
 			name = Release;
 		};
@@ -566,11 +581,11 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		148991EE2FC67575009A7629 /* Build configuration list for PBXNativeTarget "DaythreadTests" */ = {
+		1489921D2FC679CD009A7629 /* Build configuration list for PBXNativeTarget "DaythreadTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				148991EF2FC67575009A7629 /* Debug */,
-				148991F02FC67575009A7629 /* Release */,
+				1489921E2FC679CD009A7629 /* Debug */,
+				1489921F2FC679CD009A7629 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
