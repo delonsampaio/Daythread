@@ -18,6 +18,8 @@ struct TimelineView: View {
 
     @State private var vm = TimelineViewModel()
     @State private var showAddEvent = false
+    @State private var showGroupSync = false
+    @State private var showPaywall = false
     @State private var headerHeight: CGFloat = 0
 
     private var days: [TripDay] {
@@ -91,8 +93,34 @@ struct TimelineView: View {
         .sheet(isPresented: $showAddEvent) {
             AddEditEventSheet(trip: store.activeTrip, day: days.first, vm: vm)
         }
-        .navigationTitle("")
-        .navigationBarHidden(true)
+        .sheet(isPresented: $showGroupSync) {
+            if let trip = store.activeTrip {
+                GroupSyncSheet(trip: trip)
+            }
+        }
+        .sheet(isPresented: $showPaywall) {
+            ProPaywallView()
+        }
+        .navigationTitle(store.activeTrip?.name ?? "Timeline")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if let trip = store.activeTrip {
+                    Button {
+                        guard store.isPro else { showPaywall = true; return }
+                        showGroupSync = true
+                    } label: {
+                        Image(systemName: trip.cloudKitShareID != nil ? "person.2.fill" : "person.2")
+                            .foregroundStyle(trip.cloudKitShareID != nil
+                                             ? ThemeTokens.accent
+                                             : ThemeTokens.textMuted)
+                    }
+                }
+            }
+            #if DEBUG
+            DebugSyncMenuButton()
+            #endif
+        }
         .task { vm.refresh(days: days, lodging: lodging) }
     }
 
@@ -100,7 +128,7 @@ struct TimelineView: View {
 
     @ViewBuilder
     private func dayContent(day: TripDay, dayNumber: Int) -> some View {
-        let events = day.events.sorted { $0.sortOrder < $1.sortOrder }
+        let events = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
         VStack(spacing: 12) {
             ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
                 TimelineItem(event: event, isLast: index == events.count - 1) {

@@ -4,23 +4,25 @@
 //
 //  Created by Delon Sampaio on 5/26/26.
 //
+//  CloudKit compliance: inline property defaults on all non-optional stored properties.
+//
 
 import Foundation
 import SwiftData
 
 @Model
 final class TripEvent {
-    var id: UUID
-    var title: String
+    var id: UUID = UUID()
+    var title: String = ""
     var startTime: Date?
     var endTime: Date?
     var location: String?
     var latitude: Double?
     var longitude: Double?
-    var category: EventCategory   // the currency
-    var isTimeLocked: Bool
-    var sortOrder: Int            // @Query sort key — NOT startTime
-    var notes: String
+    var category: EventCategory = EventCategory.activity
+    var isTimeLocked: Bool = false
+    var sortOrder: Int = 0            // @Query sort key — NOT startTime
+    var notes: String = ""
 
     @Relationship(deleteRule: .cascade) var transitDetails: TransitDetails?
     var day: TripDay?

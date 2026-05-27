@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct DocumentGridView: View {
     let trip: Trip
@@ -19,13 +20,13 @@ struct DocumentGridView: View {
 
     var body: some View {
         Group {
-            if trip.documents.isEmpty {
+            if (trip.documents ?? []).isEmpty {
                 ContentUnavailableView("No documents yet",
                                        systemImage: "doc.fill",
                                        description: Text("Add passports, visas, and boarding passes."))
             } else {
                 LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(trip.documents) { doc in
+                    ForEach(trip.documents ?? []) { doc in
                         documentTile(doc)
                     }
                 }

@@ -4,19 +4,21 @@
 //
 //  Created by Delon Sampaio on 5/26/26.
 //
+//  CloudKit compliance: inline property defaults on all non-optional stored properties.
+//
 
 import Foundation
 import SwiftData
 
 @Model
 final class LodgingInfo {
-    var id: UUID
-    var name: String
-    var address: String
-    var checkIn: Date
-    var checkOut: Date
-    var confirmationNumber: String
-    var notes: String
+    var id: UUID = UUID()
+    var name: String = ""
+    var address: String = ""
+    var checkIn: Date = Date.now
+    var checkOut: Date = Date.now
+    var confirmationNumber: String = ""
+    var notes: String = ""
 
     var trip: Trip?   // pinned to trip, not to a single day
 

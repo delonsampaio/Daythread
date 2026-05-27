@@ -24,15 +24,22 @@ struct DaythreadApp: App {
             TripExpense.self,
             PreTripTask.self
         ])
-        let config = ModelConfiguration(
-            schema: schema,
-            cloudKitDatabase: .private("iCloud.com.delonsampaio.daythread")
-        )
+        // Try CloudKit first; fall back to local SQLite if unavailable (simulator / tests).
+        // NOTE: isStoredInMemoryOnly is intentionally NOT used — @Attribute(.externalStorage)
+        // requires a real file URL and throws when the store has no backing path.
         do {
+            let config = ModelConfiguration(
+                schema: schema,
+                cloudKitDatabase: .private("iCloud.com.delonsampaio.daythread")
+            )
             return try ModelContainer(for: schema, configurations: [config])
         } catch {
-            // Graceful degradation — show recovery UI rather than crashing
-            fatalError("ModelContainer failed to initialize: \(error). Check CloudKit entitlements.")
+            // Fallback: in-memory store — no CloudKit, no file I/O.
+            // isStoredInMemoryOnly init has no cloudKitDatabase parameter, so CloudKit is
+            // explicitly excluded.  All @externalStorage attrs are now Data? so the in-memory
+            // store can handle them (stores nil inline; never tries to write a file).
+            let memConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            return try! ModelContainer(for: schema, configurations: [memConfig])
         }
     }()
 

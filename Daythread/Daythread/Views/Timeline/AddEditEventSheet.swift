@@ -130,7 +130,7 @@ struct AddEditEventSheet: View {
             event.endTime = hasStartTime ? endTime : nil
             if let td = transitDetails { event.transitDetails = td }
         } else {
-            let nextOrder = (targetDay?.events.map(\.sortOrder).max() ?? -1) + 1
+            let nextOrder = ((targetDay?.events ?? []).map(\.sortOrder).max() ?? -1) + 1
             let event = TripEvent(
                 title: title,
                 startTime: hasStartTime ? startTime : nil,

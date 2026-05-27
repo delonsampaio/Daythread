@@ -49,8 +49,8 @@ struct TripCardView: View {
                         .padding(.vertical, 4)
                         .background(Capsule().fill(.black.opacity(0.45)))
                     Spacer()
-                    if !trip.members.isEmpty {
-                        Label("\(trip.members.count)", systemImage: "person.2.fill")
+                    if !(trip.members ?? []).isEmpty {
+                        Label("\((trip.members ?? []).count)", systemImage: "person.2.fill")
                             .font(.caption.bold())
                             .foregroundStyle(.white)
                             .padding(.horizontal, 8)

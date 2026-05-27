@@ -26,7 +26,7 @@ final class VaultViewModel {
         isPro: Bool,
         context: ModelContext
     ) {
-        if !isPro && trip.documents.count >= Self.freeDocumentLimit {
+        if !isPro && (trip.documents ?? []).count >= Self.freeDocumentLimit {
             showPaywall = true
             return
         }

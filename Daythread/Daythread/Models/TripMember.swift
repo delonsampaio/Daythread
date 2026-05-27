@@ -4,18 +4,20 @@
 //
 //  Created by Delon Sampaio on 5/26/26.
 //
+//  CloudKit compliance: inline property defaults on all non-optional stored properties.
+//
 
 import Foundation
 import SwiftData
 
 @Model
 final class TripMember {
-    var id: UUID
-    var appleUserID: String          // CKRecord.ID.recordName
-    var displayName: String
-    var role: MemberRole
+    var id: UUID = UUID()
+    var appleUserID: String = ""          // CKRecord.ID.recordName
+    var displayName: String = ""
+    var role: MemberRole = MemberRole.editor
     @Attribute(.externalStorage) var avatarData: Data?
-    var joinedAt: Date
+    var joinedAt: Date = Date.now
 
     var trip: Trip?
 

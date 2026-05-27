@@ -60,7 +60,7 @@ struct AddDocumentSheet: View {
                 allowsMultipleSelection: false
             ) { result in
                 if case .success(let urls) = result, let url = urls.first {
-                    url.startAccessingSecurityScopedResource()
+                    _ = url.startAccessingSecurityScopedResource()
                     selectedData = try? Data(contentsOf: url)
                     mimeType = url.pathExtension == "pdf" ? "application/pdf" : "image/jpeg"
                     url.stopAccessingSecurityScopedResource()

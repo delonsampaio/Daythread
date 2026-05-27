@@ -4,18 +4,20 @@
 //
 //  Created by Delon Sampaio on 5/26/26.
 //
+//  CloudKit compliance: inline property defaults; events: [TripEvent]? (CloudKit requires optional relationships).
+//
 
 import Foundation
 import SwiftData
 
 @Model
 final class TripDay {
-    var id: UUID
-    var date: Date
-    var sortOrder: Int   // @Query sort key — NOT date
-    var notes: String
+    var id: UUID = UUID()
+    var date: Date = Date.now
+    var sortOrder: Int = 0   // @Query sort key — NOT date
+    var notes: String = ""
 
-    @Relationship(deleteRule: .cascade) var events: [TripEvent]
+    @Relationship(deleteRule: .cascade) var events: [TripEvent]?
     var trip: Trip?
 
     init(

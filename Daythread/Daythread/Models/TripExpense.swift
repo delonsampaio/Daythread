@@ -4,20 +4,22 @@
 //
 //  Created by Delon Sampaio on 5/26/26.
 //
+//  CloudKit compliance: inline property defaults on all non-optional stored properties.
+//
 
 import Foundation
 import SwiftData
 
 @Model
 final class TripExpense {
-    var id: UUID
-    var title: String
-    var amount: Double
-    var currencyCode: String        // ISO 4217 — "EUR", "USD"
-    var category: ExpenseCategory
-    var date: Date
+    var id: UUID = UUID()
+    var title: String = ""
+    var amount: Double = 0.0
+    var currencyCode: String = "USD"        // ISO 4217 — "EUR", "USD"
+    var category: ExpenseCategory = ExpenseCategory.other
+    var date: Date = Date.now
     var paidByMemberID: UUID?       // nil = current user
-    var notes: String
+    var notes: String = ""
 
     var trip: Trip?
 

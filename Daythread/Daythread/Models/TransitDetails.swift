@@ -4,28 +4,30 @@
 //
 //  Created by Delon Sampaio on 5/26/26.
 //
+//  CloudKit compliance: inline property defaults on all non-optional stored properties.
+//
 
 import Foundation
 import SwiftData
 
 @Model
 final class TransitDetails {
-    var id: UUID
-    var carrier: String
-    var flightOrTrainNumber: String
-    var pnr: String
-    var departureCode: String       // IATA airport or station code — "CDG"
-    var arrivalCode: String
-    var departureName: String
-    var arrivalName: String
+    var id: UUID = UUID()
+    var carrier: String = ""
+    var flightOrTrainNumber: String = ""
+    var pnr: String = ""
+    var departureCode: String = ""       // IATA airport or station code — "CDG"
+    var arrivalCode: String = ""
+    var departureName: String = ""
+    var arrivalName: String = ""
     var departureTerminal: String?
     var arrivalTerminal: String?
     var departureGate: String?
     var arrivalGate: String?
     var seatNumber: String?
     var baggageClaim: String?
-    var departureTZIdentifier: String   // TimeZone.identifier — "Europe/Paris"
-    var arrivalTZIdentifier: String
+    var departureTZIdentifier: String = "UTC"   // TimeZone.identifier — "Europe/Paris"
+    var arrivalTZIdentifier: String = "UTC"
 
     var event: TripEvent?
 

@@ -57,7 +57,7 @@ final class TripsViewModel {
     }
 
     func addTask(to trip: Trip, title: String, context: ModelContext) {
-        let nextOrder = (trip.preTripTasks.map(\.sortOrder).max() ?? -1) + 1
+        let nextOrder = ((trip.preTripTasks ?? []).map(\.sortOrder).max() ?? -1) + 1
         let task = PreTripTask(title: title, sortOrder: nextOrder)
         task.trip = trip
         context.insert(task)
