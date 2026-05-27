@@ -11,9 +11,6 @@
 import SwiftUI
 
 
-struct VaultView: View {
-    var body: some View { Text("Vault").font(.largeTitle) }
-}
 
 struct ProfileView: View {
     var body: some View { Text("Profile").font(.largeTitle) }
