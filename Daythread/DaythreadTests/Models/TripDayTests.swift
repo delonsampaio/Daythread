@@ -9,19 +9,20 @@ import XCTest
 import SwiftData
 @testable import Daythread
 
+@MainActor
 final class TripDayTests: XCTestCase {
 
     private var container: ModelContainer!
     private var context: ModelContext!
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         let schema = Schema([Trip.self, TripDay.self, TripEvent.self])
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         container = try ModelContainer(for: schema, configurations: config)
         context = ModelContext(container)
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         context = nil
         container = nil
     }
