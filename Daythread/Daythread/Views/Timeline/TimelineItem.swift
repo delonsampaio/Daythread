@@ -22,14 +22,10 @@ struct TimelineItem<Content: View>: View {
             leftColumn
 
             // Right column: card content
+            // onGeometryChange coalesces measurements into one update per layout pass,
+            // avoiding the "tried to update multiple times per frame" feedback loop.
             content
-                .background(
-                    GeometryReader { geo in
-                        Color.clear
-                            .onAppear { cardHeight = geo.size.height }
-                            .onChange(of: geo.size.height) { _, h in cardHeight = h }
-                    }
-                )
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeight = $0 }
         }
     }
 

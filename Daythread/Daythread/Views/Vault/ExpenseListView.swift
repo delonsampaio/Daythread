@@ -13,11 +13,10 @@ struct ExpenseListView: View {
     let vm: VaultViewModel
 
     @Environment(\.modelContext) private var context
-    @Query(sort: \TripExpense.date, order: .reverse) private var allExpenses: [TripExpense]
     @State private var showAdd = false
 
     private var expenses: [TripExpense] {
-        allExpenses.filter { $0.trip?.id == trip.id }
+        (trip.expenses ?? []).sorted { $0.date > $1.date }
     }
 
     private var totalsByCurrency: [String: Double] {

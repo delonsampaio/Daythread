@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daythread – Support</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f7;
+      color: #1d1d1f;
+      line-height: 1.6;
+    }
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 24px 24px;
+      text-align: center;
+    }
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #1d1d1f;
+    }
+    header p {
+      color: #6e6e73;
+      margin-top: 4px;
+      font-size: 0.95rem;
+    }
+    main {
+      max-width: 720px;
+      margin: 40px auto;
+      padding: 0 24px;
+    }
+    section {
+      background: #fff;
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 24px;
+    }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #1d1d1f;
+    }
+    details {
+      border-bottom: 1px solid #f0f0f0;
+      padding: 12px 0;
+    }
+    details:last-child { border-bottom: none; }
+    summary {
+      font-weight: 500;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary::after {
+      content: "+";
+      font-size: 1.2rem;
+      color: #6e6e73;
+      flex-shrink: 0;
+      margin-left: 12px;
+    }
+    details[open] summary::after { content: "−"; }
+    details p {
+      margin-top: 10px;
+      color: #6e6e73;
+      font-size: 0.95rem;
+    }
+    .pro {
+      display: inline-block;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: #fff;
+      background: #007aff;
+      border-radius: 4px;
+      padding: 1px 6px;
+      margin-left: 7px;
+      vertical-align: middle;
+      line-height: 1.6;
+      flex-shrink: 0;
+    }
+    .contact a {
+      color: #007aff;
+      text-decoration: none;
+    }
+    .contact a:hover { text-decoration: underline; }
+    footer {
+      text-align: center;
+      padding: 32px 24px;
+      color: #6e6e73;
+      font-size: 0.85rem;
+    }
+    footer a { color: #6e6e73; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Daythread</h1>
+  <p>Trip &amp; Itinerary Builder — Support &amp; Help</p>
+</header>
+
+<main>
+
+  <section>
+    <h2>Getting Started</h2>
+    <details>
+      <summary>How do I create my first trip?</summary>
+      <p>Tap the Trips tab, then tap the + button. The wizard walks you through naming your trip, setting the destination and dates, and optionally adding a cover photo. Once saved, the app switches to your new trip in the Timeline.</p>
+    </details>
+    <details>
+      <summary>How do I switch between trips?</summary>
+      <p>The horizontal strip at the top of the Timeline shows all your trips. Tap any trip to make it active, or swipe left and right to cycle through them.</p>
+    </details>
+    <details>
+      <summary>How do I add an event to my itinerary?</summary>
+      <p>In the Timeline, tap the blue + button in the bottom-right corner to open the Add Event sheet. Choose a category (Flight, Hotel, Restaurant, Museum, Activity, etc.), fill in the details, and save.</p>
+    </details>
+    <details>
+      <summary>What categories of events can I add?</summary>
+      <p>Daythread supports: Flight, Train, Bus, Ferry (transit), Hotel, Rental Property, Restaurant, Café, Bar, Museum, Attraction, Tour, Show, Activity, Sport, Hike, Shopping, and Other. Transit categories open an extended form for carrier, flight/train number, PNR, and seat.</p>
+    </details>
+    <details>
+      <summary>How do I reorder events in my day?</summary>
+      <p>Long-press and drag any event card up or down to reorder it within the day. Time-Locked events cannot be dragged — they stay anchored in place.</p>
+    </details>
+    <details>
+      <summary>How do I edit or delete an event?</summary>
+      <p>Long-press any event card to reveal the context menu. You can Lock/Unlock the event, or Delete it. To edit details, tap the card to open the edit sheet.</p>
+    </details>
+  </section>
+
+  <section>
+    <h2>Timeline</h2>
+    <details>
+      <summary>What is a Time-Locked event?</summary>
+      <p>A Time-Locked event is anchored to its time slot and cannot be dragged to a new position. Use it for flights, tour bookings, or any event with a fixed start time. Tap "Lock Event" from the context menu to lock it — a padlock icon appears on the card.</p>
+    </details>
+    <details>
+      <summary>What does the lodging banner at the top show?</summary>
+      <p>If you've added lodging that covers today's date, a banner appears just below the trip switcher strip showing your current accommodation. It updates automatically as your check-in and check-out dates change.</p>
+    </details>
+    <details>
+      <summary>How are transit events different from regular events?</summary>
+      <p>Flight, Train, Bus, and Ferry events show a detailed card with carrier name, flight or train number, PNR code, terminal and gate, seat number, baggage claim, and timezone-corrected times. Fill in the transit details form after choosing one of these categories.</p>
+    </details>
+    <details>
+      <summary>Can I add notes to an event?</summary>
+      <p>Yes. The Add/Edit Event sheet has a notes field where you can save anything relevant — confirmation numbers, meeting points, dress codes, etc.</p>
+    </details>
+    <details>
+      <summary>How do I add lodging to a trip?</summary>
+      <p>From the Timeline, tap the + button and choose Hotel or Rental Property. Enter check-in and check-out dates, the property name, address, and confirmation number. Lodging covers the whole trip, not a single day.</p>
+    </details>
+  </section>
+
+  <section>
+    <h2>Trips</h2>
+    <details>
+      <summary>How are trips organised?</summary>
+      <p>The Trips tab groups your trips into Current, Upcoming, Past, and Archived. A trip is "Current" if today falls within its start and end dates, "Upcoming" if it's in the future, and "Past" after it ends.</p>
+    </details>
+    <details>
+      <summary>How do I archive a trip?</summary>
+      <p>Swipe left on any trip in the Trips list and tap Archive. Archived trips are hidden from the active switcher strip but remain accessible in the Archived section so you can refer back to them.</p>
+    </details>
+    <details>
+      <summary>How do I delete a trip?</summary>
+      <p>Swipe left on a trip in the Trips list and tap Delete. This permanently removes the trip and all its days, events, documents, and expenses.</p>
+    </details>
+    <details>
+      <summary>What are Pre-Trip Tasks?</summary>
+      <p>Pre-Trip Tasks are a checklist you can attach to any trip for things to do before you leave — booking insurance, printing documents, packing specific items, etc. Tap a trip in the Trips tab and scroll to the Tasks section.</p>
+    </details>
+    <details>
+      <summary>Can I add a cover photo to a trip?</summary>
+      <p>Yes. During trip creation, step 3 lets you pick a cover photo from your photo library. You can also update it later by tapping the trip card in the Trips list and editing the trip.</p>
+    </details>
+  </section>
+
+  <section>
+    <h2>Vault (Documents &amp; Expenses)</h2>
+    <details>
+      <summary>What can I store in the Vault?</summary>
+      <p>The Vault holds two things: Documents (passports, visas, insurance cards, boarding passes, hotel confirmations — as PDFs or images) and Expenses (a running log of what you've spent per trip).</p>
+    </details>
+    <details>
+      <summary>How do I add a document?</summary>
+      <p>Go to Vault → Documents tab and tap +. You can import from your Files app (PDF or image), take a photo with your camera, or pick from your photo library. Give it a title and an optional expiry date.</p>
+    </details>
+    <details>
+      <summary>How many documents can I store for free?</summary>
+      <p>Free users can store up to 5 documents per trip. Upgrade to Pro for unlimited document storage.</p>
+    </details>
+    <details>
+      <summary>How do I log an expense?</summary>
+      <p>Go to Vault → Expenses tab and tap +. Enter the amount, currency, category (Food, Transport, Lodging, Activity, Shopping, or Other), date, and who paid. The Expenses tab shows a running total per currency.</p>
+    </details>
+    <details>
+      <summary>Can the app split expenses between group members? <span class="pro">PRO</span></summary>
+      <p>Yes — expense debt splitting is a Pro feature. Once your trip is shared with co-editors, the Expenses tab shows a summary of who owes whom and the net amounts, minimising the number of transactions needed to settle up.</p>
+    </details>
+  </section>
+
+  <section>
+    <h2>Co-editing &amp; Sync</h2>
+    <details>
+      <summary>How do I share a trip with travel companions? <span class="pro">PRO</span></summary>
+      <p>In the Timeline, tap the people icon in the top-right corner to open Group Sync. Tap "Invite People to This Trip" — this creates a shared CloudKit zone for the trip. Once the share is active, you can send the invite link via Messages or any app.</p>
+    </details>
+    <details>
+      <summary>Can co-editors change the itinerary? <span class="pro">PRO</span></summary>
+      <p>Yes. Editors can add, reorder, lock, and delete events just like the trip owner. Viewer-role members see the itinerary in read-only mode.</p>
+    </details>
+    <details>
+      <summary>How quickly do changes appear for co-editors? <span class="pro">PRO</span></summary>
+      <p>Updates arrive via CloudKit push and typically appear within a few seconds. This is not a live socket — think "seconds, not instant". The timeline refreshes automatically in the background.</p>
+    </details>
+    <details>
+      <summary>Does my data sync across my own devices?</summary>
+      <p>Yes. If you're signed into the same iCloud account on multiple devices, your trips, events, documents, and expenses sync automatically. Changes propagate in the background without any manual action.</p>
+    </details>
+    <details>
+      <summary>What happens if two people edit at the same time?</summary>
+      <p>CloudKit handles merge conflicts automatically. In most cases both edits are preserved. If two people change the same field simultaneously, the last write wins.</p>
+    </details>
+    <details>
+      <summary>How do I stop sharing a trip? <span class="pro">PRO</span></summary>
+      <p>Open Group Sync (the people icon in the Timeline toolbar) and tap "Stop Sharing". This removes the shared CloudKit zone. Co-editors will no longer see updates.</p>
+    </details>
+  </section>
+
+  <section>
+    <h2>Pro Features</h2>
+    <details>
+      <summary>What's included in Daythread Pro? <span class="pro">PRO</span></summary>
+      <p>Pro unlocks: Unlimited document storage · Expense splitting with debt minimisation · Trip sharing &amp; co-editing with real-time CloudKit sync · ETA badges between events · Role-based permissions (admin / editor / viewer).</p>
+    </details>
+    <details>
+      <summary>How do I upgrade to Pro? <span class="pro">PRO</span></summary>
+      <p>Go to the Profile tab and tap "Upgrade to Pro". The one-time $9.99 Lifetime purchase includes Family Sharing — everyone in your iCloud Family can use Pro features.</p>
+    </details>
+    <details>
+      <summary>How do I restore my Pro purchase on a new device? <span class="pro">PRO</span></summary>
+      <p>Go to Profile → Settings and tap "Restore Purchases". As long as you're signed into the same Apple ID that made the original purchase, Pro will be restored instantly.</p>
+    </details>
+    <details>
+      <summary>What are ETA badges? <span class="pro">PRO</span></summary>
+      <p>ETA badges appear between consecutive events on the same day and show the estimated travel time — for example, "12 min walk →". They are calculated using Apple Maps and require a network connection.</p>
+    </details>
+    <details>
+      <summary>I'm not receiving Pro features after purchasing. What should I do?</summary>
+      <p>Try restoring purchases from Profile → Settings → Restore Purchases. Make sure you're signed into the same Apple ID used to purchase. If the issue persists, email us at <a href="mailto:delon.sampaio+daythread@gmail.com">delon.sampaio+daythread@gmail.com</a> with your order number.</p>
+    </details>
+  </section>
+
+  <section class="contact">
+    <h2>Still need help?</h2>
+    <p>Send us an email and we'll get back to you as soon as possible.</p>
+    <p style="margin-top: 12px;"><a href="mailto:delon.sampaio+daythread@gmail.com">delon.sampaio+daythread@gmail.com</a></p>
+  </section>
+
+</main>
+
+<footer>
+  <p><a href="privacy.html">Privacy Policy</a> &nbsp;·&nbsp; &copy; 2026 Delon Sampaio</p>
+</footer>
+
+</body>
+</html>

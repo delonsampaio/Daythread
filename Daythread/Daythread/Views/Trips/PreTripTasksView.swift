@@ -13,11 +13,10 @@ struct PreTripTasksView: View {
     let vm: TripsViewModel
 
     @Environment(\.modelContext) private var context
-    @Query(sort: \PreTripTask.sortOrder) private var allTasks: [PreTripTask]
     @State private var newTaskTitle: String = ""
 
     private var tasks: [PreTripTask] {
-        allTasks.filter { $0.trip?.id == trip.id }
+        (trip.preTripTasks ?? []).sorted { $0.sortOrder < $1.sortOrder }
     }
 
     var body: some View {

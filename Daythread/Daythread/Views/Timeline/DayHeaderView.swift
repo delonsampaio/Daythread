@@ -12,9 +12,7 @@ struct DayHeaderView: View {
     let dayNumber: Int
 
     private var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMMM d"
-        return formatter.string(from: day.date)
+        day.date.formatted(.dateTime.weekday(.wide).month(.wide).day())
     }
 
     var body: some View {

@@ -16,7 +16,6 @@ struct AddEditEventSheet: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @Query(sort: \TripDay.sortOrder) private var allDays: [TripDay]
 
     @State private var title: String = ""
     @State private var category: EventCategory = .activity
@@ -31,8 +30,7 @@ struct AddEditEventSheet: View {
     @State private var transitDetails: TransitDetails?
 
     private var tripDays: [TripDay] {
-        guard let trip else { return [] }
-        return allDays.filter { $0.trip?.id == trip.id }
+        (trip?.days ?? []).sorted { $0.sortOrder < $1.sortOrder }
     }
 
     var body: some View {

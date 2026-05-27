@@ -12,25 +12,22 @@ struct TimelineView: View {
     @Environment(TripStore.self) private var store
     @Environment(\.modelContext) private var context
 
-    // Pragmatic B: @Query stays in the view — CloudKit background syncs auto-refresh
-    @Query(sort: \TripDay.sortOrder) private var allDays: [TripDay]
-    @Query private var allLodging: [LodgingInfo]
+    // Relationship-based access: one O(1) fault to load trip.days / trip.lodging,
+    // reactive via @Observable on Trip (@Model). No @Query predicate needed —
+    // avoids the N+1 lazy relationship faults that caused the tab-switch freeze.
+    private var days: [TripDay] {
+        (store.activeTrip?.days ?? []).sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    private var lodging: [LodgingInfo] {
+        store.activeTrip?.lodging ?? []
+    }
 
     @State private var vm = TimelineViewModel()
     @State private var showAddEvent = false
     @State private var showGroupSync = false
     @State private var showPaywall = false
     @State private var headerHeight: CGFloat = 0
-
-    private var days: [TripDay] {
-        guard let active = store.activeTrip else { return [] }
-        return allDays.filter { $0.trip?.id == active.id }
-    }
-
-    private var lodging: [LodgingInfo] {
-        guard let active = store.activeTrip else { return [] }
-        return allLodging.filter { $0.trip?.id == active.id }
-    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -62,13 +59,7 @@ struct TimelineView: View {
                     LodgingBannerView(lodging: activeLodging)
                 }
             }
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .onAppear { headerHeight = geo.size.height }
-                        .onChange(of: geo.size.height) { _, h in headerHeight = h }
-                }
-            )
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
 
             // FAB (floating action button)
             if store.activeTrip != nil {

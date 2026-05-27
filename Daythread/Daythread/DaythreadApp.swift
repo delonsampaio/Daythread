@@ -11,8 +11,36 @@ import SwiftData
 @main
 struct DaythreadApp: App {
     @State private var store = TripStore()
+    @State private var container: ModelContainer?
 
-    var container: ModelContainer = {
+    var body: some Scene {
+        WindowGroup {
+            Group {
+                if let container {
+                    RootTabView()
+                        .modelContainer(container)
+                        .environment(store)
+                } else {
+                    LaunchSplashView()
+                }
+            }
+            .task {
+                guard container == nil else { return }
+                // Yield for ~2 frames so SwiftUI can commit the splash to the
+                // display server before the synchronous ModelContainer init runs.
+                //
+                // ModelContainer.init requires @MainActor internally — calling it
+                // off-actor deadlocks (background thread waits for MainActor which
+                // is already suspended waiting for the background thread). So we
+                // stay on @MainActor, but ensure the splash paints first so the
+                // user never sees a frozen white screen.
+                try? await Task.sleep(for: .milliseconds(32))
+                container = Self.makeContainer()
+            }
+        }
+    }
+
+    private static func makeContainer() -> ModelContainer {
         let schema = Schema([
             Trip.self,
             TripDay.self,
@@ -24,9 +52,16 @@ struct DaythreadApp: App {
             TripExpense.self,
             PreTripTask.self
         ])
-        // Try CloudKit first; fall back to local SQLite if unavailable (simulator / tests).
-        // NOTE: isStoredInMemoryOnly is intentionally NOT used — @Attribute(.externalStorage)
-        // requires a real file URL and throws when the store has no backing path.
+
+        #if targetEnvironment(simulator)
+        // Simulator has no iCloud account. CloudKit's recovery process can block
+        // for 30–60 s waiting for a network timeout, causing the app to hang.
+        // Use in-memory on Simulator so tests and dev iteration are instant.
+        let simConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        return try! ModelContainer(for: schema, configurations: [simConfig])
+        #else
+        // Real device — try CloudKit (fast with a valid iCloud account).
+        // Falls back to in-memory only if the device has no iCloud access at all.
         do {
             let config = ModelConfiguration(
                 schema: schema,
@@ -34,20 +69,23 @@ struct DaythreadApp: App {
             )
             return try ModelContainer(for: schema, configurations: [config])
         } catch {
-            // Fallback: in-memory store — no CloudKit, no file I/O.
-            // isStoredInMemoryOnly init has no cloudKitDatabase parameter, so CloudKit is
-            // explicitly excluded.  All @externalStorage attrs are now Data? so the in-memory
-            // store can handle them (stores nil inline; never tries to write a file).
             let memConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
             return try! ModelContainer(for: schema, configurations: [memConfig])
         }
-    }()
+        #endif
+    }
+}
 
-    var body: some Scene {
-        WindowGroup {
-            RootTabView()
-                .modelContainer(container)
-                .environment(store)
+private struct LaunchSplashView: View {
+    var body: some View {
+        ZStack {
+            Color(.systemBackground).ignoresSafeArea()
+            VStack(spacing: 16) {
+                Image(systemName: "airplane.departure")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.tint)
+                ProgressView()
+            }
         }
     }
 }

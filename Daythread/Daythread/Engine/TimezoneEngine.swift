@@ -13,12 +13,11 @@ struct TimezoneEngine {
 
     /// Formats `date` as a local time string in the given timezone.
     /// Uses 12h or 24h based on the user's locale.
+    /// `Date.FormatStyle` is internally pooled — avoids the cost of `DateFormatter()` alloc per cell.
     nonisolated static func displayTime(date: Date, in timezone: TimeZone) -> String {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        formatter.dateStyle = .none
-        formatter.timeZone = timezone
-        return formatter.string(from: date)
+        var style: Date.FormatStyle = .dateTime.hour().minute()
+        style.timeZone = timezone
+        return date.formatted(style)
     }
 
     /// Returns true if the arrival falls on a later calendar day in the destination
