@@ -38,7 +38,7 @@ struct DaythreadApp: App {
         }
     }
 
-    private static func makeContainer() -> ModelContainer {
+    private nonisolated static func makeContainer() -> ModelContainer {
         let schema = Schema([
             Trip.self,
             TripDay.self,
