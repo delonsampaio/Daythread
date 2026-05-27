@@ -10,9 +10,6 @@
 
 import SwiftUI
 
-struct TripsListView: View {
-    var body: some View { Text("Trips").font(.largeTitle) }
-}
 
 struct VaultView: View {
     var body: some View { Text("Vault").font(.largeTitle) }
