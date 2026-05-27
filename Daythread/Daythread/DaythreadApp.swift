@@ -58,18 +58,9 @@ struct DaythreadApp: App {
         let simConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         return try! ModelContainer(for: schema, configurations: [simConfig])
         #else
-        // Real device — try CloudKit (fast with a valid iCloud account).
-        // Falls back to in-memory only if the device has no iCloud access at all.
-        do {
-            let config = ModelConfiguration(
-                schema: schema,
-                cloudKitDatabase: .private("iCloud.com.delonsampaio.daythread")
-            )
-            return try ModelContainer(for: schema, configurations: [config])
-        } catch {
-            let memConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-            return try! ModelContainer(for: schema, configurations: [memConfig])
-        }
+        // TEST: local store only — bypassing CloudKit to isolate launch hang
+        let localConfig = ModelConfiguration(schema: schema)
+        return try! ModelContainer(for: schema, configurations: [localConfig])
         #endif
     }
 }
