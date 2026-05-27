@@ -26,16 +26,14 @@ struct DaythreadApp: App {
             }
             .task {
                 guard container == nil else { return }
-                // Yield for ~2 frames so SwiftUI can commit the splash to the
-                // display server before the synchronous ModelContainer init runs.
-                //
-                // ModelContainer.init requires @MainActor internally — calling it
-                // off-actor deadlocks (background thread waits for MainActor which
-                // is already suspended waiting for the background thread). So we
-                // stay on @MainActor, but ensure the splash paints first so the
-                // user never sees a frozen white screen.
-                try? await Task.sleep(for: .milliseconds(32))
-                container = Self.makeContainer()
+                // Run container init on a background thread so CloudKit's
+                // blocking setup (can take 1-3s on first launch) doesn't
+                // freeze the main thread. The splash stays visible until
+                // the container is ready, then SwiftUI swaps in RootTabView.
+                let built = await Task.detached(priority: .userInitiated) {
+                    Self.makeContainer()
+                }.value
+                container = built
             }
         }
     }
