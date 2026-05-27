@@ -32,11 +32,14 @@ final class TripDayTests: XCTestCase {
         context.insert(trip)
 
         let base = Date.now
-        let day2 = TripDay(date: base,                        sortOrder: 2)
-        let day0 = TripDay(date: base.addingTimeInterval(86400), sortOrder: 0)
+        let day2 = TripDay(date: base,                           sortOrder: 2)
+        let day0 = TripDay(date: base.addingTimeInterval(86400),  sortOrder: 0)
         let day1 = TripDay(date: base.addingTimeInterval(172800), sortOrder: 1)
 
-        trip.days.append(contentsOf: [day2, day0, day1])
+        for day in [day2, day0, day1] {
+            context.insert(day)
+            day.trip = trip
+        }
         try context.save()
 
         let descriptor = FetchDescriptor<TripDay>(
@@ -52,8 +55,10 @@ final class TripDayTests: XCTestCase {
     func testDeleteTripCascadesToDays() throws {
         let trip = Trip(name: "Cascade", destination: "Anywhere", startDate: .now, endDate: .now)
         context.insert(trip)
-        trip.days.append(TripDay(date: .now, sortOrder: 0))
-        trip.days.append(TripDay(date: .now, sortOrder: 1))
+        let d0 = TripDay(date: .now, sortOrder: 0)
+        let d1 = TripDay(date: .now, sortOrder: 1)
+        context.insert(d0); d0.trip = trip
+        context.insert(d1); d1.trip = trip
         try context.save()
 
         context.delete(trip)
