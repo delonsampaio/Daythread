@@ -27,6 +27,7 @@
 		148991B52FC6736E009A7629 /* Daythread.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Daythread.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		148991CE2FC67371009A7629 /* DaythreadUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DaythreadUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		148992172FC679CD009A7629 /* DaythreadTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DaythreadTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		148999AD2FC76070009A7629 /* Daythread.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = Daythread.xctestplan; path = ../Daythread.xctestplan; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -89,6 +90,7 @@
 		148991AC2FC6736E009A7629 = {
 			isa = PBXGroup;
 			children = (
+				148999AD2FC76070009A7629 /* Daythread.xctestplan */,
 				148991B72FC6736E009A7629 /* Daythread */,
 				148991D12FC67371009A7629 /* DaythreadUITests */,
 				148992182FC679CD009A7629 /* DaythreadTests */,

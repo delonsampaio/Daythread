@@ -1,0 +1,35 @@
+{
+  "configurations" : [
+    {
+      "id" : "17A95766-2CB3-498C-83FD-D8B49EA5761E",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:Daythread.xcodeproj",
+        "identifier" : "148991CD2FC67371009A7629",
+        "name" : "DaythreadUITests"
+      }
+    },
+    {
+      "skippedTests" : [
+        "DaythreadTestsLaunchTests",
+        "DaythreadTestsLaunchTests\/testLaunch()"
+      ],
+      "target" : {
+        "containerPath" : "container:Daythread.xcodeproj",
+        "identifier" : "148992162FC679CD009A7629",
+        "name" : "DaythreadTests"
+      }
+    }
+  ],
+  "version" : 1
+}
