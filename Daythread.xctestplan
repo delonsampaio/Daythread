@@ -20,10 +20,6 @@
       }
     },
     {
-      "skippedTests" : [
-        "DaythreadTestsLaunchTests",
-        "DaythreadTestsLaunchTests\/testLaunch()"
-      ],
       "target" : {
         "containerPath" : "container:Daythread.xcodeproj",
         "identifier" : "148992162FC679CD009A7629",
