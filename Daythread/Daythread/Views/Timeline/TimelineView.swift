@@ -74,10 +74,8 @@ struct TimelineView: View {
                 }
             }
         }
-        // Critical: two-argument .onChange so CloudKit background syncs auto-refresh
-        .onChange(of: days) { _, newDays in
-            vm.refresh(days: newDays, lodging: lodging)
-        }
+        // Only lodging changes need to recompute activeLodging — days changes are
+        // handled automatically by @Observable on Trip.
         .onChange(of: lodging) { _, newLodging in
             vm.refresh(days: days, lodging: newLodging)
         }
