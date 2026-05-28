@@ -31,8 +31,8 @@ final class VaultViewModel {
             return
         }
         let doc = TripDocument(title: title, documentData: data, mimeType: mimeType)
-        doc.trip = trip
         context.insert(doc)
+        doc.trip = trip
         try? context.save()
     }
 
@@ -44,8 +44,8 @@ final class VaultViewModel {
     // MARK: — Expenses
 
     func addExpense(_ expense: TripExpense, to trip: Trip, context: ModelContext) {
-        expense.trip = trip
         context.insert(expense)
+        expense.trip = trip
         try? context.save()
     }
 
@@ -61,8 +61,8 @@ final class VaultViewModel {
     /// to a real iCloud account when the person joins via CloudKit.
     func addVirtualMember(name: String, to trip: Trip, context: ModelContext) {
         let member = TripMember(appleUserID: "", displayName: name, role: .editor)
-        member.trip = trip
         context.insert(member)
+        member.trip = trip
         try? context.save()
     }
 
