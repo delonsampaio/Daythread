@@ -9,7 +9,6 @@ import SwiftUI
 import SwiftData
 
 struct TripsListView: View {
-    @Environment(TripStore.self) private var store
     @Environment(\.modelContext) private var context
 
     @Query(sort: \Trip.startDate) private var allTrips: [Trip]
@@ -72,7 +71,6 @@ struct TripsListView: View {
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
-                        Button("Set as Active") { store.activeTrip = trip }
                         if trip.isArchived {
                             Button("Unarchive") { vm.unarchiveTrip(trip, context: context) }
                         } else {
