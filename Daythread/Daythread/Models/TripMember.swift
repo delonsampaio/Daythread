@@ -13,9 +13,16 @@ import SwiftData
 @Model
 final class TripMember {
     var id: UUID = UUID()
-    var appleUserID: String = ""          // CKRecord.ID.recordName
+    /// CKRecord.ID.recordName for real co-editors; empty string for virtual/shadow members.
+    /// Virtual members exist only for expense splitting — they have no iCloud account yet.
+    /// When a real user joins via CloudKit, set their appleUserID to link the accounts.
+    var appleUserID: String = ""
     var displayName: String = ""
     var role: MemberRole = MemberRole.editor
+
+    /// True when this member was added manually for expense splitting
+    /// and has not yet been linked to a real iCloud account.
+    var isVirtual: Bool { appleUserID.isEmpty }
     @Attribute(.externalStorage) var avatarData: Data?
     var joinedAt: Date = Date.now
 

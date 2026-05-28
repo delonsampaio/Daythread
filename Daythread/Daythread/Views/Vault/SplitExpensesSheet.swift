@@ -4,15 +4,19 @@
 //
 //  Created by Delon Sampaio on 5/28/26.
 //
-//  Shows who owes whom after splitting all expenses evenly among participants.
-//  Participants are plain display-name strings stored on the Trip model —
-//  no CloudKit account required.
+//  Shows who owes whom after splitting expenses among trip members.
+//  Members are TripMember instances — virtual (isVirtual = true, no Apple ID)
+//  for manually-added participants, or real for CloudKit co-editors.
+//
+//  "Mark Settled" creates a new TripExpense so the algorithm self-corrects
+//  without a separate settlements table.
 
 import SwiftUI
 import SwiftData
 
 struct SplitExpensesSheet: View {
     let trip: Trip
+    let vm: VaultViewModel
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -20,22 +24,18 @@ struct SplitExpensesSheet: View {
     @State private var newName: String = ""
     @FocusState private var nameFieldFocused: Bool
 
-    private var participants: [String] { trip.participantNames }
-    private var expenses: [TripExpense]  { trip.expenses ?? [] }
+    private var members: [TripMember] {
+        (trip.members ?? []).sorted { $0.displayName < $1.displayName }
+    }
+    private var expenses: [TripExpense] { trip.expenses ?? [] }
     private var settlements: [Settlement] { computeSettlements() }
 
     var body: some View {
         NavigationStack {
             List {
-                participantsSection
-                if participants.count >= 2 && !expenses.isEmpty {
+                membersSection
+                if members.count >= 2 {
                     settlementsSection
-                } else if participants.count >= 2 {
-                    Section("Settlements") {
-                        Text("Add expenses to see who owes whom.")
-                            .font(.subheadline)
-                            .foregroundStyle(ThemeTokens.textSecondary)
-                    }
                 } else {
                     Section {
                         Label("Add at least 2 participants to split expenses.",
@@ -56,18 +56,28 @@ struct SplitExpensesSheet: View {
         }
     }
 
-    // MARK: — Participants section
+    // MARK: — Members section
 
-    private var participantsSection: some View {
-        Section("Participants") {
-            ForEach(participants, id: \.self) { name in
-                Text(name)
+    private var membersSection: some View {
+        Section {
+            ForEach(members) { member in
+                HStack {
+                    Text(member.displayName)
+                    Spacer()
+                    if !member.isVirtual {
+                        // Real co-editor — managed via GroupSync
+                        Text("Co-editor")
+                            .font(.caption)
+                            .foregroundStyle(ThemeTokens.textMuted)
+                    }
+                }
             }
             .onDelete { indexSet in
-                var names = trip.participantNames
-                names.remove(atOffsets: indexSet)
-                trip.participantNames = names
-                try? context.save()
+                // Only allow deleting virtual members from this sheet.
+                let virtualMembers = members.filter(\.isVirtual)
+                indexSet
+                    .compactMap { virtualMembers[safe: $0] }
+                    .forEach { vm.removeMember($0, context: context) }
             }
 
             HStack {
@@ -82,6 +92,14 @@ struct SplitExpensesSheet: View {
                     .buttonStyle(.plain)
                 }
             }
+        } header: {
+            Text("Participants")
+        } footer: {
+            if members.count < 2 {
+                Text("Real co-editors appear automatically when they join the trip.")
+                    .font(.caption)
+                    .foregroundStyle(ThemeTokens.textMuted)
+            }
         }
     }
 
@@ -89,38 +107,55 @@ struct SplitExpensesSheet: View {
 
     private var settlementsSection: some View {
         Section {
-            if settlements.isEmpty {
-                HStack {
+            if expenses.isEmpty {
+                Text("Add expenses to see who owes whom.")
+                    .font(.subheadline)
+                    .foregroundStyle(ThemeTokens.textSecondary)
+            } else if settlements.isEmpty {
+                HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                     Text("Everyone is even!")
                         .foregroundStyle(ThemeTokens.textPrimary)
                 }
             } else {
-                ForEach(settlements) { settlement in
+                ForEach(settlements) { s in
                     HStack(spacing: 0) {
-                        Text(settlement.from)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(ThemeTokens.textPrimary)
-                        Text(" owes ")
-                            .font(.system(size: 14))
-                            .foregroundStyle(ThemeTokens.textSecondary)
-                        Text(settlement.to)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(ThemeTokens.textPrimary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 0) {
+                                Text(s.debtorName)
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text(" owes ")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(ThemeTokens.textSecondary)
+                                Text(s.creditorName)
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
+                            Text(String(format: "%.2f %@", s.amount, s.currency))
+                                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                                .foregroundStyle(ThemeTokens.accent)
+                        }
                         Spacer()
-                        Text(String(format: "%.2f %@", settlement.amount, settlement.currency))
-                            .font(.system(size: 14, weight: .bold, design: .monospaced))
-                            .foregroundStyle(ThemeTokens.accent)
+                        Button("Settle") {
+                            settleDebt(s)
+                        }
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(ThemeTokens.accent))
                     }
+                    .padding(.vertical, 2)
                 }
             }
         } header: {
             Text("Settlements")
         } footer: {
-            Text("Expenses are split evenly among all \(participants.count) participants.")
-                .font(.caption)
-                .foregroundStyle(ThemeTokens.textMuted)
+            if !settlements.isEmpty {
+                Text("Tap Settle to record a payment. The debt zeroes automatically.")
+                    .font(.caption)
+                    .foregroundStyle(ThemeTokens.textMuted)
+            }
         }
     }
 
@@ -128,43 +163,70 @@ struct SplitExpensesSheet: View {
 
     private func addParticipant() {
         let name = newName.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty, !participants.contains(name) else { return }
-        trip.participantNames.append(name)
-        try? context.save()
+        guard !name.isEmpty,
+              !members.map(\.displayName).contains(name) else { return }
+        vm.addVirtualMember(name: name, to: trip, context: context)
         newName = ""
+    }
+
+    private func settleDebt(_ s: Settlement) {
+        guard let debtor   = members.first(where: { $0.id == s.debtorID }),
+              let creditor = members.first(where: { $0.id == s.creditorID }) else { return }
+        vm.settleDebt(debtor: debtor, creditor: creditor,
+                      amount: s.amount, currencyCode: s.currency,
+                      trip: trip, context: context)
+        HapticManager.shared.sheetConfirm()
     }
 
     // MARK: — Debt minimisation
 
-    private struct Settlement: Identifiable {
+    struct Settlement: Identifiable {
         let id = UUID()
-        let from: String
-        let to: String
+        let debtorID: UUID
+        let creditorID: UUID
+        let debtorName: String
+        let creditorName: String
         let amount: Double
         let currency: String
     }
 
     private func computeSettlements() -> [Settlement] {
-        guard participants.count >= 2, !expenses.isEmpty else { return [] }
+        guard members.count >= 2, !expenses.isEmpty else { return [] }
 
+        let memberIDs = Set(members.map(\.id))
         let currencies = Set(expenses.map(\.currencyCode))
+        let nameFor: (UUID) -> String = { id in
+            members.first { $0.id == id }?.displayName ?? "?"
+        }
+
         return currencies.flatMap { currency -> [Settlement] in
-            var balance: [String: Double] = [:]
-            for p in participants { balance[p] = 0 }
+            var balance: [UUID: Double] = [:]
+            for m in members { balance[m.id] = 0 }
 
             for expense in expenses where expense.currencyCode == currency {
-                // Use paidBy if it's a known participant, otherwise default to first.
-                let payer = participants.contains(expense.paidBy) ? expense.paidBy : participants[0]
+                guard let payer = expense.paidByMemberID,
+                      memberIDs.contains(payer) else { continue }
+
+                // Resolve who this expense is split among.
+                // Empty splitAmongIDs means "everyone".
+                let participants: [UUID] = expense.splitAmongIDs.isEmpty
+                    ? members.map(\.id)
+                    : expense.splitAmongIDs.filter { memberIDs.contains($0) }
+
+                guard !participants.isEmpty else { continue }
                 let share = expense.amount / Double(participants.count)
+
                 balance[payer, default: 0] += expense.amount
                 for p in participants {
                     balance[p, default: 0] -= share
                 }
             }
 
-            // Greedy debt minimisation (same algorithm as ExpenseSplitter engine).
-            var creditors = balance.filter { $0.value >  0.005 }.map { ($0.key, $0.value) }.sorted { $0.1 > $1.1 }
-            var debtors   = balance.filter { $0.value < -0.005 }.map { ($0.key, -$0.value) }.sorted { $0.1 > $1.1 }
+            // Greedy minimisation: largest creditor vs largest debtor.
+            var creditors = balance.filter { $0.value >  0.005 }
+                .map { ($0.key, $0.value) }.sorted { $0.1 > $1.1 }
+            var debtors   = balance.filter { $0.value < -0.005 }
+                .map { ($0.key, -$0.value) }.sorted { $0.1 > $1.1 }
 
             var result: [Settlement] = []
             var ci = 0, di = 0
@@ -173,9 +235,11 @@ struct SplitExpensesSheet: View {
                 let payment = min(creditors[ci].1, debtors[di].1)
                 if payment > 0.005 {
                     result.append(Settlement(
-                        from: debtors[di].0,
-                        to:   creditors[ci].0,
-                        amount: (payment * 100).rounded() / 100,
+                        debtorID:    debtors[di].0,
+                        creditorID:  creditors[ci].0,
+                        debtorName:  nameFor(debtors[di].0),
+                        creditorName: nameFor(creditors[ci].0),
+                        amount:   (payment * 100).rounded() / 100,
                         currency: currency
                     ))
                 }
@@ -186,5 +250,13 @@ struct SplitExpensesSheet: View {
             }
             return result
         }
+    }
+}
+
+// MARK: — Safe array subscript
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }

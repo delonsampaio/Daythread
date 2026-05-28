@@ -56,9 +56,20 @@ struct ExpenseListView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(expense.title)
                                 .font(.system(size: 14, weight: .semibold))
-                            Text(expense.category.displayName)
-                                .font(.caption)
-                                .foregroundStyle(ThemeTokens.textSecondary)
+                            HStack(spacing: 4) {
+                                Text(expense.category.displayName)
+                                    .font(.caption)
+                                    .foregroundStyle(ThemeTokens.textSecondary)
+                                if let payerID = expense.paidByMemberID,
+                                   let name = (trip.members ?? []).first(where: { $0.id == payerID })?.displayName {
+                                    Text("·")
+                                        .font(.caption)
+                                        .foregroundStyle(ThemeTokens.textMuted)
+                                    Text("pd \(name)")
+                                        .font(.caption)
+                                        .foregroundStyle(ThemeTokens.textMuted)
+                                }
+                            }
                         }
                         Spacer()
                         Text(String(format: "%.2f %@", expense.amount, expense.currencyCode))
@@ -113,7 +124,7 @@ struct ExpenseListView: View {
             AddExpenseSheet(trip: trip, vm: vm)
         }
         .sheet(isPresented: $showSplit) {
-            SplitExpensesSheet(trip: trip)
+            SplitExpensesSheet(trip: trip, vm: vm)
         }
         .sheet(item: Binding(
             get: { viewingReceiptData.map { ReceiptWrapper(data: $0) } },

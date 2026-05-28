@@ -22,7 +22,8 @@ struct AddExpenseSheet: View {
     @State private var currencyCode: String = "USD"
     @State private var category: ExpenseCategory = .other
     @State private var date: Date = Date()
-    @State private var paidBy: String = ""
+    @State private var paidByMemberID: UUID? = nil
+    @State private var splitAmongIDs: Set<UUID> = []   // empty = all members
     @State private var notes: String = ""
 
     // Receipt
@@ -34,6 +35,13 @@ struct AddExpenseSheet: View {
     @State private var showPaywall = false
 
     private let currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY"]
+
+    private var members: [TripMember] {
+        (trip.members ?? []).sorted { $0.displayName < $1.displayName }
+    }
+
+    /// True when splitAmongIDs represents "everyone" (the default).
+    private var isSplitAmongAll: Bool { splitAmongIDs.isEmpty }
 
     var body: some View {
         NavigationStack {
@@ -49,6 +57,7 @@ struct AddExpenseSheet: View {
                         .fixedSize()
                     }
                 }
+
                 Section {
                     Picker("Category", selection: $category) {
                         ForEach(ExpenseCategory.allCases, id: \.self) { cat in
@@ -57,15 +66,30 @@ struct AddExpenseSheet: View {
                     }
                     DatePicker("Date", selection: $date, displayedComponents: .date)
                 }
-                // Paid by — only shown when participants are set up on the trip.
-                if !trip.participantNames.isEmpty {
+
+                // Member-aware splitting — shown when participants are set up.
+                if !members.isEmpty {
                     Section("Paid by") {
-                        Picker("Paid by", selection: $paidBy) {
-                            ForEach(trip.participantNames, id: \.self) { name in
-                                Text(name).tag(name)
+                        Picker("Paid by", selection: $paidByMemberID) {
+                            Text("Untracked").tag(UUID?.none)
+                            ForEach(members) { member in
+                                Text(member.displayName).tag(UUID?.some(member.id))
                             }
                         }
                         .pickerStyle(.menu)
+                    }
+
+                    Section {
+                        ForEach(members) { member in
+                            Toggle(member.displayName, isOn: includedBinding(for: member.id))
+                        }
+                    } header: {
+                        Text("Split among")
+                    } footer: {
+                        let count = isSplitAmongAll ? members.count
+                            : splitAmongIDs.count
+                        Text("Split \(count == members.count ? "evenly among all" : "among \(count)") participant\(count == 1 ? "" : "s").")
+                            .font(.caption)
                     }
                 }
 
@@ -73,13 +97,14 @@ struct AddExpenseSheet: View {
                     TextField("Notes (optional)", text: $notes, axis: .vertical)
                         .lineLimit(2...4)
                 }
+
                 Section("Receipt") {
                     if !store.isPro {
                         Button {
                             showPaywall = true
                         } label: {
                             HStack {
-                                Label("Attach Receipt", systemImage: "camera.badge.plus")
+                                Label("Attach Receipt", systemImage: "camera")
                                     .foregroundStyle(ThemeTokens.textMuted)
                                 Spacer()
                                 Image(systemName: "lock.fill")
@@ -107,7 +132,7 @@ struct AddExpenseSheet: View {
                         Button {
                             showReceiptSourcePicker = true
                         } label: {
-                            Label("Attach Receipt…", systemImage: "camera.badge.plus")
+                            Label("Attach Receipt…", systemImage: "camera")
                                 .foregroundStyle(ThemeTokens.accent)
                         }
                     }
@@ -145,21 +170,56 @@ struct AddExpenseSheet: View {
                 ProPaywallView()
             }
             .onAppear {
-                if paidBy.isEmpty, let first = trip.participantNames.first {
-                    paidBy = first
+                // Default paidBy to first member; splitAmong defaults to empty (= all).
+                if paidByMemberID == nil, let first = members.first {
+                    paidByMemberID = first.id
                 }
             }
         }
     }
 
+    // MARK: — Helpers
+
+    /// Binding that toggles a member's inclusion in the split.
+    /// When all members are included and the user unchecks one, we switch
+    /// from "implicit all" to an explicit set.
+    private func includedBinding(for memberID: UUID) -> Binding<Bool> {
+        Binding(
+            get: {
+                isSplitAmongAll || splitAmongIDs.contains(memberID)
+            },
+            set: { included in
+                if isSplitAmongAll {
+                    // Expand the implicit "all" into an explicit set, then remove.
+                    splitAmongIDs = Set(members.map(\.id))
+                }
+                if included {
+                    splitAmongIDs.insert(memberID)
+                } else {
+                    splitAmongIDs.remove(memberID)
+                    // If back to everyone, collapse to "all" again.
+                    if splitAmongIDs.count == members.count {
+                        splitAmongIDs = []
+                    }
+                }
+            }
+        )
+    }
+
     private func save() {
+        // Collapse back to empty (= all) if every member is checked.
+        let finalSplitAmongIDs: [UUID] = splitAmongIDs.count == members.count
+            ? []
+            : Array(splitAmongIDs)
+
         let expense = TripExpense(
             title: title,
             amount: Double(amount) ?? 0,
             currencyCode: currencyCode,
             category: category,
             date: date,
-            paidBy: paidBy,
+            paidByMemberID: paidByMemberID,
+            splitAmongIDs: finalSplitAmongIDs,
             notes: notes,
             receiptImageData: store.isPro ? receiptImageData : nil
         )
@@ -167,7 +227,6 @@ struct AddExpenseSheet: View {
         HapticManager.shared.sheetConfirm()
         dismiss()
     }
-
 }
 
 // MARK: — Camera picker

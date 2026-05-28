@@ -18,8 +18,9 @@ final class TripExpense {
     var currencyCode: String = "USD"        // ISO 4217 — "EUR", "USD"
     var category: ExpenseCategory = ExpenseCategory.other
     var date: Date = Date.now
-    var paidByMemberID: UUID?       // reserved for future CloudKit member linking
-    var paidBy: String = ""         // display name of payer; "" = first participant
+    var paidByMemberID: UUID?       // TripMember.id of who paid; nil = untracked
+    /// IDs of TripMembers included in the split. Empty = split among ALL trip members.
+    var splitAmongIDs: [UUID] = []
     var notes: String = ""
     var receiptImageData: Data?     // nil = no receipt; Pro feature
 
@@ -33,7 +34,7 @@ final class TripExpense {
         category: ExpenseCategory = .other,
         date: Date = Date(),
         paidByMemberID: UUID? = nil,
-        paidBy: String = "",
+        splitAmongIDs: [UUID] = [],
         notes: String = "",
         receiptImageData: Data? = nil
     ) {
@@ -44,7 +45,7 @@ final class TripExpense {
         self.category = category
         self.date = date
         self.paidByMemberID = paidByMemberID
-        self.paidBy = paidBy
+        self.splitAmongIDs = splitAmongIDs
         self.notes = notes
         self.receiptImageData = receiptImageData
     }

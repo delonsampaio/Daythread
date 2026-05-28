@@ -23,9 +23,6 @@ final class Trip {
     var cloudKitShareID: String?
     var isArchived: Bool = false
     var createdAt: Date = Date.now
-    /// Names of people sharing expenses on this trip (e.g. ["Me", "Alice", "Bob"]).
-    /// Used by the expense splitter. Managed in SplitExpensesSheet.
-    var participantNames: [String] = []
 
     @Relationship(deleteRule: .cascade) var days: [TripDay]?
     @Relationship(deleteRule: .cascade) var members: [TripMember]?
