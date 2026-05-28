@@ -12,22 +12,23 @@ import PhotosUI
 struct AddExpenseSheet: View {
     let trip: Trip
     let vm: VaultViewModel
+    let editingExpense: TripExpense?  // nil = add mode, non-nil = edit mode
 
     @Environment(\.modelContext) private var context
     @Environment(TripStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
-    @State private var title: String = ""
-    @State private var amount: String = ""
-    @State private var currencyCode: String = "USD"
-    @State private var category: ExpenseCategory = .other
-    @State private var date: Date = Date()
-    @State private var paidByMemberID: UUID? = nil
-    @State private var splitAmongIDs: Set<UUID> = []   // empty = all members
-    @State private var notes: String = ""
-
-    // Receipt
+    @State private var title: String
+    @State private var amount: String
+    @State private var currencyCode: String
+    @State private var category: ExpenseCategory
+    @State private var date: Date
+    @State private var paidByMemberID: UUID?
+    @State private var splitAmongIDs: Set<UUID>   // empty = all members (implicit)
+    @State private var notes: String
     @State private var receiptImageData: Data?
+
+    // Receipt UI state — always start closed
     @State private var showReceiptSourcePicker = false
     @State private var showReceiptPhotoPicker = false
     @State private var showReceiptCamera = false
@@ -42,6 +43,36 @@ struct AddExpenseSheet: View {
 
     /// True when splitAmongIDs represents "everyone" (the default).
     private var isSplitAmongAll: Bool { splitAmongIDs.isEmpty }
+
+    init(trip: Trip, vm: VaultViewModel, editingExpense: TripExpense? = nil) {
+        self.trip = trip
+        self.vm = vm
+        self.editingExpense = editingExpense
+
+        if let expense = editingExpense {
+            _title          = State(initialValue: expense.title)
+            _amount         = State(initialValue: String(format: "%.2f", expense.amount))
+            _currencyCode   = State(initialValue: expense.currencyCode)
+            _category       = State(initialValue: expense.category)
+            _date           = State(initialValue: expense.date)
+            _paidByMemberID = State(initialValue: expense.paidByMemberID)
+            // Explicit-all is reconciled back to implicit-all (empty) in .onAppear,
+            // once we have access to the current members list.
+            _splitAmongIDs  = State(initialValue: Set(expense.splitAmongIDs))
+            _notes          = State(initialValue: expense.notes)
+            _receiptImageData = State(initialValue: expense.receiptImageData)
+        } else {
+            _title          = State(initialValue: "")
+            _amount         = State(initialValue: "")
+            _currencyCode   = State(initialValue: "USD")
+            _category       = State(initialValue: .other)
+            _date           = State(initialValue: Date())
+            _paidByMemberID = State(initialValue: nil)
+            _splitAmongIDs  = State(initialValue: [])
+            _notes          = State(initialValue: "")
+            _receiptImageData = State(initialValue: nil)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -87,8 +118,7 @@ struct AddExpenseSheet: View {
                     } header: {
                         Text("Split among")
                     } footer: {
-                        let count = isSplitAmongAll ? members.count
-                            : splitAmongIDs.count
+                        let count = isSplitAmongAll ? members.count : splitAmongIDs.count
                         Text("Split \(count == members.count ? "evenly among all" : "among \(count)") participant\(count == 1 ? "" : "s").")
                             .font(.caption)
                     }
@@ -139,7 +169,7 @@ struct AddExpenseSheet: View {
                     }
                 }
             }
-            .navigationTitle("Add Expense")
+            .navigationTitle(editingExpense == nil ? "Add Expense" : "Edit Expense")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Cancel") { dismiss() } }
@@ -150,7 +180,6 @@ struct AddExpenseSheet: View {
                             title.isEmpty ||
                             Double(amount) == nil ||
                             // Payer is mandatory when participants are set up.
-                            // Prevents "Everyone is even!" showing for untracked expenses.
                             (!members.isEmpty && paidByMemberID == nil)
                         )
                 }
@@ -177,9 +206,16 @@ struct AddExpenseSheet: View {
                 ProPaywallView()
             }
             .onAppear {
-                // Default paidBy to first member; splitAmong defaults to empty (= all).
-                if paidByMemberID == nil, let first = members.first {
-                    paidByMemberID = first.id
+                if editingExpense != nil {
+                    // Reconcile "explicit all" → "implicit all" (empty set) so all
+                    // member toggles render as ON rather than individually checked.
+                    let allMemberIDs = Set(members.map(\.id))
+                    if splitAmongIDs == allMemberIDs { splitAmongIDs = [] }
+                } else {
+                    // New expense: default payer to first member.
+                    if paidByMemberID == nil, let first = members.first {
+                        paidByMemberID = first.id
+                    }
                 }
             }
         }
@@ -218,21 +254,37 @@ struct AddExpenseSheet: View {
         // NEVER write an empty array — empty would retroactively include any
         // member who joins the trip later (the "Ghost Debtor" bug).
         let finalSplitAmongIDs: [UUID] = isSplitAmongAll
-            ? members.map(\.id)   // explicit snapshot of today's member list
+            ? members.map(\.id)
             : Array(splitAmongIDs)
 
-        let expense = TripExpense(
-            title: title,
-            amount: Double(amount) ?? 0,
-            currencyCode: currencyCode,
-            category: category,
-            date: date,
-            paidByMemberID: paidByMemberID,
-            splitAmongIDs: finalSplitAmongIDs,
-            notes: notes,
-            receiptImageData: store.isPro ? receiptImageData : nil
-        )
-        vm.addExpense(expense, to: trip, context: context)
+        if let expense = editingExpense {
+            // Edit mode — mutate the existing @Model object in place.
+            // SwiftData tracks property changes automatically; no re-insert needed.
+            expense.title           = title
+            expense.amount          = Double(amount) ?? expense.amount
+            expense.currencyCode    = currencyCode
+            expense.category        = category
+            expense.date            = date
+            expense.paidByMemberID  = paidByMemberID
+            expense.splitAmongIDs   = finalSplitAmongIDs
+            expense.notes           = notes
+            if store.isPro { expense.receiptImageData = receiptImageData }
+            try? context.save()
+        } else {
+            // Add mode — create a new expense.
+            let newExpense = TripExpense(
+                title: title,
+                amount: Double(amount) ?? 0,
+                currencyCode: currencyCode,
+                category: category,
+                date: date,
+                paidByMemberID: paidByMemberID,
+                splitAmongIDs: finalSplitAmongIDs,
+                notes: notes,
+                receiptImageData: store.isPro ? receiptImageData : nil
+            )
+            vm.addExpense(newExpense, to: trip, context: context)
+        }
         HapticManager.shared.sheetConfirm()
         dismiss()
     }

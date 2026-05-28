@@ -16,6 +16,7 @@ struct ExpenseListView: View {
     @Environment(TripStore.self) private var store
     @State private var showAdd = false
     @State private var showSplit = false
+    @State private var editingExpense: TripExpense?
     @State private var viewingReceiptData: Data?
 
     private var expenses: [TripExpense] {
@@ -89,6 +90,14 @@ struct ExpenseListView: View {
                             .buttonStyle(.plain)
                         }
                     }
+                    .contextMenu {
+                        Button("Edit", systemImage: "pencil") {
+                            editingExpense = expense
+                        }
+                        Button("Delete", systemImage: "trash", role: .destructive) {
+                            vm.deleteExpense(expense, context: context)
+                        }
+                    }
                 }
                 .onDelete { indexSet in
                     indexSet.map { expenses[$0] }.forEach { vm.deleteExpense($0, context: context) }
@@ -111,6 +120,9 @@ struct ExpenseListView: View {
         }
         .sheet(isPresented: $showAdd) {
             AddExpenseSheet(trip: trip, vm: vm)
+        }
+        .sheet(item: $editingExpense) { expense in
+            AddExpenseSheet(trip: trip, vm: vm, editingExpense: expense)
         }
         .sheet(isPresented: $showSplit) {
             SplitExpensesSheet(trip: trip, vm: vm)
