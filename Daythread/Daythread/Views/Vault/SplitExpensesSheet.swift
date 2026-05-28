@@ -9,7 +9,8 @@
 //  for manually-added participants, or real for CloudKit co-editors.
 //
 //  "Mark Settled" creates a new TripExpense so the algorithm self-corrects
-//  without a separate settlements table.
+//  without a separate settlements table. Debt computation is fully delegated
+//  to ExpenseSplitter so the UI is always in sync with the tested engine.
 
 import SwiftUI
 import SwiftData
@@ -25,6 +26,7 @@ struct SplitExpensesSheet: View {
     @FocusState private var nameFieldFocused: Bool
     @State private var pendingSettlement: Settlement? = nil
     @State private var settleAmountText: String = ""
+    @State private var showAssignPayers = false
 
     private var members: [TripMember] {
         (trip.members ?? []).sorted { $0.displayName < $1.displayName }
@@ -32,8 +34,8 @@ struct SplitExpensesSheet: View {
     private var expenses: [TripExpense] { trip.expenses ?? [] }
     private var settlements: [Settlement] { computeSettlements() }
 
-    private var untrackedExpenseCount: Int {
-        expenses.filter { $0.paidByMemberID == nil }.count
+    private var untrackedExpenses: [TripExpense] {
+        expenses.filter { $0.paidByMemberID == nil }
     }
 
     var body: some View {
@@ -60,6 +62,9 @@ struct SplitExpensesSheet: View {
                 }
             }
             // Partial settlement — pre-filled with full debt, user can edit.
+            // Overpayments are intentionally allowed: the ledger engine naturally
+            // inverts the balance, so if Alice over-settles by $5, the ledger
+            // shows Bob owes Alice $5. No clamping needed.
             .alert("Settle Debt", isPresented: Binding(
                 get: { pendingSettlement != nil },
                 set: { if !$0 { pendingSettlement = nil } }
@@ -69,10 +74,13 @@ struct SplitExpensesSheet: View {
                 Button("Cancel", role: .cancel) { pendingSettlement = nil }
                 Button("Settle \(s.currency)") {
                     guard let raw = Double(settleAmountText), raw > 0.005 else { return }
-                    confirmSettle(s, amount: min(raw, s.amount))
+                    confirmSettle(s, amount: raw)
                 }
             } message: { s in
                 Text("\(s.debtorName) owes \(s.creditorName) \(String(format: "%.2f %@", s.amount, s.currency)). Edit the amount for a partial payment.")
+            }
+            .sheet(isPresented: $showAssignPayers) {
+                AssignPayersSheet(untrackedExpenses: untrackedExpenses, members: members)
             }
         }
     }
@@ -130,13 +138,26 @@ struct SplitExpensesSheet: View {
 
     private var settlementsSection: some View {
         Section {
-            if untrackedExpenseCount > 0 {
-                Label(
-                    "\(untrackedExpenseCount) expense\(untrackedExpenseCount == 1 ? "" : "s") \(untrackedExpenseCount == 1 ? "has" : "have") no payer and \(untrackedExpenseCount == 1 ? "is" : "are") excluded from splits.",
-                    systemImage: "exclamationmark.triangle.fill"
-                )
-                .font(.caption)
-                .foregroundStyle(.orange)
+            // Actionable warning — tapping opens AssignPayersSheet so the user
+            // can quickly assign a payer to each untracked expense.
+            if !untrackedExpenses.isEmpty {
+                Button {
+                    showAssignPayers = true
+                } label: {
+                    HStack {
+                        Label(
+                            "\(untrackedExpenses.count) expense\(untrackedExpenses.count == 1 ? "" : "s") \(untrackedExpenses.count == 1 ? "has" : "have") no payer — tap to assign.",
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                            .foregroundStyle(.orange.opacity(0.6))
+                    }
+                }
+                .buttonStyle(.plain)
                 .listRowBackground(Color.orange.opacity(0.08))
             }
             if expenses.isEmpty {
@@ -214,7 +235,7 @@ struct SplitExpensesSheet: View {
         pendingSettlement = nil
     }
 
-    // MARK: — Debt minimisation
+    // MARK: — Debt minimisation (delegated to ExpenseSplitter engine)
 
     struct Settlement: Identifiable {
         let id = UUID()
@@ -226,63 +247,101 @@ struct SplitExpensesSheet: View {
         let currency: String
     }
 
+    /// Maps TripExpense (SwiftData) → SplitExpense (engine input),
+    /// calls the tested ExpenseSplitter engine, then maps Debt → Settlement for the view.
+    /// Untracked expenses (no payer) and participants who left the trip are silently
+    /// skipped — the banner above handles UX communication for untracked expenses.
     private func computeSettlements() -> [Settlement] {
         guard members.count >= 2, !expenses.isEmpty else { return [] }
 
         let memberIDs = Set(members.map(\.id))
-        let currencies = Set(expenses.map(\.currencyCode))
         let nameFor: (UUID) -> String = { id in
             members.first { $0.id == id }?.displayName ?? "?"
         }
 
-        return currencies.flatMap { currency -> [Settlement] in
-            var balance: [UUID: Double] = [:]
-            for m in members { balance[m.id] = 0 }
+        // Map SwiftData models → engine's pure value types.
+        let splitExpenses: [SplitExpense] = expenses.compactMap { expense in
+            guard let payer = expense.paidByMemberID,
+                  memberIDs.contains(payer) else { return nil }
+            let participants = expense.splitAmongIDs.filter { memberIDs.contains($0) }
+            guard !participants.isEmpty else { return nil }
+            return SplitExpense(
+                amount: expense.amount,
+                currency: expense.currencyCode,
+                paidBy: payer,
+                splitAmong: participants
+            )
+        }
 
-            for expense in expenses where expense.currencyCode == currency {
-                guard let payer = expense.paidByMemberID,
-                      memberIDs.contains(payer) else { continue }
+        // Engine returns the minimized debt set; map UUIDs → display names for the view.
+        return ExpenseSplitter.minimize(expenses: splitExpenses, members: members.map(\.id))
+            .map { debt in
+                Settlement(
+                    debtorID:     debt.from,
+                    creditorID:   debt.to,
+                    debtorName:   nameFor(debt.from),
+                    creditorName: nameFor(debt.to),
+                    amount:   (debt.amount * 100).rounded() / 100,
+                    currency: debt.currency
+                )
+            }
+    }
+}
 
-                // splitAmongIDs is always an explicit snapshot saved at creation time.
-                // We never fall back to "all members" — that would cause the Ghost
-                // Debtor bug when new members join after the expense was logged.
-                let participants = expense.splitAmongIDs.filter { memberIDs.contains($0) }
-                guard !participants.isEmpty else { continue }
-                let share = expense.amount / Double(participants.count)
+// MARK: — Assign Payers sheet
 
-                balance[payer, default: 0] += expense.amount
-                for p in participants {
-                    balance[p, default: 0] -= share
+/// Presents the list of expenses that have no payer assigned.
+/// Mutates TripExpense.paidByMemberID directly (SwiftData @Model tracks changes),
+/// then saves on Done.
+private struct AssignPayersSheet: View {
+    let untrackedExpenses: [TripExpense]
+    let members: [TripMember]
+
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(untrackedExpenses) { expense in
+                        @Bindable var expense = expense
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(expense.title.isEmpty ? "Untitled expense" : expense.title)
+                                    .font(.system(size: 14, weight: .semibold))
+                                Spacer()
+                                Text(String(format: "%.2f %@", expense.amount, expense.currencyCode))
+                                    .font(.system(size: 13, design: .monospaced))
+                                    .foregroundStyle(ThemeTokens.textSecondary)
+                            }
+                            Picker("Paid by", selection: $expense.paidByMemberID) {
+                                Text("Unassigned").tag(UUID?.none)
+                                ForEach(members) { member in
+                                    Text(member.displayName).tag(UUID?.some(member.id))
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .font(.subheadline)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                } footer: {
+                    Text("Assigning a payer includes the expense in the debt calculation.")
+                        .font(.caption)
                 }
             }
-
-            // Greedy minimisation: largest creditor vs largest debtor.
-            var creditors = balance.filter { $0.value >  0.005 }
-                .map { ($0.key, $0.value) }.sorted { $0.1 > $1.1 }
-            var debtors   = balance.filter { $0.value < -0.005 }
-                .map { ($0.key, -$0.value) }.sorted { $0.1 > $1.1 }
-
-            var result: [Settlement] = []
-            var ci = 0, di = 0
-
-            while ci < creditors.count && di < debtors.count {
-                let payment = min(creditors[ci].1, debtors[di].1)
-                if payment > 0.005 {
-                    result.append(Settlement(
-                        debtorID:    debtors[di].0,
-                        creditorID:  creditors[ci].0,
-                        debtorName:  nameFor(debtors[di].0),
-                        creditorName: nameFor(creditors[ci].0),
-                        amount:   (payment * 100).rounded() / 100,
-                        currency: currency
-                    ))
+            .navigationTitle("Assign Payers")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        try? context.save()
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
                 }
-                creditors[ci].1 -= payment
-                debtors[di].1   -= payment
-                if creditors[ci].1 < 0.005 { ci += 1 }
-                if debtors[di].1   < 0.005 { di += 1 }
             }
-            return result
         }
     }
 }
