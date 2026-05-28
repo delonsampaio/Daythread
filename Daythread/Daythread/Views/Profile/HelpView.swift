@@ -160,6 +160,18 @@ struct HelpView: View {
                 answer: "Go to Vault → Documents tab and tap +. You can import from your Files app (PDF or image), take a photo with your camera, or pick from your photo library. Give it a title and an optional expiry date."
             )
             FAQRow(
+                question: "Can I edit a document after adding it?",
+                answer: "Yes. Long-press any document tile and tap Edit Details to change the title or expiry date. The file itself cannot be replaced — delete the document and re-add it if you need to swap the file."
+            )
+            FAQRow(
+                question: "How do I share a document?",
+                answer: "Tap a document tile to open the full-screen viewer, then tap the share icon in the top-left corner to forward it via Messages, email, AirDrop, or any other app."
+            )
+            FAQRow(
+                question: "What does the expiry badge on a document tile mean?",
+                answer: "A red badge means the document is expired or expires within 30 days — renew it immediately. An amber badge means it expires within 90 days, giving you time to act before most international entry requirements (many countries require a passport valid for at least 6 months beyond your entry date)."
+            )
+            FAQRow(
                 question: "How many documents can I store for free?",
                 answer: "Free users can store up to 5 documents per trip. Upgrade to Pro for unlimited document storage."
             )
@@ -269,6 +281,9 @@ struct HelpView: View {
         .init(section: "Trips", question: "Can I add a cover photo to a trip?", answer: "Yes. During trip creation, step 3 lets you pick a cover photo from your photo library. You can also change or remove it later via the Edit option in the trip card's long-press menu."),
         .init(section: "Vault (Documents & Expenses)", question: "What can I store in the Vault?", answer: "The Vault holds Documents (passports, visas, insurance cards, boarding passes — as PDFs or images) and Expenses (a running log of what you've spent per trip)."),
         .init(section: "Vault (Documents & Expenses)", question: "How do I add a document?", answer: "Go to Vault → Documents tab and tap +. Import from Files, take a photo, or pick from your library. Give it a title and an optional expiry date."),
+        .init(section: "Vault (Documents & Expenses)", question: "Can I edit a document after adding it?", answer: "Yes. Long-press the document tile and tap Edit Details to change the title or expiry date. To replace the file, delete the document and re-add it."),
+        .init(section: "Vault (Documents & Expenses)", question: "How do I share a document?", answer: "Tap the tile to open the viewer, then tap the share icon in the top-left to send via Messages, email, AirDrop, or any other app."),
+        .init(section: "Vault (Documents & Expenses)", question: "What does the expiry badge on a document tile mean?", answer: "Red means expired or expiring within 30 days. Amber means expiring within 90 days — time to act before international entry requirements kick in."),
         .init(section: "Vault (Documents & Expenses)", question: "How many documents can I store for free?", answer: "Free users can store up to 5 documents per trip. Upgrade to Pro for unlimited document storage."),
         .init(section: "Vault (Documents & Expenses)", question: "How do I log an expense?", answer: "Go to Vault → Expenses tab and tap +. Enter the amount, currency, category, date, and who paid. Payer is required when participants are set up."),
         .init(section: "Vault (Documents & Expenses)", question: "Can I attach a receipt to an expense?", answer: "Yes — Pro users can attach a receipt photo to any expense. Tap 'Attach Receipt Photo' to use your camera or photo library. A thumbnail appears on the expense row; tap it to view full screen.", isPro: true),
