@@ -76,13 +76,19 @@ final class TimelineViewModel {
         }
 
         dragged.day = targetDay
-        for (i, e) in proposed.enumerated() { e.sortOrder = i }
 
-        if let sourceDay, sourceDay.id != targetDay.id {
-            let remaining = (sourceDay.events ?? [])
-                .filter { $0.id != dragged.id }
-                .sorted { $0.sortOrder < $1.sortOrder }
-            for (i, e) in remaining.enumerated() { e.sortOrder = i }
+        // Fractional indexing: compute a sortOrder only for the dragged event.
+        // This writes exactly ONE record to CloudKit per drag instead of updating
+        // every event in the day. The source day needs no renumbering — removing
+        // an item preserves the relative order of the remaining events.
+        let predOrder: Int? = insertAt > 0 ? proposed[insertAt - 1].sortOrder : nil
+        let succOrder: Int? = (insertAt + 1) < proposed.count ? proposed[insertAt + 1].sortOrder : nil
+
+        if let newOrder = midOrder(pred: predOrder, succ: succOrder) {
+            dragged.sortOrder = newOrder
+        } else {
+            // Integer gap exhausted — full renumber with 1024 spacing.
+            for (i, e) in proposed.enumerated() { e.sortOrder = i * 1024 }
         }
 
         try? context.save()
@@ -112,14 +118,11 @@ final class TimelineViewModel {
         }
 
         dragged.day = targetDay
-        for (i, e) in proposed.enumerated() { e.sortOrder = i }
 
-        if let sourceDay, sourceDay.id != targetDay.id {
-            let remaining = (sourceDay.events ?? [])
-                .filter { $0.id != dragged.id }
-                .sorted { $0.sortOrder < $1.sortOrder }
-            for (i, e) in remaining.enumerated() { e.sortOrder = i }
-        }
+        // Fractional: append at predecessor + 1024 — one record write.
+        // Source day needs no renumbering (relative order of remaining events is unchanged).
+        let predOrder = proposed.count > 1 ? proposed[proposed.count - 2].sortOrder : nil
+        dragged.sortOrder = (predOrder ?? 0) + 1024
 
         try? context.save()
         return true
@@ -135,6 +138,23 @@ final class TimelineViewModel {
         Task {
             try? await Task.sleep(for: .milliseconds(600))
             shakingEventIDs = []
+        }
+    }
+
+    /// Fractional indexing: returns a sortOrder value for an item placed between
+    /// `pred` and `succ`. Returns `nil` when the integer gap is exhausted
+    /// (mid == pred), signalling the caller to fall back to a full renumber.
+    ///
+    /// Initial spacing of 1024 means ~10 consecutive inserts in the same gap
+    /// before a rebalance is needed — well beyond any realistic trip itinerary.
+    private func midOrder(pred: Int?, succ: Int?) -> Int? {
+        switch (pred, succ) {
+        case (nil, nil):      return 1024
+        case (nil, let s?):   return s > 1 ? s / 2 : nil
+        case (let p?, nil):   return p + 1024
+        case (let p?, let s?):
+            let mid = (p + s) / 2
+            return mid > p ? mid : nil   // nil = gap exhausted
         }
     }
 

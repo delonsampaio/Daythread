@@ -163,27 +163,27 @@ struct TimelineView: View {
                 }
             }
 
-            Color.clear.frame(height: 32)
+            // Explicit end-of-day drop zone — isolated from the per-event drop
+            // targets above to avoid SwiftUI hit-testing ambiguity.
+            Color.clear.frame(height: 40)
+                .dropDestination(for: String.self) { items, _ in
+                    guard let draggedID = items.first else { return false }
+                    let moved = vm.appendEvent(draggedID: draggedID, to: day, context: context)
+                    if moved { HapticManager.shared.dragDrop() }
+                    return moved
+                } isTargeted: { targeted in
+                    endDropTargetDayID = targeted ? day.id : nil
+                }
+                .overlay {
+                    if endDropTargetDayID == day.id {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(ThemeTokens.accent)
+                            .frame(height: 3)
+                    }
+                }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .contentShape(Rectangle())
-        .dropDestination(for: String.self) { items, _ in
-            guard let draggedID = items.first else { return false }
-            let moved = vm.appendEvent(draggedID: draggedID, to: day, context: context)
-            if moved { HapticManager.shared.dragDrop() }
-            return moved
-        } isTargeted: { targeted in
-            endDropTargetDayID = targeted ? day.id : nil
-        }
-        .overlay(alignment: .bottom) {
-            if endDropTargetDayID == day.id {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(ThemeTokens.accent)
-                    .frame(height: 3)
-                    .padding(.bottom, 8)
-            }
-        }
     }
 
     // MARK: — FAB

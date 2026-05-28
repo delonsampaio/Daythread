@@ -218,12 +218,12 @@ struct AddEditEventSheet: View {
                 // Place at end of the target day.
                 let nextOrder = ((targetDay?.events ?? [])
                     .filter { $0.id != event.id }
-                    .map(\.sortOrder).max() ?? -1) + 1
+                    .map(\.sortOrder).max() ?? 0) + 1024
                 event.sortOrder = nextOrder
                 event.day = targetDay
             }
         } else {
-            let nextOrder = ((targetDay?.events ?? []).map(\.sortOrder).max() ?? -1) + 1
+            let nextOrder = ((targetDay?.events ?? []).map(\.sortOrder).max() ?? 0) + 1024
             let event = TripEvent(
                 title: title,
                 startTime: hasStartTime ? startTime : nil,
