@@ -102,8 +102,6 @@ final class TimelineViewModel {
         guard let dragged = fetchEvent(id: uuid, context: context) else { return false }
         guard !dragged.isTimeLocked else { return false }
 
-        let sourceDay = dragged.day
-
         var proposed = (targetDay.events ?? [])
             .filter { $0.id != dragged.id }
             .sorted { $0.sortOrder < $1.sortOrder }
