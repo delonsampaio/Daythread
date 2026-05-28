@@ -165,7 +165,10 @@ struct TimelineView: View {
 
             // Explicit end-of-day drop zone — isolated from the per-event drop
             // targets above to avoid SwiftUI hit-testing ambiguity.
-            Color.clear.frame(height: 40)
+            // contentShape(Rectangle()) is required: Color.clear has no hit area
+            // by default, so drops on empty days would silently fail without it.
+            Color.clear.frame(maxWidth: .infinity, minHeight: 60)
+                .contentShape(Rectangle())
                 .dropDestination(for: String.self) { items, _ in
                     guard let draggedID = items.first else { return false }
                     let moved = vm.appendEvent(draggedID: draggedID, to: day, context: context)
