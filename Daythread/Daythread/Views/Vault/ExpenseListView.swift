@@ -90,6 +90,19 @@ struct ExpenseListView: View {
                             .buttonStyle(.plain)
                         }
                     }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            vm.deleteExpense(expense, context: context)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                        Button {
+                            editingExpense = expense
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        .tint(ThemeTokens.accent)
+                    }
                     .contextMenu {
                         Button("Edit", systemImage: "pencil") {
                             editingExpense = expense
@@ -98,9 +111,6 @@ struct ExpenseListView: View {
                             vm.deleteExpense(expense, context: context)
                         }
                     }
-                }
-                .onDelete { indexSet in
-                    indexSet.map { expenses[$0] }.forEach { vm.deleteExpense($0, context: context) }
                 }
             }
 
