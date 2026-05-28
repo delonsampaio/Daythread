@@ -86,11 +86,11 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "How do I reorder events in my day?",
-                answer: "Long-press and drag any event card up or down to reorder it within the day. Time-Locked events cannot be dragged — they stay anchored in place."
+                answer: "Long-press and drag any event card to reorder it. You can also drag events between days — drop onto a different day's section and it moves there automatically. Time-Locked events cannot be dragged and will block any drop that would push them out of their time slot."
             )
             FAQRow(
                 question: "How do I edit or delete an event?",
-                answer: "Long-press any event card to reveal the context menu. You can Lock/Unlock the event, or Delete it. To edit details, tap the card to open the edit sheet."
+                answer: "Long-press any event card to reveal the context menu. Choose Edit to change details, Lock/Unlock to toggle the time anchor, or Delete to remove it."
             )
         }
     }
@@ -99,7 +99,7 @@ struct HelpView: View {
         Section("Timeline") {
             FAQRow(
                 question: "What is a Time-Locked event?",
-                answer: "A Time-Locked event is anchored to its time slot and cannot be dragged to a new position. Use it for flights, tour bookings, or any event with a fixed start time. Tap 'Lock Event' from the context menu to lock it — a padlock icon appears on the card."
+                answer: "A Time-Locked event is anchored to its time slot. It cannot be dragged, and any drag that would push it out of chronological order with its neighbours is refused — the dragged card snaps back with a warning vibration. When you set a start time on a new event the lock is suggested automatically. A padlock icon (amber) appears on the card, and an amber warning badge appears if the event is currently out of order."
             )
             FAQRow(
                 question: "What does the lodging banner at the top show?",
@@ -162,6 +162,11 @@ struct HelpView: View {
             FAQRow(
                 question: "How do I log an expense?",
                 answer: "Go to Vault → Expenses tab and tap +. Enter the amount, currency, category (Food, Transport, Lodging, Activity, Shopping, or Other), date, and who paid. The Expenses tab shows a running total per currency."
+            )
+            FAQRow(
+                question: "Can I attach a receipt to an expense?",
+                answer: "Yes — Pro users can attach a receipt photo to any expense. When adding or editing an expense, tap \"Attach Receipt Photo\" to take a photo with your camera or choose one from your library. A thumbnail appears on the expense row; tap it to view the full receipt.",
+                isPro: true
             )
             FAQRow(
                 question: "Can the app split expenses between group members?",
@@ -240,9 +245,9 @@ struct HelpView: View {
         .init(section: "Getting Started", question: "How do I switch between trips?", answer: "The horizontal strip at the top of the Timeline shows all your trips. Tap any trip to make it active, or swipe left and right to cycle through them."),
         .init(section: "Getting Started", question: "How do I add an event to my itinerary?", answer: "In the Timeline, tap the blue + button in the bottom-right corner to open the Add Event sheet. Choose a category (Flight, Hotel, Restaurant, Museum, Activity, etc.), fill in the details, and save."),
         .init(section: "Getting Started", question: "What categories of events can I add?", answer: "Daythread supports: Flight, Train, Bus, Ferry (transit), Hotel, Rental Property, Restaurant, Café, Bar, Museum, Attraction, Tour, Show, Activity, Sport, Hike, Shopping, and Other. Transit categories open an extended form for carrier, flight/train number, PNR, and seat."),
-        .init(section: "Getting Started", question: "How do I reorder events in my day?", answer: "Long-press and drag any event card up or down to reorder it within the day. Time-Locked events cannot be dragged — they stay anchored in place."),
-        .init(section: "Getting Started", question: "How do I edit or delete an event?", answer: "Long-press any event card to reveal the context menu. You can Lock/Unlock the event, or Delete it. To edit details, tap the card to open the edit sheet."),
-        .init(section: "Timeline", question: "What is a Time-Locked event?", answer: "A Time-Locked event is anchored to its time slot and cannot be dragged to a new position. Use it for flights, tour bookings, or any event with a fixed start time. Tap 'Lock Event' from the context menu to lock it — a padlock icon appears on the card."),
+        .init(section: "Getting Started", question: "How do I reorder events in my day?", answer: "Long-press and drag any event card to reorder it. You can also drag events between days — drop onto a different day's section and it moves there automatically. Time-Locked events cannot be dragged and will block any drop that would push them out of their time slot."),
+        .init(section: "Getting Started", question: "How do I edit or delete an event?", answer: "Long-press any event card to reveal the context menu. Choose Edit to change details, Lock/Unlock to toggle the time anchor, or Delete to remove it."),
+        .init(section: "Timeline", question: "What is a Time-Locked event?", answer: "A Time-Locked event is anchored to its time slot. It cannot be dragged, and any drag that would push it out of chronological order with its neighbours is refused — the dragged card snaps back with a warning vibration. When you set a start time on a new event the lock is suggested automatically. A padlock icon (amber) appears on the card, and an amber warning badge appears if the event is currently out of order."),
         .init(section: "Timeline", question: "What does the lodging banner at the top show?", answer: "If you've added lodging that covers today's date, a banner appears just below the trip switcher strip showing your current accommodation. It updates automatically as your check-in and check-out dates change."),
         .init(section: "Timeline", question: "How are transit events different from regular events?", answer: "Flight, Train, Bus, and Ferry events show a detailed card with carrier name, flight or train number, PNR code, terminal and gate, seat number, baggage claim, and timezone-corrected times."),
         .init(section: "Timeline", question: "Can I add notes to an event?", answer: "Yes. The Add/Edit Event sheet has a notes field where you can save anything relevant — confirmation numbers, meeting points, dress codes, etc."),
@@ -256,6 +261,7 @@ struct HelpView: View {
         .init(section: "Vault (Documents & Expenses)", question: "How do I add a document?", answer: "Go to Vault → Documents tab and tap +. Import from Files, take a photo, or pick from your library. Give it a title and an optional expiry date."),
         .init(section: "Vault (Documents & Expenses)", question: "How many documents can I store for free?", answer: "Free users can store up to 5 documents per trip. Upgrade to Pro for unlimited document storage."),
         .init(section: "Vault (Documents & Expenses)", question: "How do I log an expense?", answer: "Go to Vault → Expenses tab and tap +. Enter the amount, currency, category, date, and who paid."),
+        .init(section: "Vault (Documents & Expenses)", question: "Can I attach a receipt to an expense?", answer: "Yes — Pro users can attach a receipt photo to any expense. Tap 'Attach Receipt Photo' to use your camera or photo library. A thumbnail appears on the expense row; tap it to view full screen.", isPro: true),
         .init(section: "Vault (Documents & Expenses)", question: "Can the app split expenses between group members?", answer: "Yes — expense debt splitting is a Pro feature. The Expenses tab shows a summary of who owes whom and the net amounts.", isPro: true),
         .init(section: "Co-editing & Sync", question: "How do I share a trip with travel companions?", answer: "In the Timeline, tap the people icon in the top-right corner to open Group Sync. Tap 'Invite People to This Trip'.", isPro: true),
         .init(section: "Co-editing & Sync", question: "Can co-editors change the itinerary?", answer: "Yes. Editors can add, reorder, lock, and delete events just like the trip owner.", isPro: true),
@@ -263,7 +269,7 @@ struct HelpView: View {
         .init(section: "Co-editing & Sync", question: "Does my data sync across my own devices?", answer: "Yes. If you're signed into the same iCloud account on multiple devices, your trips, events, documents, and expenses sync automatically."),
         .init(section: "Co-editing & Sync", question: "What happens if two people edit at the same time?", answer: "CloudKit handles merge conflicts automatically. In most cases both edits are preserved."),
         .init(section: "Co-editing & Sync", question: "How do I stop sharing a trip?", answer: "Open Group Sync (the people icon in the Timeline toolbar) and tap 'Stop Sharing'.", isPro: true),
-        .init(section: "Pro Features", question: "What's included in Daythread Pro?", answer: "Pro unlocks: Unlimited document storage · Expense splitting · Trip sharing & co-editing · ETA badges between events · Role-based permissions.", isPro: true),
+        .init(section: "Pro Features", question: "What's included in Daythread Pro?", answer: "Pro unlocks: Unlimited document storage · Receipt photo attachments on expenses · Expense splitting with debt minimisation · Trip sharing & co-editing · ETA badges between events · Role-based permissions.", isPro: true),
         .init(section: "Pro Features", question: "How do I upgrade to Pro?", answer: "Go to the Profile tab and tap 'Upgrade to Pro'. The one-time $9.99 Lifetime purchase includes Family Sharing.", isPro: true),
         .init(section: "Pro Features", question: "How do I restore my Pro purchase on a new device?", answer: "Go to Profile → Settings and tap 'Restore Purchases'.", isPro: true),
         .init(section: "Pro Features", question: "What are ETA badges?", answer: "ETA badges appear between consecutive events on the same day and show the estimated travel time — for example, '12 min walk →'.", isPro: true),

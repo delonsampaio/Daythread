@@ -18,20 +18,25 @@ struct TripSwitcherStrip: View {
     var body: some View {
         if trips.isEmpty { EmptyView() } else {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     ForEach(trips) { trip in
-                        tripChip(trip)
+                        tripCard(trip)
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
             }
-            .glassEffect()
+            // .bar matches the system nav bar material — adapts to dark/light mode
+            // and visually merges the strip with the navigation bar above it.
+            .background(.bar)
+            .overlay(alignment: .bottom) {
+                Divider()
+            }
         }
     }
 
     @ViewBuilder
-    private func tripChip(_ trip: Trip) -> some View {
+    private func tripCard(_ trip: Trip) -> some View {
         let isActive = store.activeTrip?.id == trip.id
         Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -39,24 +44,42 @@ struct TripSwitcherStrip: View {
             }
             HapticManager.shared.tabSwitch()
         } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(trip.name)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(isActive ? .white : ThemeTokens.textPrimary)
-                Text(trip.destination)
-                    .font(.system(size: 11))
-                    .foregroundStyle(isActive ? .white.opacity(0.8) : ThemeTokens.textSecondary)
+            HStack(spacing: 8) {
+                // Icon badge
+                Image(systemName: "airplane.departure")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(isActive ? .white : ThemeTokens.accent)
+                    .frame(width: 20)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(trip.name)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(isActive ? .white : ThemeTokens.textPrimary)
+                        .lineLimit(1)
+                    Text(dateRange(for: trip))
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(isActive ? .white.opacity(0.75) : ThemeTokens.textSecondary)
+                }
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background {
-                if isActive {
-                    Capsule().fill(ThemeTokens.accent)
-                } else {
-                    Capsule().fill(ThemeTokens.backgroundCard)
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isActive ? ThemeTokens.accent : ThemeTokens.backgroundCard)
+            }
+            .overlay {
+                if !isActive {
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
                 }
             }
         }
         .buttonStyle(.plain)
+    }
+
+    private func dateRange(for trip: Trip) -> String {
+        let start = trip.startDate.formatted(.dateTime.month(.abbreviated).day())
+        let end   = trip.endDate.formatted(.dateTime.month(.abbreviated).day())
+        return "\(start) – \(end)"
     }
 }

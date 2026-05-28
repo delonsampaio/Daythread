@@ -18,5 +18,10 @@ enum CloudKitSyncStatus: Equatable {
 final class TripStore {
     var activeTrip: Trip?
     var syncStatus: CloudKitSyncStatus = .idle
-    var isPro: Bool = false
+
+    /// Persisted to UserDefaults so Pro status survives app restarts.
+    /// The didSet syncs every write back to disk immediately.
+    var isPro: Bool = UserDefaults.standard.bool(forKey: "daythread.isPro") {
+        didSet { UserDefaults.standard.set(isPro, forKey: "daythread.isPro") }
+    }
 }

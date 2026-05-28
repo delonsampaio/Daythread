@@ -32,9 +32,22 @@ final class TimelineViewModel {
 
     // MARK: — Writes (all go through the view's ModelContext)
 
+    func moveEvent(
+        _ event: TripEvent,
+        toDay day: TripDay,
+        newSortOrder: Int,
+        context: ModelContext
+    ) {
+        guard !event.isTimeLocked else { return }
+        event.day = day
+        event.sortOrder = newSortOrder
+        try? context.save()
+    }
+
     /// Inserts the dragged event immediately before `targetEvent` in `targetDay`.
     /// Works across days. Returns `false` (and fires a warning haptic) if the
     /// resulting order would violate any time-locked event's chronological position.
+    /// Returns `false` silently if the event is already locked or the ID is invalid.
     @discardableResult
     func reorderEvent(
         draggedID: String,
@@ -48,12 +61,14 @@ final class TimelineViewModel {
 
         let sourceDay = dragged.day
 
+        // Build the proposed new order for the target day.
         var proposed = (targetDay.events ?? [])
             .filter { $0.id != dragged.id }
             .sorted { $0.sortOrder < $1.sortOrder }
         let insertAt = proposed.firstIndex(where: { $0.id == targetEvent.id }) ?? proposed.endIndex
         proposed.insert(dragged, at: insertAt)
 
+        // Reject the move if it would push a locked event out of time sequence.
         if isLockOrderViolated(in: proposed) {
             shakeViolators(in: proposed)
             HapticManager.shared.deleteAction()
@@ -110,25 +125,41 @@ final class TimelineViewModel {
         return true
     }
 
-    func deleteEvent(_ event: TripEvent, context: ModelContext) {
-        context.delete(event)
-        try? context.save()
+    // MARK: — Private helpers
+
+    /// Sets `shakingEventIDs` to the locked events violated in `proposed`, then
+    /// clears it after 600 ms so the shake animation completes before resetting.
+    private func shakeViolators(in proposed: [TripEvent]) {
+        let violators = violatedLockIDs(in: proposed)
+        shakingEventIDs = violators
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            shakingEventIDs = []
+        }
     }
 
-    func lockEvent(_ event: TripEvent, context: ModelContext) {
-        event.isTimeLocked.toggle()
-        try? context.save()
+    private func fetchEvent(id: UUID, context: ModelContext) -> TripEvent? {
+        let descriptor = FetchDescriptor<TripEvent>(
+            predicate: #Predicate { $0.id == id }
+        )
+        return (try? context.fetch(descriptor))?.first
     }
-
-    // MARK: — Lock-order helpers
 
     /// Returns true if placing events in this order would put any time-locked
     /// event's `startTime` out of chronological sequence with its timed neighbors.
+    /// Events without a `startTime` are skipped — only timed events can trigger
+    /// or satisfy a violation.
     func isLockOrderViolated(in events: [TripEvent]) -> Bool {
         for (i, event) in events.enumerated() {
             guard event.isTimeLocked, let lockedTime = event.startTime else { continue }
-            if i > 0, let prevTime = events[i - 1].startTime, prevTime > lockedTime { return true }
-            if i < events.count - 1, let nextTime = events[i + 1].startTime, nextTime < lockedTime { return true }
+            // A timed event before this locked event must not be later.
+            if i > 0, let prevTime = events[i - 1].startTime, prevTime > lockedTime {
+                return true
+            }
+            // A timed event after this locked event must not be earlier.
+            if i < events.count - 1, let nextTime = events[i + 1].startTime, nextTime < lockedTime {
+                return true
+            }
         }
         return false
     }
@@ -139,26 +170,23 @@ final class TimelineViewModel {
         var violated = Set<UUID>()
         for (i, event) in events.enumerated() {
             guard event.isTimeLocked, let lockedTime = event.startTime else { continue }
-            if i > 0, let prevTime = events[i - 1].startTime, prevTime > lockedTime { violated.insert(event.id) }
-            if i < events.count - 1, let nextTime = events[i + 1].startTime, nextTime < lockedTime { violated.insert(event.id) }
+            if i > 0, let prevTime = events[i - 1].startTime, prevTime > lockedTime {
+                violated.insert(event.id)
+            }
+            if i < events.count - 1, let nextTime = events[i + 1].startTime, nextTime < lockedTime {
+                violated.insert(event.id)
+            }
         }
         return violated
     }
 
-    // MARK: — Private helpers
-
-    /// Sets `shakingEventIDs` to the locked events violated in `proposed`, then
-    /// clears it after 600 ms so the shake animation completes before resetting.
-    private func shakeViolators(in proposed: [TripEvent]) {
-        shakingEventIDs = violatedLockIDs(in: proposed)
-        Task {
-            try? await Task.sleep(for: .milliseconds(600))
-            shakingEventIDs = []
-        }
+    func deleteEvent(_ event: TripEvent, context: ModelContext) {
+        context.delete(event)
+        try? context.save()
     }
 
-    private func fetchEvent(id: UUID, context: ModelContext) -> TripEvent? {
-        let descriptor = FetchDescriptor<TripEvent>(predicate: #Predicate { $0.id == id })
-        return (try? context.fetch(descriptor))?.first
+    func lockEvent(_ event: TripEvent, context: ModelContext) {
+        event.isTimeLocked.toggle()
+        try? context.save()
     }
 }

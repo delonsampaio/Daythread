@@ -32,7 +32,7 @@ struct EventCardView: View {
                     if event.isTimeLocked {
                         Image(systemName: "lock.fill")
                             .font(.system(size: 11))
-                            .foregroundStyle(ThemeTokens.textSecondary)
+                            .foregroundStyle(ThemeTokens.warningAmber)
                     }
                 }
 

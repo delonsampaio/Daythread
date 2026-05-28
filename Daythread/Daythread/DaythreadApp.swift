@@ -77,9 +77,23 @@ struct DaythreadApp: App {
         let simConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         return try! ModelContainer(for: schema, configurations: [simConfig])
         #else
-        // TEST: local store only — bypassing CloudKit to isolate launch hang
-        let localConfig = ModelConfiguration(schema: schema)
-        return try! ModelContainer(for: schema, configurations: [localConfig])
+        // Real device: CloudKit private DB for iCloud sync. If init throws
+        // (no account, network issue, schema mismatch), fall back to a local
+        // store with CloudKit explicitly disabled so the splash doesn't
+        // hang forever.
+        do {
+            let config = ModelConfiguration(
+                schema: schema,
+                cloudKitDatabase: .private("iCloud.com.delonsampaio.daythread")
+            )
+            return try ModelContainer(for: schema, configurations: [config])
+        } catch {
+            let fallback = ModelConfiguration(
+                schema: schema,
+                cloudKitDatabase: .none
+            )
+            return try! ModelContainer(for: schema, configurations: [fallback])
+        }
         #endif
     }
 }

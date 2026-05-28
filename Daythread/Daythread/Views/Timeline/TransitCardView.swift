@@ -34,6 +34,11 @@ struct TransitCardView: View {
                     .font(.system(size: 13, weight: .semibold, design: .monospaced))
                     .foregroundStyle(ThemeTokens.textSecondary)
                 Spacer()
+                if event.isTimeLocked {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(ThemeTokens.warningAmber)
+                }
                 Image(systemName: event.category.systemImage)
                     .foregroundStyle(event.category.accentColor)
             }
