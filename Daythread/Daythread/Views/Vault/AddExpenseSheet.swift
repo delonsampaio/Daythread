@@ -34,6 +34,7 @@ struct AddExpenseSheet: View {
     @State private var showReceiptCamera = false
     @State private var receiptPhotoItem: PhotosPickerItem?
     @State private var showPaywall = false
+    @State private var showSettlementWarning = false
 
     private let currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY"]
 
@@ -43,6 +44,32 @@ struct AddExpenseSheet: View {
 
     /// True when splitAmongIDs represents "everyone" (the default).
     private var isSplitAmongAll: Bool { splitAmongIDs.isEmpty }
+
+    /// The effective split set as UUIDs, resolving "implicit all" to an explicit set.
+    private var currentSplitSet: Set<UUID> {
+        isSplitAmongAll ? Set(members.map(\.id)) : splitAmongIDs
+    }
+
+    /// True if the trip has any settlement expenses (paidBy ≠ sole splitAmong member).
+    /// Settlements are TripExpenses with exactly one person in splitAmong who is not
+    /// the payer — the pattern created by SplitExpensesSheet.confirmSettle().
+    private var tripHasSettlements: Bool {
+        (trip.expenses ?? []).contains { e in
+            e.splitAmongIDs.count == 1 &&
+            e.paidByMemberID != nil &&
+            e.paidByMemberID != e.splitAmongIDs.first
+        }
+    }
+
+    /// True when editing would change the amount or split-among while settlements exist.
+    /// Editing either field can make already-recorded settlements inaccurate because
+    /// settlements have no foreign-key link back to the expense they were settling.
+    private var editWillAffectSettlements: Bool {
+        guard let original = editingExpense else { return false }
+        let amountChanged = (Double(amount) ?? 0) != original.amount
+        let splitChanged  = currentSplitSet != Set(original.splitAmongIDs)
+        return (amountChanged || splitChanged) && tripHasSettlements
+    }
 
     init(trip: Trip, vm: VaultViewModel, editingExpense: TripExpense? = nil) {
         self.trip = trip
@@ -174,14 +201,20 @@ struct AddExpenseSheet: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save") { save() }
-                        .fontWeight(.semibold)
-                        .disabled(
-                            title.isEmpty ||
-                            Double(amount) == nil ||
-                            // Payer is mandatory when participants are set up.
-                            (!members.isEmpty && paidByMemberID == nil)
-                        )
+                    Button("Save") {
+                        if editWillAffectSettlements {
+                            showSettlementWarning = true
+                        } else {
+                            save()
+                        }
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(
+                        title.isEmpty ||
+                        Double(amount) == nil ||
+                        // Payer is mandatory when participants are set up.
+                        (!members.isEmpty && paidByMemberID == nil)
+                    )
                 }
             }
             .confirmationDialog("Attach Receipt", isPresented: $showReceiptSourcePicker, titleVisibility: .visible) {
@@ -204,6 +237,12 @@ struct AddExpenseSheet: View {
             }
             .sheet(isPresented: $showPaywall) {
                 ProPaywallView()
+            }
+            .alert("Settlements May Be Affected", isPresented: $showSettlementWarning) {
+                Button("Save Anyway", role: .destructive) { save() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("You've already settled some debts for this trip. Changing the amount or who splits this expense can make those settlements inaccurate. You can delete any stale settlements from the Split Expenses view.")
             }
             .onAppear {
                 if editingExpense != nil {
