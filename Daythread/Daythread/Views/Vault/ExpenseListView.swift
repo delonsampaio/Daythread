@@ -132,11 +132,11 @@ private struct ReceiptViewerSheet: View {
         NavigationStack {
             Group {
                 if let uiImage = UIImage(data: imageData) {
-                    ScrollView([.horizontal, .vertical]) {
+                    ScrollView {
                         Image(uiImage: uiImage)
                             .resizable()
                             .scaledToFit()
-                            .frame(minWidth: UIScreen.main.bounds.width)
+                            .frame(maxWidth: .infinity)
                     }
                 } else {
                     Text("Unable to display receipt.")
