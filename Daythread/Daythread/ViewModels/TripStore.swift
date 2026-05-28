@@ -16,11 +16,31 @@ enum CloudKitSyncStatus: Equatable {
 
 @Observable
 final class TripStore {
-    var activeTrip: Trip?
+
+    // MARK: — Active trip
+
+    /// In-memory active trip. Setting it persists the ID to UserDefaults so
+    /// the same trip can be restored on cold launch (see TripSwitcherStrip.task).
+    var activeTrip: Trip? {
+        didSet {
+            UserDefaults.standard.set(
+                activeTrip?.id.uuidString,
+                forKey: "daythread.activeTripID"
+            )
+        }
+    }
+
+    /// The UUID stored at last launch — used by TripSwitcherStrip to restore context.
+    var storedActiveTripID: UUID? {
+        UserDefaults.standard.string(forKey: "daythread.activeTripID")
+            .flatMap { UUID(uuidString: $0) }
+    }
+
+    // MARK: — Other state
+
     var syncStatus: CloudKitSyncStatus = .idle
 
     /// Persisted to UserDefaults so Pro status survives app restarts.
-    /// The didSet syncs every write back to disk immediately.
     var isPro: Bool = UserDefaults.standard.bool(forKey: "daythread.isPro") {
         didSet { UserDefaults.standard.set(isPro, forKey: "daythread.isPro") }
     }

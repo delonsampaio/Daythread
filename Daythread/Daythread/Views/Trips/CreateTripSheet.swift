@@ -74,6 +74,14 @@ struct CreateTripSheet: View {
                 DatePicker("End date", selection: $endDate, in: startDate..., displayedComponents: .date)
             }
         }
+        // Guard: if the user moves startDate past endDate, snap endDate forward.
+        // Without this, the end DatePicker silently clamps to startDate but the
+        // stored @State value stays stale, creating a zero-length trip.
+        .onChange(of: startDate) { _, newStart in
+            if endDate < newStart {
+                endDate = newStart
+            }
+        }
     }
 
     private var stepThree: some View {

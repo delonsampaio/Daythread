@@ -34,7 +34,7 @@ struct TripCardView: View {
                         .clipped()
                 } else {
                     LinearGradient(
-                        colors: gradientColors(for: trip.destination),
+                        colors: gradientColors(for: trip.gradientSeed),
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -88,12 +88,12 @@ struct TripCardView: View {
         .cardShadow()
     }
 
-    private func gradientColors(for string: String) -> [Color] {
+    private func gradientColors(for seed: Int) -> [Color] {
         let palettes: [[Color]] = [
             [.blue, .purple], [.orange, .pink], [.teal, .blue],
             [.green, .teal], [.indigo, .blue], [.mint, .green]
         ]
-        let index = abs(string.hashValue) % palettes.count
+        let index = abs(seed) % palettes.count
         return palettes[index]
     }
 }

@@ -32,6 +32,14 @@ struct TripSwitcherStrip: View {
             .overlay(alignment: .bottom) {
                 Divider()
             }
+            // Cold-launch restore: if the active trip was cleared (e.g. app re-launched),
+            // look up the last-used trip by its stored UUID and reselect it automatically.
+            .task {
+                guard store.activeTrip == nil,
+                      let id = store.storedActiveTripID,
+                      let match = trips.first(where: { $0.id == id }) else { return }
+                store.activeTrip = match
+            }
         }
     }
 

@@ -23,6 +23,9 @@ final class Trip {
     var cloudKitShareID: String?
     var isArchived: Bool = false
     var createdAt: Date = Date.now
+    /// Stable random seed for the fallback gradient — set once at creation so
+    /// editing the trip name never changes the card colour.
+    var gradientSeed: Int = 0
 
     @Relationship(deleteRule: .cascade) var days: [TripDay]?
     @Relationship(deleteRule: .cascade) var members: [TripMember]?
@@ -59,6 +62,7 @@ final class Trip {
         self.cloudKitShareID = cloudKitShareID
         self.isArchived = isArchived
         self.createdAt = createdAt
+        self.gradientSeed = Int.random(in: 0..<1_000_000)
         self.days = []
         self.members = []
         self.documents = []

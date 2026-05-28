@@ -14,10 +14,14 @@ struct TripsListView: View {
     @Query(sort: \Trip.startDate) private var allTrips: [Trip]
     @State private var vm = TripsViewModel()
     @State private var showCreate = false
+    @State private var editingTrip: Trip?
+    // Single snapshot per render — prevents repeated Date() calls from causing
+    // trips to flip between sections mid-scroll if the clock ticks.
+    @State private var now = Date()
 
-    private var currentTrips: [Trip]  { allTrips.filter { !$0.isArchived && $0.startDate <= Date() && $0.endDate >= Date() } }
-    private var upcomingTrips: [Trip] { allTrips.filter { !$0.isArchived && $0.startDate > Date() } }
-    private var pastTrips: [Trip]     { allTrips.filter { !$0.isArchived && $0.endDate < Date() } }
+    private var currentTrips: [Trip]  { allTrips.filter { !$0.isArchived && $0.startDate <= now && $0.endDate >= now } }
+    private var upcomingTrips: [Trip] { allTrips.filter { !$0.isArchived && $0.startDate > now } }
+    private var pastTrips: [Trip]     { allTrips.filter { !$0.isArchived && $0.endDate < now } }
     private var archivedTrips: [Trip] { allTrips.filter(\.isArchived) }
 
     var body: some View {
@@ -50,6 +54,10 @@ struct TripsListView: View {
             .sheet(isPresented: $showCreate) {
                 CreateTripSheet()
             }
+            .sheet(item: $editingTrip) { trip in
+                EditTripSheet(trip: trip, vm: vm)
+            }
+            .onAppear { now = Date() }
         }
     }
 
@@ -71,12 +79,22 @@ struct TripsListView: View {
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
-                        if trip.isArchived {
-                            Button("Unarchive") { vm.unarchiveTrip(trip, context: context) }
-                        } else {
-                            Button("Archive") { vm.archiveTrip(trip, context: context) }
+                        Button("Edit", systemImage: "pencil") {
+                            editingTrip = trip
                         }
-                        Button("Delete", role: .destructive) { vm.deleteTrip(trip, context: context) }
+                        Divider()
+                        if trip.isArchived {
+                            Button("Unarchive", systemImage: "archivebox") {
+                                vm.unarchiveTrip(trip, context: context)
+                            }
+                        } else {
+                            Button("Archive", systemImage: "archivebox") {
+                                vm.archiveTrip(trip, context: context)
+                            }
+                        }
+                        Button("Delete", systemImage: "trash", role: .destructive) {
+                            vm.deleteTrip(trip, context: context)
+                        }
                     }
                 }
             }
