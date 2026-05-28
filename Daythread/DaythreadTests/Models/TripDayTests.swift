@@ -17,7 +17,7 @@ final class TripDayTests: XCTestCase {
 
     override func setUp() async throws {
         let schema = Schema([Trip.self, TripDay.self, TripEvent.self])
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         container = try ModelContainer(for: schema, configurations: config)
         context = ModelContext(container)
     }

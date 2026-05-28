@@ -27,12 +27,12 @@ struct DayHeaderView: View {
                     .foregroundStyle(ThemeTokens.textPrimary)
             }
             Spacer()
-            // WeatherBadgeView slot — renders EmptyView at v1.0 (Tier 2 drop-in)
             WeatherBadgePlaceholder()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .glassEffect()
+        .padding(.top, 8)
     }
 }
 

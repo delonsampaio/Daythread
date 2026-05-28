@@ -12,9 +12,6 @@ struct TimelineView: View {
     @Environment(TripStore.self) private var store
     @Environment(\.modelContext) private var context
 
-    // Relationship-based access: one O(1) fault to load trip.days / trip.lodging,
-    // reactive via @Observable on Trip (@Model). No @Query predicate needed —
-    // avoids the N+1 lazy relationship faults that caused the tab-switch freeze.
     private var days: [TripDay] {
         (store.activeTrip?.days ?? []).sorted { $0.sortOrder < $1.sortOrder }
     }
@@ -27,19 +24,17 @@ struct TimelineView: View {
     @State private var showAddEvent = false
     @State private var showGroupSync = false
     @State private var showPaywall = false
-    @State private var headerHeight: CGFloat = 0
+    @State private var dragTargetEventID: UUID?
+    @State private var endDropTargetDayID: UUID?
+    @State private var editingEvent: TripEvent?
 
     var body: some View {
-        ZStack(alignment: .top) {
-            // Base layer: scrollable timeline
+        Group {
             if store.activeTrip == nil {
                 emptyState
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                        // Spacer to push content below the floating header
-                        Color.clear.frame(height: headerHeight)
-
                         ForEach(Array(days.enumerated()), id: \.element.id) { index, day in
                             Section {
                                 dayContent(day: day, dayNumber: index + 1)
@@ -51,36 +46,31 @@ struct TimelineView: View {
                     .padding(.bottom, 100)
                 }
             }
-
-            // Floating header (top layer)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
                 TripSwitcherStrip()
                 if let activeLodging = vm.activeLodging {
                     LodgingBannerView(lodging: activeLodging)
                 }
             }
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
-
-            // FAB (floating action button)
+        }
+        .overlay(alignment: .bottomTrailing) {
             if store.activeTrip != nil {
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        fabButton
-                            .padding(.trailing, 20)
-                            .padding(.bottom, 24)
-                    }
-                }
+                fabButton
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 24)
             }
         }
-        // Only lodging changes need to recompute activeLodging — days changes are
-        // handled automatically by @Observable on Trip.
         .onChange(of: lodging) { _, newLodging in
             vm.refresh(days: days, lodging: newLodging)
         }
         .sheet(isPresented: $showAddEvent) {
             AddEditEventSheet(trip: store.activeTrip, day: days.first, vm: vm)
+        }
+        .sheet(item: $editingEvent) { event in
+            AddEditEventSheet(trip: store.activeTrip, day: event.day, vm: vm,
+                              editingEvent: event)
         }
         .sheet(isPresented: $showGroupSync) {
             if let trip = store.activeTrip {
@@ -118,34 +108,82 @@ struct TimelineView: View {
     @ViewBuilder
     private func dayContent(day: TripDay, dayNumber: Int) -> some View {
         let events = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let violated = vm.violatedLockIDs(in: events)
         VStack(spacing: 12) {
             ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
-                TimelineItem(event: event, isLast: index == events.count - 1) {
+                TimelineItem(event: event,
+                             isLast: index == events.count - 1,
+                             isTimeViolated: violated.contains(event.id),
+                             isShaking: vm.shakingEventIDs.contains(event.id)) {
                     if event.category.requiresTransitDetails, let details = event.transitDetails {
                         TransitCardView(event: event, details: details)
                     } else {
                         EventCardView(event: event)
                     }
                 }
-                .draggable(event.id.uuidString)
+                .draggableWhen(!event.isTimeLocked, payload: event.id.uuidString)
+                .dropDestination(for: String.self) { items, _ in
+                    guard let draggedID = items.first else { return false }
+                    let moved = vm.reorderEvent(draggedID: draggedID, before: event,
+                                                in: day, context: context)
+                    if moved { HapticManager.shared.dragDrop() }
+                    return moved
+                } isTargeted: { targeted in
+                    dragTargetEventID = targeted ? event.id : nil
+                }
+                .overlay(alignment: .top) {
+                    if dragTargetEventID == event.id {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(ThemeTokens.accent)
+                            .frame(height: 3)
+                    }
+                }
                 .contextMenu {
+                    Button("Edit", systemImage: "pencil") {
+                        editingEvent = event
+                    }
+
+                    Divider()
+
                     if !event.isTimeLocked {
                         Button("Lock Event", systemImage: "lock.fill") {
                             vm.lockEvent(event, context: context)
+                            HapticManager.shared.lockToggle()
                         }
                     } else {
                         Button("Unlock Event", systemImage: "lock.open.fill") {
                             vm.lockEvent(event, context: context)
+                            HapticManager.shared.lockToggle()
                         }
                     }
+
                     Button("Delete", systemImage: "trash", role: .destructive) {
                         vm.deleteEvent(event, context: context)
                     }
                 }
             }
+
+            Color.clear.frame(height: 32)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .dropDestination(for: String.self) { items, _ in
+            guard let draggedID = items.first else { return false }
+            let moved = vm.appendEvent(draggedID: draggedID, to: day, context: context)
+            if moved { HapticManager.shared.dragDrop() }
+            return moved
+        } isTargeted: { targeted in
+            endDropTargetDayID = targeted ? day.id : nil
+        }
+        .overlay(alignment: .bottom) {
+            if endDropTargetDayID == day.id {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(ThemeTokens.accent)
+                    .frame(height: 3)
+                    .padding(.bottom, 8)
+            }
+        }
     }
 
     // MARK: — FAB
@@ -170,8 +208,6 @@ struct TimelineView: View {
     private var emptyState: some View {
         VStack(spacing: 16) {
             Spacer()
-            TripSwitcherStrip()
-            Spacer()
             Image(systemName: "airplane.departure")
                 .font(.system(size: 48))
                 .foregroundStyle(ThemeTokens.textMuted)
@@ -185,5 +221,18 @@ struct TimelineView: View {
             Spacer()
         }
         .padding()
+    }
+}
+
+// MARK: — Helpers
+
+private extension View {
+    @ViewBuilder
+    func draggableWhen(_ condition: Bool, payload: String) -> some View {
+        if condition {
+            self.draggable(payload)
+        } else {
+            self
+        }
     }
 }

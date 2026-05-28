@@ -14,6 +14,7 @@ struct ExpenseListView: View {
 
     @Environment(\.modelContext) private var context
     @State private var showAdd = false
+    @State private var viewingReceiptData: Data?
 
     private var expenses: [TripExpense] {
         (trip.expenses ?? []).sorted { $0.date > $1.date }
@@ -61,6 +62,19 @@ struct ExpenseListView: View {
                         Spacer()
                         Text(String(format: "%.2f %@", expense.amount, expense.currencyCode))
                             .font(.system(size: 14, weight: .semibold, design: .monospaced))
+
+                        if let data = expense.receiptImageData, let uiImage = UIImage(data: data) {
+                            Button {
+                                viewingReceiptData = data
+                            } label: {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 36, height: 36)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
                 .onDelete { indexSet in
@@ -93,6 +107,49 @@ struct ExpenseListView: View {
         }
         .sheet(isPresented: $showAdd) {
             AddExpenseSheet(trip: trip, vm: vm)
+        }
+        .sheet(item: Binding(
+            get: { viewingReceiptData.map { ReceiptWrapper(data: $0) } },
+            set: { _ in viewingReceiptData = nil }
+        )) { wrapper in
+            ReceiptViewerSheet(imageData: wrapper.data)
+        }
+    }
+}
+
+// MARK: — Receipt viewer
+
+private struct ReceiptWrapper: Identifiable {
+    let id = UUID()
+    let data: Data
+}
+
+private struct ReceiptViewerSheet: View {
+    let imageData: Data
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let uiImage = UIImage(data: imageData) {
+                    ScrollView([.horizontal, .vertical]) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(minWidth: UIScreen.main.bounds.width)
+                    }
+                } else {
+                    Text("Unable to display receipt.")
+                        .foregroundStyle(ThemeTokens.textSecondary)
+                }
+            }
+            .navigationTitle("Receipt")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
         }
     }
 }

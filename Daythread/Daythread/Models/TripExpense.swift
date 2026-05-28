@@ -20,6 +20,7 @@ final class TripExpense {
     var date: Date = Date.now
     var paidByMemberID: UUID?       // nil = current user
     var notes: String = ""
+    var receiptImageData: Data?     // nil = no receipt; Pro feature
 
     var trip: Trip?
 
@@ -31,7 +32,8 @@ final class TripExpense {
         category: ExpenseCategory = .other,
         date: Date = Date(),
         paidByMemberID: UUID? = nil,
-        notes: String = ""
+        notes: String = "",
+        receiptImageData: Data? = nil
     ) {
         self.id = id
         self.title = title
@@ -41,5 +43,6 @@ final class TripExpense {
         self.date = date
         self.paidByMemberID = paidByMemberID
         self.notes = notes
+        self.receiptImageData = receiptImageData
     }
 }

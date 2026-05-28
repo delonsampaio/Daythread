@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import StoreKit
 
 @main
 struct DaythreadApp: App {
@@ -34,6 +35,24 @@ struct DaythreadApp: App {
                     Self.makeContainer()
                 }.value
                 container = built
+            }
+            // Long-lived StoreKit 2 transaction listener — runs for the entire
+            // app lifetime. Catches purchases completed on other devices,
+            // Ask-to-Buy approvals, and any transaction not finalized in the
+            // normal purchase flow. Must call transaction.finish() to remove
+            // it from the queue regardless of the outcome.
+            .task {
+                for await result in Transaction.updates {
+                    guard case .verified(let transaction) = result else { continue }
+                    guard transaction.productID == StoreKitService.proProductID else { continue }
+                    if transaction.revocationDate == nil {
+                        store.isPro = true
+                    } else {
+                        // Purchase was refunded — revoke Pro.
+                        store.isPro = false
+                    }
+                    await transaction.finish()
+                }
             }
         }
     }

@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		14899ACA2FC7EF7D009A7629 /* DaythreadStore.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 14899AC92FC7EF7D009A7629 /* DaythreadStore.storekit */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		148991CF2FC67371009A7629 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -28,16 +32,8 @@
 		148991CE2FC67371009A7629 /* DaythreadUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DaythreadUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		148992172FC679CD009A7629 /* DaythreadTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DaythreadTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		148999AD2FC76070009A7629 /* Daythread.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = Daythread.xctestplan; path = ../Daythread.xctestplan; sourceTree = "<group>"; };
+		14899AC92FC7EF7D009A7629 /* DaythreadStore.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = DaythreadStore.storekit; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		1489922E2FC6804E009A7629 /* Exceptions for "DaythreadTests" folder in "DaythreadTests" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-			);
-			target = 148992162FC679CD009A7629 /* DaythreadTests */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		148991B72FC6736E009A7629 /* Daythread */ = {
@@ -52,9 +48,6 @@
 		};
 		148992182FC679CD009A7629 /* DaythreadTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				1489922E2FC6804E009A7629 /* Exceptions for "DaythreadTests" folder in "DaythreadTests" target */,
-			);
 			path = DaythreadTests;
 			sourceTree = "<group>";
 		};
@@ -88,6 +81,7 @@
 		148991AC2FC6736E009A7629 = {
 			isa = PBXGroup;
 			children = (
+				14899AC92FC7EF7D009A7629 /* DaythreadStore.storekit */,
 				148999AD2FC76070009A7629 /* Daythread.xctestplan */,
 				148991B72FC6736E009A7629 /* Daythread */,
 				148991D12FC67371009A7629 /* DaythreadUITests */,
@@ -226,6 +220,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				14899ACA2FC7EF7D009A7629 /* DaythreadStore.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
