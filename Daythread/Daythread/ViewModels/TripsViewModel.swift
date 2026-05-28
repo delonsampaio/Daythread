@@ -44,6 +44,11 @@ final class TripsViewModel {
         try? context.save()
     }
 
+    func unarchiveTrip(_ trip: Trip, context: ModelContext) {
+        trip.isArchived = false
+        try? context.save()
+    }
+
     func deleteTrip(_ trip: Trip, context: ModelContext) {
         context.delete(trip)
         try? context.save()

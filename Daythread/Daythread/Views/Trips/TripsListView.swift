@@ -73,7 +73,11 @@ struct TripsListView: View {
                     .buttonStyle(.plain)
                     .contextMenu {
                         Button("Set as Active") { store.activeTrip = trip }
-                        Button("Archive") { vm.archiveTrip(trip, context: context) }
+                        if trip.isArchived {
+                            Button("Unarchive") { vm.unarchiveTrip(trip, context: context) }
+                        } else {
+                            Button("Archive") { vm.archiveTrip(trip, context: context) }
+                        }
                         Button("Delete", role: .destructive) { vm.deleteTrip(trip, context: context) }
                     }
                 }
