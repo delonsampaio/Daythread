@@ -161,7 +161,7 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "How do I log an expense?",
-                answer: "Go to Vault → Expenses tab and tap +. Enter the amount, currency, category (Food, Transport, Lodging, Activity, Shopping, or Other), date, and who paid. The Expenses tab shows a running total per currency."
+                answer: "Go to Vault → Expenses tab and tap +. Enter the amount, currency, category (Food, Transport, Lodging, Activity, Shopping, or Other), date, and who paid. If participants are set up for the trip, selecting a payer is required. The Expenses tab shows a running total per currency."
             )
             FAQRow(
                 question: "Can I attach a receipt to an expense?",
@@ -170,7 +170,12 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "How do I split expenses with my travel group?",
-                answer: "In the Vault → Expenses tab, tap \"Split Expenses\" (Pro). The sheet lets you add participant names (e.g. \"Me\", \"Alice\", \"Bob\"). When logging expenses, choose who paid. The splitter then shows the minimum set of payments needed to settle up — for example \"Alice owes Bob $24.50\".",
+                answer: "In the Vault → Expenses tab, tap \"Split Expenses\" (Pro). Add participant names (e.g. \"Me\", \"Alice\", \"Bob\") — no app account required. When logging expenses, choose who paid and who to split it among. The splitter computes the minimum payments needed to settle up.\n\nIf any expenses have no payer assigned, an orange warning appears — tap it to open \"Assign Payers\" and quickly fix them. Tap Settle on any debt row to record a payment.",
+                isPro: true
+            )
+            FAQRow(
+                question: "Can I settle a partial amount or overpay?",
+                answer: "Yes. When you tap Settle, the amount is pre-filled with the full debt but you can edit it. Enter any amount — less for a partial payment, or more if rounding up (e.g. Venmo-style). Overpayments automatically flip the balance: if Alice over-settles by $5, the ledger shows Bob now owes Alice $5.",
                 isPro: true
             )
         }
@@ -260,9 +265,10 @@ struct HelpView: View {
         .init(section: "Vault (Documents & Expenses)", question: "What can I store in the Vault?", answer: "The Vault holds Documents (passports, visas, insurance cards, boarding passes — as PDFs or images) and Expenses (a running log of what you've spent per trip)."),
         .init(section: "Vault (Documents & Expenses)", question: "How do I add a document?", answer: "Go to Vault → Documents tab and tap +. Import from Files, take a photo, or pick from your library. Give it a title and an optional expiry date."),
         .init(section: "Vault (Documents & Expenses)", question: "How many documents can I store for free?", answer: "Free users can store up to 5 documents per trip. Upgrade to Pro for unlimited document storage."),
-        .init(section: "Vault (Documents & Expenses)", question: "How do I log an expense?", answer: "Go to Vault → Expenses tab and tap +. Enter the amount, currency, category, date, and who paid."),
+        .init(section: "Vault (Documents & Expenses)", question: "How do I log an expense?", answer: "Go to Vault → Expenses tab and tap +. Enter the amount, currency, category, date, and who paid. Payer is required when participants are set up."),
         .init(section: "Vault (Documents & Expenses)", question: "Can I attach a receipt to an expense?", answer: "Yes — Pro users can attach a receipt photo to any expense. Tap 'Attach Receipt Photo' to use your camera or photo library. A thumbnail appears on the expense row; tap it to view full screen.", isPro: true),
-        .init(section: "Vault (Documents & Expenses)", question: "How do I split expenses with my travel group?", answer: "In the Vault → Expenses tab, tap \"Split Expenses\" (Pro). Add participant names, choose who paid each expense, and the splitter shows the minimum payments to settle up.", isPro: true),
+        .init(section: "Vault (Documents & Expenses)", question: "How do I split expenses with my travel group?", answer: "In the Vault → Expenses tab, tap \"Split Expenses\" (Pro). Add participant names, choose who paid each expense, and the splitter shows the minimum payments to settle up. An orange warning appears for expenses with no payer — tap it to assign payers.", isPro: true),
+        .init(section: "Vault (Documents & Expenses)", question: "Can I settle a partial amount or overpay?", answer: "Yes. Tap Settle on any debt row and edit the pre-filled amount. Overpayments automatically flip the balance in the ledger.", isPro: true),
         .init(section: "Co-editing & Sync", question: "How do I share a trip with travel companions?", answer: "In the Timeline, tap the people icon in the top-right corner to open Group Sync. Tap 'Invite People to This Trip'.", isPro: true),
         .init(section: "Co-editing & Sync", question: "Can co-editors change the itinerary?", answer: "Yes. Editors can add, reorder, lock, and delete events just like the trip owner.", isPro: true),
         .init(section: "Co-editing & Sync", question: "How quickly do changes appear for co-editors?", answer: "Updates arrive via CloudKit push and typically appear within a few seconds.", isPro: true),
