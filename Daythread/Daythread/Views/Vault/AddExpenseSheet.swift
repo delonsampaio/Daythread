@@ -22,6 +22,7 @@ struct AddExpenseSheet: View {
     @State private var currencyCode: String = "USD"
     @State private var category: ExpenseCategory = .other
     @State private var date: Date = Date()
+    @State private var paidBy: String = ""
     @State private var notes: String = ""
 
     // Receipt
@@ -56,6 +57,18 @@ struct AddExpenseSheet: View {
                     }
                     DatePicker("Date", selection: $date, displayedComponents: .date)
                 }
+                // Paid by — only shown when participants are set up on the trip.
+                if !trip.participantNames.isEmpty {
+                    Section("Paid by") {
+                        Picker("Paid by", selection: $paidBy) {
+                            ForEach(trip.participantNames, id: \.self) { name in
+                                Text(name).tag(name)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                }
+
                 Section {
                     TextField("Notes (optional)", text: $notes, axis: .vertical)
                         .lineLimit(2...4)
@@ -131,6 +144,11 @@ struct AddExpenseSheet: View {
             .sheet(isPresented: $showPaywall) {
                 ProPaywallView()
             }
+            .onAppear {
+                if paidBy.isEmpty, let first = trip.participantNames.first {
+                    paidBy = first
+                }
+            }
         }
     }
 
@@ -141,6 +159,7 @@ struct AddExpenseSheet: View {
             currencyCode: currencyCode,
             category: category,
             date: date,
+            paidBy: paidBy,
             notes: notes,
             receiptImageData: store.isPro ? receiptImageData : nil
         )
@@ -148,6 +167,7 @@ struct AddExpenseSheet: View {
         HapticManager.shared.sheetConfirm()
         dismiss()
     }
+
 }
 
 // MARK: — Camera picker

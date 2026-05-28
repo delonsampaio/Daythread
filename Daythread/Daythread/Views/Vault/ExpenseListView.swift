@@ -14,6 +14,7 @@ struct ExpenseListView: View {
 
     @Environment(\.modelContext) private var context
     @State private var showAdd = false
+    @State private var showSplit = false
     @State private var viewingReceiptData: Data?
 
     private var expenses: [TripExpense] {
@@ -85,16 +86,19 @@ struct ExpenseListView: View {
             // Debt splitting — Pro gate
             Section {
                 ProGateOverlay {
-                    HStack {
-                        Label("Split Expenses", systemImage: "arrow.triangle.2.circlepath")
-                            .foregroundStyle(ThemeTokens.textPrimary)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundStyle(ThemeTokens.textMuted)
+                    Button { showSplit = true } label: {
+                        HStack {
+                            Label("Split Expenses", systemImage: "arrow.triangle.2.circlepath")
+                                .foregroundStyle(ThemeTokens.textPrimary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(ThemeTokens.textMuted)
+                        }
+                        .padding(12)
+                        .background(ThemeTokens.backgroundCard)
+                        .clipShape(RoundedRectangle(cornerRadius: ThemeTokens.cardCornerRadius))
                     }
-                    .padding(12)
-                    .background(ThemeTokens.backgroundCard)
-                    .clipShape(RoundedRectangle(cornerRadius: ThemeTokens.cardCornerRadius))
+                    .buttonStyle(.plain)
                 }
             }
             .listRowInsets(EdgeInsets())
@@ -107,6 +111,9 @@ struct ExpenseListView: View {
         }
         .sheet(isPresented: $showAdd) {
             AddExpenseSheet(trip: trip, vm: vm)
+        }
+        .sheet(isPresented: $showSplit) {
+            SplitExpensesSheet(trip: trip)
         }
         .sheet(item: Binding(
             get: { viewingReceiptData.map { ReceiptWrapper(data: $0) } },

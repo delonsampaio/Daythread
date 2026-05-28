@@ -169,8 +169,8 @@ struct HelpView: View {
                 isPro: true
             )
             FAQRow(
-                question: "Can the app split expenses between group members?",
-                answer: "Yes — expense debt splitting is a Pro feature. Once your trip is shared with co-editors (Pro), the Expenses tab shows a summary of who owes whom and the net amounts, minimising the number of transactions needed to settle up.",
+                question: "How do I split expenses with my travel group?",
+                answer: "In the Vault → Expenses tab, tap \"Split Expenses\" (Pro). The sheet lets you add participant names (e.g. \"Me\", \"Alice\", \"Bob\"). When logging expenses, choose who paid. The splitter then shows the minimum set of payments needed to settle up — for example \"Alice owes Bob $24.50\".",
                 isPro: true
             )
         }
@@ -262,7 +262,7 @@ struct HelpView: View {
         .init(section: "Vault (Documents & Expenses)", question: "How many documents can I store for free?", answer: "Free users can store up to 5 documents per trip. Upgrade to Pro for unlimited document storage."),
         .init(section: "Vault (Documents & Expenses)", question: "How do I log an expense?", answer: "Go to Vault → Expenses tab and tap +. Enter the amount, currency, category, date, and who paid."),
         .init(section: "Vault (Documents & Expenses)", question: "Can I attach a receipt to an expense?", answer: "Yes — Pro users can attach a receipt photo to any expense. Tap 'Attach Receipt Photo' to use your camera or photo library. A thumbnail appears on the expense row; tap it to view full screen.", isPro: true),
-        .init(section: "Vault (Documents & Expenses)", question: "Can the app split expenses between group members?", answer: "Yes — expense debt splitting is a Pro feature. The Expenses tab shows a summary of who owes whom and the net amounts.", isPro: true),
+        .init(section: "Vault (Documents & Expenses)", question: "How do I split expenses with my travel group?", answer: "In the Vault → Expenses tab, tap \"Split Expenses\" (Pro). Add participant names, choose who paid each expense, and the splitter shows the minimum payments to settle up.", isPro: true),
         .init(section: "Co-editing & Sync", question: "How do I share a trip with travel companions?", answer: "In the Timeline, tap the people icon in the top-right corner to open Group Sync. Tap 'Invite People to This Trip'.", isPro: true),
         .init(section: "Co-editing & Sync", question: "Can co-editors change the itinerary?", answer: "Yes. Editors can add, reorder, lock, and delete events just like the trip owner.", isPro: true),
         .init(section: "Co-editing & Sync", question: "How quickly do changes appear for co-editors?", answer: "Updates arrive via CloudKit push and typically appear within a few seconds.", isPro: true),
