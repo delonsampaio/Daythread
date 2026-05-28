@@ -17,7 +17,33 @@ struct ExpenseListView: View {
     @State private var showAdd = false
     @State private var showSplit = false
     @State private var editingExpense: TripExpense?
+    @State private var pendingDelete: TripExpense?
     @State private var viewingReceiptData: Data?
+
+    /// True if the trip has any settlement expenses.
+    private var tripHasSettlements: Bool {
+        (trip.expenses ?? []).contains { e in
+            e.splitAmongIDs.count == 1 &&
+            e.paidByMemberID != nil &&
+            e.paidByMemberID != e.splitAmongIDs.first
+        }
+    }
+
+    /// Settlements are intentional deletes (that's how users fix stale debts),
+    /// so only warn when deleting a regular expense while settlements exist.
+    private func isSettlement(_ expense: TripExpense) -> Bool {
+        expense.splitAmongIDs.count == 1 &&
+        expense.paidByMemberID != nil &&
+        expense.paidByMemberID != expense.splitAmongIDs.first
+    }
+
+    private func requestDelete(_ expense: TripExpense) {
+        if tripHasSettlements && !isSettlement(expense) {
+            pendingDelete = expense
+        } else {
+            vm.deleteExpense(expense, context: context)
+        }
+    }
 
     private var expenses: [TripExpense] {
         (trip.expenses ?? []).sorted { $0.date > $1.date }
@@ -92,7 +118,7 @@ struct ExpenseListView: View {
                     }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
-                            vm.deleteExpense(expense, context: context)
+                            requestDelete(expense)
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
@@ -108,7 +134,7 @@ struct ExpenseListView: View {
                             editingExpense = expense
                         }
                         Button("Delete", systemImage: "trash", role: .destructive) {
-                            vm.deleteExpense(expense, context: context)
+                            requestDelete(expense)
                         }
                     }
                 }
@@ -133,6 +159,20 @@ struct ExpenseListView: View {
         }
         .sheet(item: $editingExpense) { expense in
             AddExpenseSheet(trip: trip, vm: vm, editingExpense: expense)
+        }
+        .alert("Settlements May Be Affected", isPresented: Binding(
+            get: { pendingDelete != nil },
+            set: { if !$0 { pendingDelete = nil } }
+        )) {
+            Button("Delete Anyway", role: .destructive) {
+                if let expense = pendingDelete {
+                    vm.deleteExpense(expense, context: context)
+                }
+                pendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        } message: {
+            Text("You've already settled some debts for this trip. Deleting this expense may make those settlements inaccurate. You can delete stale settlements from the Split Expenses view.")
         }
         .sheet(isPresented: $showSplit) {
             SplitExpensesSheet(trip: trip, vm: vm)

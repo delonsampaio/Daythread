@@ -61,14 +61,16 @@ struct AddExpenseSheet: View {
         }
     }
 
-    /// True when editing would change the amount or split-among while settlements exist.
-    /// Editing either field can make already-recorded settlements inaccurate because
+    /// True when editing would change the amount, split-among, or payer while
+    /// settlements exist. All three fields affect the debt calculation; changing
+    /// any of them can make already-recorded settlements inaccurate because
     /// settlements have no foreign-key link back to the expense they were settling.
     private var editWillAffectSettlements: Bool {
         guard let original = editingExpense else { return false }
         let amountChanged = (Double(amount) ?? 0) != original.amount
         let splitChanged  = currentSplitSet != Set(original.splitAmongIDs)
-        return (amountChanged || splitChanged) && tripHasSettlements
+        let payerChanged  = paidByMemberID != original.paidByMemberID
+        return (amountChanged || splitChanged || payerChanged) && tripHasSettlements
     }
 
     init(trip: Trip, vm: VaultViewModel, editingExpense: TripExpense? = nil) {
