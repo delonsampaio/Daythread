@@ -43,11 +43,6 @@ struct EditTripSheet: View {
         vm.eventCountOutsideRange(trip: trip, newStart: startDate, newEnd: endDate)
     }
 
-    private var coverPhotoPickerLabel: some View {
-        Label(coverImageData == nil ? "Choose Photo" : "Change Photo", systemImage: "photo.fill")
-            .foregroundStyle(ThemeTokens.accent)
-    }
-
     var body: some View {
         NavigationStack {
             Form {
@@ -65,8 +60,10 @@ struct EditTripSheet: View {
                 }
 
                 Section("Cover Photo") {
+                    let photoLabel = coverImageData == nil ? "Choose Photo" : "Change Photo"
                     PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                        coverPhotoPickerLabel
+                        Label(photoLabel, systemImage: "photo.fill")
+                            .foregroundStyle(ThemeTokens.accent)
                     }
                     if coverImageData != nil {
                         Button("Remove Photo", role: .destructive) {
