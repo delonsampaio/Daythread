@@ -71,7 +71,8 @@ struct AddExpenseSheet: View {
                 if !members.isEmpty {
                     Section("Paid by") {
                         Picker("Paid by", selection: $paidByMemberID) {
-                            Text("Untracked").tag(UUID?.none)
+                            // "Untracked" is removed when participants exist —
+                            // a payer is required to produce correct settlements.
                             ForEach(members) { member in
                                 Text(member.displayName).tag(UUID?.some(member.id))
                             }
@@ -145,7 +146,13 @@ struct AddExpenseSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Save") { save() }
                         .fontWeight(.semibold)
-                        .disabled(title.isEmpty || Double(amount) == nil)
+                        .disabled(
+                            title.isEmpty ||
+                            Double(amount) == nil ||
+                            // Payer is mandatory when participants are set up.
+                            // Prevents "Everyone is even!" showing for untracked expenses.
+                            (!members.isEmpty && paidByMemberID == nil)
+                        )
                 }
             }
             .confirmationDialog("Attach Receipt", isPresented: $showReceiptSourcePicker, titleVisibility: .visible) {

@@ -32,6 +32,10 @@ struct SplitExpensesSheet: View {
     private var expenses: [TripExpense] { trip.expenses ?? [] }
     private var settlements: [Settlement] { computeSettlements() }
 
+    private var untrackedExpenseCount: Int {
+        expenses.filter { $0.paidByMemberID == nil }.count
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -64,8 +68,8 @@ struct SplitExpensesSheet: View {
                     .keyboardType(.decimalPad)
                 Button("Cancel", role: .cancel) { pendingSettlement = nil }
                 Button("Settle \(s.currency)") {
-                    guard let amount = Double(settleAmountText), amount > 0.005 else { return }
-                    confirmSettle(s, amount: amount)
+                    guard let raw = Double(settleAmountText), raw > 0.005 else { return }
+                    confirmSettle(s, amount: min(raw, s.amount))
                 }
             } message: { s in
                 Text("\(s.debtorName) owes \(s.creditorName) \(String(format: "%.2f %@", s.amount, s.currency)). Edit the amount for a partial payment.")
@@ -126,6 +130,15 @@ struct SplitExpensesSheet: View {
 
     private var settlementsSection: some View {
         Section {
+            if untrackedExpenseCount > 0 {
+                Label(
+                    "\(untrackedExpenseCount) expense\(untrackedExpenseCount == 1 ? "" : "s") \(untrackedExpenseCount == 1 ? "has" : "have") no payer and \(untrackedExpenseCount == 1 ? "is" : "are") excluded from splits.",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .listRowBackground(Color.orange.opacity(0.08))
+            }
             if expenses.isEmpty {
                 Text("Add expenses to see who owes whom.")
                     .font(.subheadline)
