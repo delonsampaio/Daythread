@@ -207,9 +207,11 @@ struct AddExpenseSheet: View {
     }
 
     private func save() {
-        // Collapse back to empty (= all) if every member is checked.
-        let finalSplitAmongIDs: [UUID] = splitAmongIDs.count == members.count
-            ? []
+        // Always snapshot the explicit UUIDs of who is included at save time.
+        // NEVER write an empty array — empty would retroactively include any
+        // member who joins the trip later (the "Ghost Debtor" bug).
+        let finalSplitAmongIDs: [UUID] = isSplitAmongAll
+            ? members.map(\.id)   // explicit snapshot of today's member list
             : Array(splitAmongIDs)
 
         let expense = TripExpense(

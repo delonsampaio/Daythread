@@ -22,7 +22,9 @@ final class TripExpense {
     /// IDs of TripMembers included in the split. Empty = split among ALL trip members.
     var splitAmongIDs: [UUID] = []
     var notes: String = ""
-    var receiptImageData: Data?     // nil = no receipt; Pro feature
+    /// JPEG receipt photo. Stored outside SQLite via externalStorage to keep
+    /// ExpenseListView fetches fast regardless of how many receipts are attached.
+    @Attribute(.externalStorage) var receiptImageData: Data?
 
     var trip: Trip?
 

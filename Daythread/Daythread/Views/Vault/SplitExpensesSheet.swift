@@ -23,6 +23,8 @@ struct SplitExpensesSheet: View {
 
     @State private var newName: String = ""
     @FocusState private var nameFieldFocused: Bool
+    @State private var pendingSettlement: Settlement? = nil
+    @State private var settleAmountText: String = ""
 
     private var members: [TripMember] {
         (trip.members ?? []).sorted { $0.displayName < $1.displayName }
@@ -52,6 +54,19 @@ struct SplitExpensesSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
+            }
+            // Partial settlement — pre-filled with full debt, user can edit.
+            .alert("Settle Debt", isPresented: .constant(pendingSettlement != nil),
+                   presenting: pendingSettlement) { s in
+                TextField("Amount", text: $settleAmountText)
+                    .keyboardType(.decimalPad)
+                Button("Cancel", role: .cancel) { pendingSettlement = nil }
+                Button("Settle \(s.currency)") {
+                    guard let amount = Double(settleAmountText), amount > 0.005 else { return }
+                    confirmSettle(s, amount: amount)
+                }
+            } message: { s in
+                Text("\(s.debtorName) owes \(s.creditorName) \(String(format: "%.2f %@", s.amount, s.currency)). Edit the amount for a partial payment.")
             }
         }
     }
@@ -137,7 +152,8 @@ struct SplitExpensesSheet: View {
                         }
                         Spacer()
                         Button("Settle") {
-                            settleDebt(s)
+                            pendingSettlement = s
+                            settleAmountText = String(format: "%.2f", s.amount)
                         }
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.white)
@@ -169,13 +185,16 @@ struct SplitExpensesSheet: View {
         newName = ""
     }
 
-    private func settleDebt(_ s: Settlement) {
+    /// Called after the partial-settlement alert is confirmed.
+    /// splitAmongIDs is hardcoded to [creditorID] — the loophole guard.
+    private func confirmSettle(_ s: Settlement, amount: Double) {
         guard let debtor   = members.first(where: { $0.id == s.debtorID }),
               let creditor = members.first(where: { $0.id == s.creditorID }) else { return }
         vm.settleDebt(debtor: debtor, creditor: creditor,
-                      amount: s.amount, currencyCode: s.currency,
+                      amount: amount, currencyCode: s.currency,
                       trip: trip, context: context)
         HapticManager.shared.sheetConfirm()
+        pendingSettlement = nil
     }
 
     // MARK: — Debt minimisation
@@ -207,12 +226,10 @@ struct SplitExpensesSheet: View {
                 guard let payer = expense.paidByMemberID,
                       memberIDs.contains(payer) else { continue }
 
-                // Resolve who this expense is split among.
-                // Empty splitAmongIDs means "everyone".
-                let participants: [UUID] = expense.splitAmongIDs.isEmpty
-                    ? members.map(\.id)
-                    : expense.splitAmongIDs.filter { memberIDs.contains($0) }
-
+                // splitAmongIDs is always an explicit snapshot saved at creation time.
+                // We never fall back to "all members" — that would cause the Ghost
+                // Debtor bug when new members join after the expense was logged.
+                let participants = expense.splitAmongIDs.filter { memberIDs.contains($0) }
                 guard !participants.isEmpty else { continue }
                 let share = expense.amount / Double(participants.count)
 
