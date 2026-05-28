@@ -59,8 +59,6 @@ final class TimelineViewModel {
         guard let dragged = fetchEvent(id: uuid, context: context) else { return false }
         guard !dragged.isTimeLocked else { return false }
 
-        let sourceDay = dragged.day
-
         // Build the proposed new order for the target day.
         var proposed = (targetDay.events ?? [])
             .filter { $0.id != dragged.id }
