@@ -274,14 +274,18 @@ struct SplitExpensesSheet: View {
         }
 
         // Engine returns the minimized debt set; map UUIDs → display names for the view.
+        // Filter after rounding: sub-cent balances (e.g. 0.004) round to 0.00 and
+        // must be dropped so settled debts don't linger as zero-amount rows.
         return ExpenseSplitter.minimize(expenses: splitExpenses, members: members.map(\.id))
-            .map { debt in
-                Settlement(
+            .compactMap { debt -> Settlement? in
+                let rounded = (debt.amount * 100).rounded() / 100
+                guard rounded > 0 else { return nil }
+                return Settlement(
                     debtorID:     debt.from,
                     creditorID:   debt.to,
                     debtorName:   nameFor(debt.from),
                     creditorName: nameFor(debt.to),
-                    amount:   (debt.amount * 100).rounded() / 100,
+                    amount:   rounded,
                     currency: debt.currency
                 )
             }
