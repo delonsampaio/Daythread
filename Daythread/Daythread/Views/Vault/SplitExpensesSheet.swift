@@ -56,8 +56,10 @@ struct SplitExpensesSheet: View {
                 }
             }
             // Partial settlement — pre-filled with full debt, user can edit.
-            .alert("Settle Debt", isPresented: .constant(pendingSettlement != nil),
-                   presenting: pendingSettlement) { s in
+            .alert("Settle Debt", isPresented: Binding(
+                get: { pendingSettlement != nil },
+                set: { if !$0 { pendingSettlement = nil } }
+            ), presenting: pendingSettlement) { s in
                 TextField("Amount", text: $settleAmountText)
                     .keyboardType(.decimalPad)
                 Button("Cancel", role: .cancel) { pendingSettlement = nil }
@@ -88,10 +90,12 @@ struct SplitExpensesSheet: View {
                 }
             }
             .onDelete { indexSet in
-                // Only allow deleting virtual members from this sheet.
-                let virtualMembers = members.filter(\.isVirtual)
+                // indexSet is relative to `members` (the ForEach source).
+                // Look up in `members` first, then guard isVirtual — do NOT
+                // look up in a filtered array with a mismatched index.
                 indexSet
-                    .compactMap { virtualMembers[safe: $0] }
+                    .compactMap { members[safe: $0] }
+                    .filter(\.isVirtual)
                     .forEach { vm.removeMember($0, context: context) }
             }
 
