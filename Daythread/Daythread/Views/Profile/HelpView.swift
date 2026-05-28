@@ -127,12 +127,16 @@ struct HelpView: View {
                 answer: "The Trips tab groups your trips into Current, Upcoming, Past, and Archived. A trip is 'Current' if today falls within its start and end dates, 'Upcoming' if it's in the future, and 'Past' after it ends."
             )
             FAQRow(
+                question: "How do I edit a trip?",
+                answer: "Long-press any trip card in the Trips list and tap Edit. You can change the name, destination, cover photo, and dates. If you shorten the date range and any events fall outside the new dates, the app warns you with an exact count before deleting them."
+            )
+            FAQRow(
                 question: "How do I archive a trip?",
-                answer: "Swipe left on any trip in the Trips list and tap Archive. Archived trips are hidden from the active switcher strip but remain accessible in the Archived section so you can refer back to them."
+                answer: "Long-press any trip card in the Trips list and tap Archive. Archived trips are hidden from the active switcher strip but remain accessible in the Archived section so you can refer back to them."
             )
             FAQRow(
                 question: "How do I delete a trip?",
-                answer: "Swipe left on a trip in the Trips list and tap Delete. This permanently removes the trip and all its days, events, documents, and expenses."
+                answer: "Long-press any trip card in the Trips list and tap Delete. This permanently removes the trip and all its days, events, documents, and expenses."
             )
             FAQRow(
                 question: "What are Pre-Trip Tasks?",
@@ -140,7 +144,7 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "Can I add a cover photo to a trip?",
-                answer: "Yes. During trip creation, step 3 lets you pick a cover photo from your photo library. You can also update it later by tapping the trip card in the Trips list and editing the trip."
+                answer: "Yes. During trip creation, step 3 lets you pick a cover photo from your photo library. You can also change or remove it later — long-press the trip card and tap Edit, then use the Cover Photo section."
             )
         }
     }
@@ -258,10 +262,11 @@ struct HelpView: View {
         .init(section: "Timeline", question: "Can I add notes to an event?", answer: "Yes. The Add/Edit Event sheet has a notes field where you can save anything relevant — confirmation numbers, meeting points, dress codes, etc."),
         .init(section: "Timeline", question: "How do I add lodging to a trip?", answer: "From the Timeline, tap the + button and choose Hotel or Rental Property. Alternatively, go to Trips, tap your trip, and use the Lodging section. Enter check-in and check-out dates and a confirmation number."),
         .init(section: "Trips", question: "How are trips organised?", answer: "The Trips tab groups your trips into Current, Upcoming, Past, and Archived. A trip is 'Current' if today falls within its start and end dates."),
-        .init(section: "Trips", question: "How do I archive a trip?", answer: "Swipe left on any trip in the Trips list and tap Archive. Archived trips are hidden from the active switcher strip but remain accessible in the Archived section."),
-        .init(section: "Trips", question: "How do I delete a trip?", answer: "Swipe left on a trip in the Trips list and tap Delete. This permanently removes the trip and all its days, events, documents, and expenses."),
+        .init(section: "Trips", question: "How do I edit a trip?", answer: "Long-press any trip card in the Trips list and tap Edit. You can change the name, destination, cover photo, and dates. Shortening the date range shows a warning if events would be removed."),
+        .init(section: "Trips", question: "How do I archive a trip?", answer: "Long-press any trip card in the Trips list and tap Archive. Archived trips are hidden from the active switcher strip but remain accessible in the Archived section."),
+        .init(section: "Trips", question: "How do I delete a trip?", answer: "Long-press any trip card in the Trips list and tap Delete. This permanently removes the trip and all its days, events, documents, and expenses."),
         .init(section: "Trips", question: "What are Pre-Trip Tasks?", answer: "Pre-Trip Tasks are a checklist you can attach to any trip for things to do before you leave — booking insurance, printing documents, packing specific items, etc."),
-        .init(section: "Trips", question: "Can I add a cover photo to a trip?", answer: "Yes. During trip creation, step 3 lets you pick a cover photo from your photo library. You can also update it later by editing the trip."),
+        .init(section: "Trips", question: "Can I add a cover photo to a trip?", answer: "Yes. During trip creation, step 3 lets you pick a cover photo from your photo library. You can also change or remove it later via the Edit option in the trip card's long-press menu."),
         .init(section: "Vault (Documents & Expenses)", question: "What can I store in the Vault?", answer: "The Vault holds Documents (passports, visas, insurance cards, boarding passes — as PDFs or images) and Expenses (a running log of what you've spent per trip)."),
         .init(section: "Vault (Documents & Expenses)", question: "How do I add a document?", answer: "Go to Vault → Documents tab and tap +. Import from Files, take a photo, or pick from your library. Give it a title and an optional expiry date."),
         .init(section: "Vault (Documents & Expenses)", question: "How many documents can I store for free?", answer: "Free users can store up to 5 documents per trip. Upgrade to Pro for unlimited document storage."),
