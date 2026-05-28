@@ -71,10 +71,13 @@ struct DaythreadApp: App {
         ])
 
         #if targetEnvironment(simulator)
-        // Simulator has no iCloud account. CloudKit's recovery process can block
-        // for 30–60 s waiting for a network timeout, causing the app to hang.
-        // Use in-memory on Simulator so tests and dev iteration are instant.
-        let simConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        // Simulator has no iCloud account — CloudKit must be disabled.
+        // Use persistent disk storage so test data survives across launches.
+        // To reset: delete the app from the simulator home screen.
+        let simConfig = ModelConfiguration(
+            schema: schema,
+            cloudKitDatabase: .none
+        )
         return try! ModelContainer(for: schema, configurations: [simConfig])
         #else
         // Real device: CloudKit private DB for iCloud sync. If init throws
