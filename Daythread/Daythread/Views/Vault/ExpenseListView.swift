@@ -13,6 +13,7 @@ struct ExpenseListView: View {
     let vm: VaultViewModel
 
     @Environment(\.modelContext) private var context
+    @Environment(TripStore.self) private var store
     @State private var showAdd = false
     @State private var showSplit = false
     @State private var viewingReceiptData: Data?
@@ -94,30 +95,18 @@ struct ExpenseListView: View {
                 }
             }
 
-            // Debt splitting — Pro gate
-            Section {
-                ProGateOverlay {
-                    Button { showSplit = true } label: {
-                        HStack {
-                            Label("Split Expenses", systemImage: "arrow.triangle.2.circlepath")
-                                .foregroundStyle(ThemeTokens.textPrimary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(ThemeTokens.textMuted)
-                        }
-                        .padding(12)
-                        .background(ThemeTokens.backgroundCard)
-                        .clipShape(RoundedRectangle(cornerRadius: ThemeTokens.cardCornerRadius))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showAdd = true } label: { Image(systemName: "plus") }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    guard store.isPro else { vm.showPaywall = true; return }
+                    showSplit = true
+                } label: {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                }
             }
         }
         .sheet(isPresented: $showAdd) {
