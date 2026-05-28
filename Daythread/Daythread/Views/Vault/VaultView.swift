@@ -31,6 +31,7 @@ struct VaultView: View {
                             ExpenseListView(trip: trip, vm: vm)
                         }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 } else {
                     ContentUnavailableView("No active trip",
                                            systemImage: "folder.fill",
