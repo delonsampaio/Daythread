@@ -121,14 +121,18 @@ struct SwipeRevealCard<Content: View>: View {
                     .font(.system(size: 16, weight: .semibold))
                 Text(label)
                     .font(.system(size: 10, weight: .semibold))
+                    .lineLimit(1)
             }
             .foregroundStyle(.white)
-            .padding(.horizontal, 12)
+            // Fixed width (centred) before the capsule so all pills are
+            // the same size regardless of label length ("Edit" vs "Unlock").
+            .frame(width: 56, alignment: .center)
             .padding(.vertical, 9)
             .background(Capsule().fill(color))
         }
         .buttonStyle(.plain)
-        .frame(width: buttonWidth)
-        .frame(maxHeight: .infinity)
+        // Centre the pill within its 72 pt slot, vertically and horizontally.
+        .frame(width: buttonWidth, alignment: .center)
+        .frame(maxHeight: .infinity, alignment: .center)
     }
 }
