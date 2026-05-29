@@ -9,8 +9,9 @@
 //  Design:
 //  • Icon-only circles — no text labels, matching the native iOS swipe-action
 //    aesthetic. accessibilityLabel provides text for VoiceOver.
-//  • Edit and Lock/Unlock use systemGray to reduce visual noise; Delete stays
-//    red as the only destructive action.
+//  • Edit = blue, Lock/Unlock = orange (mirrors the amber lock icon on cards),
+//    Delete = red. Color is the only affordance on icon-only circles, especially
+//    in dark mode, so each action keeps a distinct semantic colour.
 //  • openID binding — shared across the whole timeline. Opening this card sets
 //    openID = self.id; any other open card observes the change and closes itself,
 //    so at most one panel is visible at a time.
@@ -62,11 +63,12 @@ struct SwipeRevealCard<Content: View>: View {
             HStack(spacing: 0) {
                 circleButton(label: "Edit",
                              icon: "pencil",
-                             color: Color(uiColor: .systemGray),
+                             color: Color(uiColor: .systemBlue),
                              action: editAction)
+                // Orange matches the amber lock icon already used on locked cards.
                 circleButton(label: isLocked ? "Unlock" : "Lock",
                              icon: isLocked ? "lock.open.fill" : "lock.fill",
-                             color: Color(uiColor: .systemGray),
+                             color: Color(uiColor: .systemOrange),
                              action: lockAction)
                 circleButton(label: "Delete",
                              icon: "trash",
