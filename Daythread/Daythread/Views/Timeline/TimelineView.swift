@@ -27,6 +27,9 @@ struct TimelineView: View {
     @State private var dragTargetEventID: UUID?
     @State private var endDropTargetDayID: UUID?
     @State private var editingEvent: TripEvent?
+    /// ID of the event whose swipe panel is currently open.
+    /// Shared across all SwipeRevealCard instances so at most one is open.
+    @State private var swipeOpenEventID: UUID?
 
     var body: some View {
         Group {
@@ -117,14 +120,17 @@ struct TimelineView: View {
                              isShaking: vm.shakingEventIDs.contains(event.id)) {
                     // Swipe left to reveal Edit · Lock · Delete.
                     // Long-press is now exclusively for drag-to-reorder — no gesture conflict.
+                    // openID: $swipeOpenEventID ensures at most one panel is open at a time.
                     SwipeRevealCard(
+                        id: event.id,
                         isLocked: event.isTimeLocked,
                         editAction: { editingEvent = event },
                         lockAction: {
                             vm.lockEvent(event, context: context)
                             HapticManager.shared.lockToggle()
                         },
-                        deleteAction: { vm.deleteEvent(event, context: context) }
+                        deleteAction: { vm.deleteEvent(event, context: context) },
+                        openID: $swipeOpenEventID
                     ) {
                         if event.category.requiresTransitDetails, let details = event.transitDetails {
                             TransitCardView(event: event, details: details)

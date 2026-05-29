@@ -6,63 +6,87 @@
 //
 //  Wraps an event card with swipe-left-to-reveal actions (Edit · Lock · Delete).
 //
-//  Design notes:
+//  Design:
+//  • Icon-only circles — no text labels, matching the native iOS swipe-action
+//    aesthetic. accessibilityLabel provides text for VoiceOver.
+//  • Edit and Lock/Unlock use systemGray to reduce visual noise; Delete stays
+//    red as the only destructive action.
+//  • openID binding — shared across the whole timeline. Opening this card sets
+//    openID = self.id; any other open card observes the change and closes itself,
+//    so at most one panel is visible at a time.
 //  • simultaneousGesture lets horizontal swipes be caught here while vertical
 //    pans still propagate to the enclosing ScrollView.
-//  • The card slides left in a ZStack above the buttons; .clipped() confines
-//    the animation to the card frame. The cardShadow (opacity 0.04, radius 8)
-//    is imperceptibly trimmed during a swipe — the trade-off is worth the
-//    clean layout.
-//  • The left-column time/icon in TimelineItem sits outside this view in the
-//    parent HStack and is unaffected by the swipe.
-//  • Velocity check on gesture end (> 120 pt/s) prevents drag-and-drop finger
-//    movement from accidentally opening the swipe panel.
+//  • Velocity check (> 120 pt/s) prevents drag-and-drop motion from accidentally
+//    opening the swipe panel after a long-press lift.
 
 import SwiftUI
 
 struct SwipeRevealCard<Content: View>: View {
+    let id: UUID
     let isLocked: Bool
     let editAction: () -> Void
     let lockAction: () -> Void
     let deleteAction: () -> Void
+    @Binding var openID: UUID?
     @ViewBuilder let content: Content
 
     @State private var offset: CGFloat = 0
     @State private var isOpen: Bool = false
 
-    private let revealWidth: CGFloat = 216   // 3 buttons × 72 pt
+    private let revealWidth: CGFloat = 216   // 3 slots × 72 pt
     private let buttonWidth: CGFloat = 72
+    private let circleSize:  CGFloat = 46
+
+    init(
+        id: UUID,
+        isLocked: Bool,
+        editAction: @escaping () -> Void,
+        lockAction: @escaping () -> Void,
+        deleteAction: @escaping () -> Void,
+        openID: Binding<UUID?>,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.id = id
+        self.isLocked = isLocked
+        self.editAction = editAction
+        self.lockAction = lockAction
+        self.deleteAction = deleteAction
+        self._openID = openID
+        self.content = content()
+    }
 
     var body: some View {
         ZStack(alignment: .trailing) {
-            // Buttons are hidden at rest (opacity 0) to prevent them showing
-            // through the card's rounded-corner gaps when not swiping.
-            // They appear as soon as the swipe starts (offset < -8 pt).
+            // Action circles — hidden at rest so they don't bleed through
+            // the card's rounded-corner gaps; appear as soon as swipe starts.
             HStack(spacing: 0) {
-                swipeButton(label: "Edit",
-                            icon: "pencil",
-                            color: Color(uiColor: .systemBlue),
-                            action: editAction)
-                swipeButton(label: isLocked ? "Unlock" : "Lock",
-                            icon: isLocked ? "lock.open.fill" : "lock.fill",
-                            color: Color(uiColor: .systemOrange),
-                            action: lockAction)
-                swipeButton(label: "Delete",
-                            icon: "trash",
-                            color: Color(uiColor: .systemRed),
-                            action: deleteAction)
+                circleButton(label: "Edit",
+                             icon: "pencil",
+                             color: Color(uiColor: .systemGray),
+                             action: editAction)
+                circleButton(label: isLocked ? "Unlock" : "Lock",
+                             icon: isLocked ? "lock.open.fill" : "lock.fill",
+                             color: Color(uiColor: .systemGray),
+                             action: lockAction)
+                circleButton(label: "Delete",
+                             icon: "trash",
+                             color: Color(uiColor: .systemRed),
+                             action: deleteAction)
             }
             .frame(width: revealWidth)
             .opacity(offset < -8 ? 1 : 0)
 
-            // Card: slides left, covering then revealing the buttons.
-            // Tap on the card while open → close the panel.
+            // Card slides left; tap it while open to close the panel.
             content
                 .offset(x: offset)
                 .onTapGesture { if isOpen { close() } }
         }
         .clipped()
         .simultaneousGesture(swipeGesture)
+        // Close when another card's panel opens.
+        .onChange(of: openID) { _, newID in
+            if newID != id, isOpen { close() }
+        }
     }
 
     // MARK: — Gesture
@@ -70,24 +94,20 @@ struct SwipeRevealCard<Content: View>: View {
     private var swipeGesture: some Gesture {
         DragGesture(minimumDistance: 10, coordinateSpace: .local)
             .onChanged { value in
-                // Ignore vertical-dominant gestures (propagate to ScrollView)
                 guard abs(value.translation.width) > abs(value.translation.height) else { return }
                 let base: CGFloat = isOpen ? -revealWidth : 0
-                let proposed = base + value.translation.width
-                offset = max(-revealWidth, min(0, proposed))
+                offset = max(-revealWidth, min(0, base + value.translation.width))
             }
             .onEnded { value in
                 guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                // Low velocity = drag-and-drop motion, not a deliberate swipe — snap back.
                 guard abs(value.velocity.width) > 120 else {
                     snap(to: isOpen ? -revealWidth : 0)
                     return
                 }
-                let shouldOpen = isOpen
-                    ? value.velocity.width > 0 ? false : true   // fast rightward = close
-                    : value.velocity.width < 0                   // fast leftward  = open
-                snap(to: shouldOpen ? -revealWidth : 0)
+                let shouldOpen = isOpen ? value.velocity.width < 0 : value.velocity.width < 0
+                if shouldOpen { openID = id }   // signal other cards to close
                 isOpen = shouldOpen
+                snap(to: shouldOpen ? -revealWidth : 0)
             }
     }
 
@@ -104,36 +124,24 @@ struct SwipeRevealCard<Content: View>: View {
         snap(to: 0)
     }
 
-    private func swipeButton(
+    private func circleButton(
         label: String,
         icon: String,
         color: Color,
         action: @escaping () -> Void
     ) -> some View {
         Button {
-            // Close the panel first, then fire the action after the
-            // spring animation settles so sheets open from a resting state.
             close()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { action() }
         } label: {
-            VStack(spacing: 3) {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                Text(label)
-                    .font(.system(size: 10, weight: .semibold))
-                    .lineLimit(1)
-            }
-            .foregroundStyle(.white)
-            // Fixed width (centred) before the capsule so all pills are
-            // the same size regardless of label length ("Edit" vs "Unlock").
-            // 64 wide × ~43 tall (16 icon + 3 gap + 12 text + 12 v-pad) → 1.5:1
-            // aspect ratio gives a clear horizontal pill, not a circle.
-            .frame(width: 64, alignment: .center)
-            .padding(.vertical, 6)
-            .background(Capsule().fill(color))
+            Image(systemName: icon)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: circleSize, height: circleSize)
+                .background(Circle().fill(color))
         }
         .buttonStyle(.plain)
-        // Centre the pill within its 72 pt slot, vertically and horizontally.
+        .accessibilityLabel(label)
         .frame(width: buttonWidth, alignment: .center)
         .frame(maxHeight: .infinity, alignment: .center)
     }
