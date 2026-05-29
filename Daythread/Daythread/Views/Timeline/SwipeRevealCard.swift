@@ -126,8 +126,10 @@ struct SwipeRevealCard<Content: View>: View {
             .foregroundStyle(.white)
             // Fixed width (centred) before the capsule so all pills are
             // the same size regardless of label length ("Edit" vs "Unlock").
-            .frame(width: 56, alignment: .center)
-            .padding(.vertical, 9)
+            // 64 wide × ~43 tall (16 icon + 3 gap + 12 text + 12 v-pad) → 1.5:1
+            // aspect ratio gives a clear horizontal pill, not a circle.
+            .frame(width: 64, alignment: .center)
+            .padding(.vertical, 6)
             .background(Capsule().fill(color))
         }
         .buttonStyle(.plain)
