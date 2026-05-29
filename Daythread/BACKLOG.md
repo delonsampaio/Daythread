@@ -27,6 +27,13 @@ Some group bills are split across multiple cards at the point of sale (e.g. two 
 
 ---
 
+### Time Conflict Detection & Resolution
+When saving an event whose `startTime`–`endTime` window overlaps another timed event on the same day, show a non-blocking alert rather than silently saving. The alert names the conflicting event and offers three exits: re-open the time pickers to adjust, navigate to the conflicting event (save current, scroll-to and briefly highlight the target card), or save anyway. Only fires when both events have a `startTime` and an `endTime` — events with no times are ignored.
+
+**Scope:** Conflict-check helper in `TimelineViewModel` (pure function, easy to unit-test) · non-blocking alert in `AddEditEventSheet` after the save path · scroll-to-and-highlight mechanism in `TimelineView` (ScrollViewProxy + `@State var highlightedEventID: UUID?` + brief amber animation on the target `TimelineItem`).
+
+---
+
 ### Ride-Share Deep Linking
 From a transit card in TransitCardView, one tap opens Uber or Lyft with the destination pre-filled. Solves standing-on-a-curb friction where the user already knows where they're going but has to context-switch apps to get there.
 
