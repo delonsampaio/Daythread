@@ -28,6 +28,8 @@ struct AddEditEventSheet: View {
     @State private var selectedDay: TripDay?
     @State private var showTransitSheet: Bool = false
     @State private var transitDetails: TransitDetails?
+    @State private var showConflictAlert: Bool = false
+    @State private var pendingConflicts: [TripEvent] = []
 
     private var tripDays: [TripDay] {
         (trip?.days ?? []).sorted { $0.sortOrder < $1.sortOrder }
@@ -129,7 +131,7 @@ struct AddEditEventSheet: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save") { save() }
+                    Button("Save") { checkAndSave() }
                         .fontWeight(.semibold)
                         .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
@@ -141,6 +143,59 @@ struct AddEditEventSheet: View {
             }
         }
         .onAppear { populateIfEditing() }
+        .alert("Time Conflict", isPresented: $showConflictAlert) {
+            Button("Adjust Time", role: .cancel) { }
+            Button("Save Anyway", role: .destructive) { save() }
+        } message: {
+            Text(conflictAlertMessage)
+        }
+    }
+
+    // MARK: — Conflict-aware save
+
+    /// Runs the conflict check before committing. If conflicts exist, shows the
+    /// alert so the user can adjust the time or save anyway. No-time events and
+    /// inverted windows bypass the check and save directly.
+    private func checkAndSave() {
+        let targetDay = selectedDay ?? tripDays.first
+        guard hasStartTime, endTime > startTime else {
+            save(); return
+        }
+        let conflicts = ScheduleEngine.findConflicts(
+            startTime: startTime,
+            endTime: endTime,
+            among: targetDay?.events ?? [],
+            excludingID: editingEvent?.id
+        )
+        guard !conflicts.isEmpty else {
+            save(); return
+        }
+        pendingConflicts = conflicts
+        showConflictAlert = true
+    }
+
+    /// Builds the alert body text, naming every conflicting event.
+    private var conflictAlertMessage: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+
+        func describe(_ event: TripEvent) -> String {
+            guard let s = event.startTime, let e = event.endTime else { return event.title }
+            return "\(event.title) (\(formatter.string(from: s))–\(formatter.string(from: e)))"
+        }
+
+        switch pendingConflicts.count {
+        case 0:
+            return ""
+        case 1:
+            return "\(describe(pendingConflicts[0])) overlaps on the same day."
+        case 2:
+            return "\(describe(pendingConflicts[0])) and \(describe(pendingConflicts[1])) overlap on the same day."
+        default:
+            let first = describe(pendingConflicts[0])
+            let rest  = pendingConflicts.count - 1
+            return "\(first) and \(rest) other\(rest == 1 ? "" : "s") overlap on the same day."
+        }
     }
 
     private func populateIfEditing() {
