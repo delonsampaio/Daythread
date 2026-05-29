@@ -238,7 +238,7 @@ struct AddExpenseSheet: View {
                 Button("Save Anyway", role: .destructive) { save() }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("You've already settled some debts for this trip. Changing the amount or who splits this expense can make those settlements inaccurate. You can delete any stale settlements from the Split Expenses view.")
+                Text("You've already settled some debts for this trip. Changing the amount or who splits this expense can make those settlements inaccurate. You can delete any outdated settlements from the Split Expenses view.")
             }
             .onAppear {
                 if editingExpense != nil {

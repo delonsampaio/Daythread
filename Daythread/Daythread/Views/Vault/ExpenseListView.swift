@@ -183,7 +183,7 @@ struct ExpenseListView: View {
             }
             Button("Cancel", role: .cancel) { pendingDelete = nil }
         } message: {
-            Text("You've already settled some debts for this trip. Deleting this expense may make those settlements inaccurate. You can delete stale settlements from the Split Expenses view.")
+            Text("You've already settled some debts for this trip. Deleting this expense may make those settlements inaccurate. You can delete outdated settlements from the Split Expenses view.")
         }
         .sheet(isPresented: $showSplit) {
             SplitExpensesSheet(trip: trip, vm: vm)

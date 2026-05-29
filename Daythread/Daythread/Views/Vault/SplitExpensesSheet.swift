@@ -132,7 +132,7 @@ struct SplitExpensesSheet: View {
             Text("Participants")
         } footer: {
             if members.count < 2 {
-                Text("Real co-editors appear automatically when they join the trip.")
+                Text("Invited group members will appear here automatically.")
                     .font(.caption)
                     .foregroundStyle(ThemeTokens.textMuted)
             }
@@ -375,7 +375,7 @@ private struct AssignPayersSheet: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("You've already settled some debts for this trip. Assigning payers to previously untracked expenses will change the debt calculation and may make those settlements inaccurate.")
+                Text("You've already settled some debts for this trip. Assigning payers to older expenses will update your group's balances, which may affect past settlements.")
             }
         }
     }

@@ -99,7 +99,7 @@ struct HelpView: View {
         Section("Timeline") {
             FAQRow(
                 question: "What is a Time-Locked event?",
-                answer: "A Time-Locked event is anchored to its time slot. It cannot be dragged, and any drag that would push it out of chronological order with its neighbours is refused — the dragged card snaps back with a warning vibration. When you set a start time on a new event the lock is suggested automatically. A padlock icon (amber) appears on the card, and an amber warning badge appears if the event is currently out of order."
+                answer: "A Time-Locked event is anchored to its time slot. It cannot be dragged, and other events cannot be dragged past it — if you try, the card snaps back with a warning vibration. When you set a start time on a new event the lock is suggested automatically. A padlock icon (amber) appears on the card, and an amber warning badge appears if the event is currently out of order."
             )
             FAQRow(
                 question: "What does the lodging banner at the top show?",
@@ -107,7 +107,7 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "How are transit events different from regular events?",
-                answer: "Flight, Train, Bus, and Ferry events show a detailed card with carrier name, flight or train number, PNR code, terminal and gate, seat number, baggage claim, and timezone-corrected times. Fill in the transit details form after choosing one of these categories."
+                answer: "Flight, Train, Bus, and Ferry events show a detailed card with carrier name, flight or train number, booking code, terminal and gate, seat number, baggage claim, and timezone-corrected times. Fill in the transit details form after choosing one of these categories."
             )
             FAQRow(
                 question: "Can I add notes to an event?",
@@ -186,7 +186,7 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "How do I split expenses with my travel group?",
-                answer: "In the Vault → Expenses tab, tap the ↻ icon in the top-right toolbar (Pro). Add participant names (e.g. \"Me\", \"Alice\", \"Bob\") — no app account required. When logging expenses, choose who paid and who to split it among. The splitter computes the minimum payments needed to settle up.\n\nIf any expenses have no payer assigned, an orange warning appears — tap it to open \"Assign Payers\" and quickly fix them. Tap Settle on any debt row to record a payment.\n\nSettlement payments appear in the expense list with a \"Settlement\" badge so you can see the full ledger history in one place.",
+                answer: "In the Vault → Expenses tab, tap the ↻ icon in the top-right toolbar (Pro). Add participant names (e.g. \"Me\", \"Alice\", \"Bob\") — no app account required. When logging expenses, choose who paid and who to split it among. The app calculates the easiest way to settle debts with the fewest transactions.\n\nIf any expenses have no payer assigned, an orange warning appears — tap it to open \"Assign Payers\" and quickly fix them. Tap Settle on any debt row to record a payment.\n\nSettlement payments appear in the expense list with a \"Settlement\" badge so you can see the full ledger history in one place.",
                 isPro: true
             )
             FAQRow(
@@ -196,7 +196,7 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "What happens if I edit an expense after settling?",
-                answer: "If you change an expense's amount, currency, payer, or split after settlements have been recorded, Daythread warns you that existing settlements may no longer be accurate. You can proceed anyway or cancel. To clean up stale settlements, swipe to delete the relevant settlement row in the expense list and recalculate.",
+                answer: "If you change an expense's amount, currency, payer, or split after settlements have been recorded, Daythread warns you that existing settlements may no longer be accurate. You can proceed anyway or cancel. To clean up outdated settlements, swipe to delete the relevant settlement row in the expense list and recalculate.",
                 isPro: true
             )
         }
@@ -206,7 +206,7 @@ struct HelpView: View {
         Section("Co-editing & Sync") {
             FAQRow(
                 question: "How do I share a trip with travel companions?",
-                answer: "In the Timeline, tap the people icon in the top-right corner to open Group Sync. Tap 'Invite People to This Trip' — this creates a shared CloudKit zone for the trip. Once the share is active, you can send the invite link via Messages or any app.",
+                answer: "In the Timeline, tap the people icon in the top-right corner to open Group Sync. Tap 'Invite People to This Trip' — this creates a shareable link for the trip. Once the share is active, you can send the invite link via Messages or any app.",
                 isPro: true
             )
             FAQRow(
@@ -216,7 +216,7 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "How quickly do changes appear for co-editors?",
-                answer: "Updates arrive via CloudKit push and typically appear within a few seconds. This is not a live socket — think 'seconds, not instant'. The timeline refreshes automatically in the background.",
+                answer: "Updates sync over the internet and typically appear within a few seconds. The timeline refreshes automatically in the background.",
                 isPro: true
             )
             FAQRow(
@@ -225,11 +225,11 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "What happens if two people edit at the same time?",
-                answer: "CloudKit handles merge conflicts automatically. In most cases both edits are preserved. If two people change the same field simultaneously, the last write wins."
+                answer: "The app automatically merges changes made at the same time. If two people edit the exact same detail simultaneously, the most recent change is saved."
             )
             FAQRow(
                 question: "How do I stop sharing a trip?",
-                answer: "Open Group Sync (the people icon in the Timeline toolbar) and tap 'Stop Sharing'. This removes the shared CloudKit zone. Co-editors will no longer see updates.",
+                answer: "Open Group Sync (the people icon in the Timeline toolbar) and tap 'Stop Sharing'. This removes shared access to the trip. Co-editors will no longer see updates.",
                 isPro: true
             )
         }
@@ -270,12 +270,12 @@ struct HelpView: View {
         .init(section: "Getting Started", question: "How do I create my first trip?", answer: "Tap the Trips tab, then tap the + button. The wizard walks you through naming your trip, setting the destination and dates, and optionally adding a cover photo. Once saved, the app switches to your new trip in the Timeline."),
         .init(section: "Getting Started", question: "How do I switch between trips?", answer: "The horizontal strip at the top of the Timeline shows all your trips. Tap any trip to make it active, or swipe left and right to cycle through them."),
         .init(section: "Getting Started", question: "How do I add an event to my itinerary?", answer: "In the Timeline, tap the blue + button in the bottom-right corner to open the Add Event sheet. Choose a category (Flight, Hotel, Restaurant, Museum, Activity, etc.), fill in the details, and save."),
-        .init(section: "Getting Started", question: "What categories of events can I add?", answer: "Daythread supports: Flight, Train, Bus, Ferry (transit), Hotel, Rental Property, Restaurant, Café, Bar, Museum, Attraction, Tour, Show, Activity, Sport, Hike, Shopping, and Other. Transit categories open an extended form for carrier, flight/train number, PNR, and seat."),
+        .init(section: "Getting Started", question: "What categories of events can I add?", answer: "Daythread supports: Flight, Train, Bus, Ferry (transit), Hotel, Rental Property, Restaurant, Café, Bar, Museum, Attraction, Tour, Show, Activity, Sport, Hike, Shopping, and Other. Transit categories open an extended form for carrier, flight/train number, booking code, and seat."),
         .init(section: "Getting Started", question: "How do I reorder events in my day?", answer: "Long-press and drag any event card to reorder it. You can also drag events between days — drop onto a different day's section and it moves there automatically. Time-Locked events cannot be dragged and will block any drop that would push them out of their time slot."),
         .init(section: "Getting Started", question: "How do I edit or delete an event?", answer: "Long-press any event card to reveal the context menu. Choose Edit to change details, Lock/Unlock to toggle the time anchor, or Delete to remove it."),
-        .init(section: "Timeline", question: "What is a Time-Locked event?", answer: "A Time-Locked event is anchored to its time slot. It cannot be dragged, and any drag that would push it out of chronological order with its neighbours is refused — the dragged card snaps back with a warning vibration. When you set a start time on a new event the lock is suggested automatically. A padlock icon (amber) appears on the card, and an amber warning badge appears if the event is currently out of order."),
+        .init(section: "Timeline", question: "What is a Time-Locked event?", answer: "A Time-Locked event is anchored to its time slot. It cannot be dragged, and other events cannot be dragged past it — if you try, the card snaps back with a warning vibration. When you set a start time on a new event the lock is suggested automatically. A padlock icon (amber) appears on the card, and an amber warning badge appears if the event is currently out of order."),
         .init(section: "Timeline", question: "What does the lodging banner at the top show?", answer: "If you've added lodging that covers today's date, a banner appears just below the trip switcher strip showing your current accommodation. It updates automatically as your check-in and check-out dates change."),
-        .init(section: "Timeline", question: "How are transit events different from regular events?", answer: "Flight, Train, Bus, and Ferry events show a detailed card with carrier name, flight or train number, PNR code, terminal and gate, seat number, baggage claim, and timezone-corrected times."),
+        .init(section: "Timeline", question: "How are transit events different from regular events?", answer: "Flight, Train, Bus, and Ferry events show a detailed card with carrier name, flight or train number, booking code, terminal and gate, seat number, baggage claim, and timezone-corrected times."),
         .init(section: "Timeline", question: "Can I add notes to an event?", answer: "Yes. The Add/Edit Event sheet has a notes field where you can save anything relevant — confirmation numbers, meeting points, dress codes, etc."),
         .init(section: "Timeline", question: "How do I add lodging to a trip?", answer: "From the Timeline, tap the + button and choose Hotel or Rental Property. Alternatively, go to Trips, tap your trip, and use the Lodging section. Enter check-in and check-out dates and a confirmation number."),
         .init(section: "Trips", question: "How are trips organised?", answer: "The Trips tab groups your trips into Current, Upcoming, Past, and Archived. A trip is 'Current' if today falls within its start and end dates."),
@@ -292,15 +292,15 @@ struct HelpView: View {
         .init(section: "Vault (Documents & Expenses)", question: "How many documents can I store for free?", answer: "Free users can store up to 5 documents per trip. Upgrade to Pro for unlimited document storage."),
         .init(section: "Vault (Documents & Expenses)", question: "How do I log an expense?", answer: "Go to Vault → Expenses tab and tap +. Enter the amount, currency, category, date, and who paid. Payer is required when participants are set up."),
         .init(section: "Vault (Documents & Expenses)", question: "Can I attach a receipt to an expense?", answer: "Yes — Pro users can attach a receipt photo to any expense. Tap 'Attach Receipt Photo' to use your camera or photo library. A thumbnail appears on the expense row; tap it to view full screen.", isPro: true),
-        .init(section: "Vault (Documents & Expenses)", question: "How do I split expenses with my travel group?", answer: "In the Vault → Expenses tab, tap the ↻ icon in the top-right toolbar (Pro). Add participant names, choose who paid each expense, and the splitter shows the minimum payments to settle up. An orange warning appears for expenses with no payer — tap it to assign payers. Settlement payments appear in the expense list with a Settlement badge.", isPro: true),
+        .init(section: "Vault (Documents & Expenses)", question: "How do I split expenses with my travel group?", answer: "In the Vault → Expenses tab, tap the ↻ icon in the top-right toolbar (Pro). Add participant names, choose who paid each expense, and the app calculates the easiest way to settle debts with the fewest transactions. An orange warning appears for expenses with no payer — tap it to assign payers. Settlement payments appear in the expense list with a Settlement badge.", isPro: true),
         .init(section: "Vault (Documents & Expenses)", question: "Can I settle a partial amount or overpay?", answer: "Yes. Tap Settle on any debt row and edit the pre-filled amount. Overpayments automatically flip the balance in the ledger.", isPro: true),
-        .init(section: "Vault (Documents & Expenses)", question: "What happens if I edit an expense after settling?", answer: "Daythread warns you that existing settlements may be inaccurate if you change the amount, currency, payer, or split after settlements exist. To clean up, swipe to delete the stale settlement in the expense list.", isPro: true),
-        .init(section: "Co-editing & Sync", question: "How do I share a trip with travel companions?", answer: "In the Timeline, tap the people icon in the top-right corner to open Group Sync. Tap 'Invite People to This Trip'.", isPro: true),
+        .init(section: "Vault (Documents & Expenses)", question: "What happens if I edit an expense after settling?", answer: "Daythread warns you that existing settlements may no longer be accurate if you change the amount, currency, payer, or split after settlements exist. To clean up, swipe to delete the outdated settlement in the expense list.", isPro: true),
+        .init(section: "Co-editing & Sync", question: "How do I share a trip with travel companions?", answer: "In the Timeline, tap the people icon in the top-right corner to open Group Sync. Tap 'Invite People to This Trip' to create a shareable link.", isPro: true),
         .init(section: "Co-editing & Sync", question: "Can co-editors change the itinerary?", answer: "Yes. Editors can add, reorder, lock, and delete events just like the trip owner.", isPro: true),
-        .init(section: "Co-editing & Sync", question: "How quickly do changes appear for co-editors?", answer: "Updates arrive via CloudKit push and typically appear within a few seconds.", isPro: true),
+        .init(section: "Co-editing & Sync", question: "How quickly do changes appear for co-editors?", answer: "Updates sync over the internet and typically appear within a few seconds.", isPro: true),
         .init(section: "Co-editing & Sync", question: "Does my data sync across my own devices?", answer: "Yes. If you're signed into the same iCloud account on multiple devices, your trips, events, documents, and expenses sync automatically."),
-        .init(section: "Co-editing & Sync", question: "What happens if two people edit at the same time?", answer: "CloudKit handles merge conflicts automatically. In most cases both edits are preserved."),
-        .init(section: "Co-editing & Sync", question: "How do I stop sharing a trip?", answer: "Open Group Sync (the people icon in the Timeline toolbar) and tap 'Stop Sharing'.", isPro: true),
+        .init(section: "Co-editing & Sync", question: "What happens if two people edit at the same time?", answer: "The app automatically merges changes made at the same time. If two people edit the exact same detail simultaneously, the most recent change is saved."),
+        .init(section: "Co-editing & Sync", question: "How do I stop sharing a trip?", answer: "Open Group Sync (the people icon in the Timeline toolbar) and tap 'Stop Sharing'. This removes shared access to the trip.", isPro: true),
         .init(section: "Pro Features", question: "What's included in Daythread Pro?", answer: "Pro unlocks: Unlimited document storage · Receipt photo attachments on expenses · Expense splitting with debt minimisation · Trip sharing & co-editing · ETA badges between events · Role-based permissions.", isPro: true),
         .init(section: "Pro Features", question: "How do I upgrade to Pro?", answer: "Go to the Profile tab and tap 'Upgrade to Pro'. The one-time $9.99 Lifetime purchase includes Family Sharing.", isPro: true),
         .init(section: "Pro Features", question: "How do I restore my Pro purchase on a new device?", answer: "Go to Profile → Settings and tap 'Restore Purchases'.", isPro: true),

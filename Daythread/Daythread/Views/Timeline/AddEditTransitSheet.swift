@@ -34,7 +34,7 @@ struct AddEditTransitSheet: View {
                     TextField("Carrier (e.g. Air France)", text: $carrier)
                     TextField("Number (e.g. AF447)", text: $flightNumber)
                         .font(ThemeTokens.monoFont)
-                    TextField("PNR / Booking code", text: $pnr)
+                    TextField("Booking Ref / Confirmation #", text: $pnr)
                         .font(ThemeTokens.monoFont)
                         .textInputAutocapitalization(.characters)
                 }
