@@ -35,7 +35,9 @@ struct SwipeRevealCard<Content: View>: View {
 
     var body: some View {
         ZStack(alignment: .trailing) {
-            // Buttons sit behind the card; revealed as the card slides left.
+            // Buttons are hidden at rest (opacity 0) to prevent them showing
+            // through the card's rounded-corner gaps when not swiping.
+            // They appear as soon as the swipe starts (offset < -8 pt).
             HStack(spacing: 0) {
                 swipeButton(label: "Edit",
                             icon: "pencil",
@@ -51,6 +53,7 @@ struct SwipeRevealCard<Content: View>: View {
                             action: deleteAction)
             }
             .frame(width: revealWidth)
+            .opacity(offset < -8 ? 1 : 0)
 
             // Card: slides left, covering then revealing the buttons.
             // Tap on the card while open → close the panel.
