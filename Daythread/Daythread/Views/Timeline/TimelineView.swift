@@ -115,10 +115,22 @@ struct TimelineView: View {
                              isLast: index == events.count - 1,
                              isTimeViolated: violated.contains(event.id),
                              isShaking: vm.shakingEventIDs.contains(event.id)) {
-                    if event.category.requiresTransitDetails, let details = event.transitDetails {
-                        TransitCardView(event: event, details: details)
-                    } else {
-                        EventCardView(event: event)
+                    // Swipe left to reveal Edit · Lock · Delete.
+                    // Long-press is now exclusively for drag-to-reorder — no gesture conflict.
+                    SwipeRevealCard(
+                        isLocked: event.isTimeLocked,
+                        editAction: { editingEvent = event },
+                        lockAction: {
+                            vm.lockEvent(event, context: context)
+                            HapticManager.shared.lockToggle()
+                        },
+                        deleteAction: { vm.deleteEvent(event, context: context) }
+                    ) {
+                        if event.category.requiresTransitDetails, let details = event.transitDetails {
+                            TransitCardView(event: event, details: details)
+                        } else {
+                            EventCardView(event: event)
+                        }
                     }
                 }
                 .draggableWhen(!event.isTimeLocked, payload: event.id.uuidString)
@@ -136,45 +148,6 @@ struct TimelineView: View {
                         RoundedRectangle(cornerRadius: 2)
                             .fill(ThemeTokens.accent)
                             .frame(height: 3)
-                    }
-                }
-                // preview: is required when .draggable is also present.
-                // Without it, iOS commits to the context menu at the minimum
-                // long-press duration (~0.5 s) before the user can start moving.
-                // Providing a preview switches to the "lift and wait" pattern:
-                // the card floats as a preview, and iOS then distinguishes
-                // movement (→ drag) from release (→ menu).
-                .contextMenu {
-                    Button("Edit", systemImage: "pencil") {
-                        editingEvent = event
-                    }
-
-                    Divider()
-
-                    if !event.isTimeLocked {
-                        Button("Lock Event", systemImage: "lock.fill") {
-                            vm.lockEvent(event, context: context)
-                            HapticManager.shared.lockToggle()
-                        }
-                    } else {
-                        Button("Unlock Event", systemImage: "lock.open.fill") {
-                            vm.lockEvent(event, context: context)
-                            HapticManager.shared.lockToggle()
-                        }
-                    }
-
-                    Button("Delete", systemImage: "trash", role: .destructive) {
-                        vm.deleteEvent(event, context: context)
-                    }
-                } preview: {
-                    if event.category.requiresTransitDetails, let details = event.transitDetails {
-                        TransitCardView(event: event, details: details)
-                            .frame(width: 320)
-                            .padding(12)
-                    } else {
-                        EventCardView(event: event)
-                            .frame(width: 320)
-                            .padding(12)
                     }
                 }
             }
