@@ -163,17 +163,20 @@ final class TimelineViewModel {
 
     /// Returns true if placing events in this order would put any time-locked
     /// event's `startTime` out of chronological sequence with its timed neighbors.
-    /// Events without a `startTime` are skipped — only timed events can trigger
-    /// or satisfy a violation.
+    /// Untimed events are transparent — the check looks through them to find the
+    /// nearest timed event in each direction, so an untimed event between B(8:30pm)
+    /// and locked A(8pm) does not hide the violation.
     func isLockOrderViolated(in events: [TripEvent]) -> Bool {
         for (i, event) in events.enumerated() {
             guard event.isTimeLocked, let lockedTime = event.startTime else { continue }
-            // A timed event before this locked event must not be later.
-            if i > 0, let prevTime = events[i - 1].startTime, prevTime > lockedTime {
+            // Nearest timed event BEFORE this locked event must not be later.
+            if let prevTime = events[..<i].reversed().compactMap(\.startTime).first,
+               prevTime > lockedTime {
                 return true
             }
-            // A timed event after this locked event must not be earlier.
-            if i < events.count - 1, let nextTime = events[i + 1].startTime, nextTime < lockedTime {
+            // Nearest timed event AFTER this locked event must not be earlier.
+            if let nextTime = events[(i + 1)...].compactMap(\.startTime).first,
+               nextTime < lockedTime {
                 return true
             }
         }
@@ -181,15 +184,17 @@ final class TimelineViewModel {
     }
 
     /// Returns the IDs of locked events that are currently out of chronological
-    /// order with their timed neighbours. Used by the view to show warning badges.
+    /// order with their nearest timed neighbours. Used by the view to show warning badges.
     func violatedLockIDs(in events: [TripEvent]) -> Set<UUID> {
         var violated = Set<UUID>()
         for (i, event) in events.enumerated() {
             guard event.isTimeLocked, let lockedTime = event.startTime else { continue }
-            if i > 0, let prevTime = events[i - 1].startTime, prevTime > lockedTime {
+            if let prevTime = events[..<i].reversed().compactMap(\.startTime).first,
+               prevTime > lockedTime {
                 violated.insert(event.id)
             }
-            if i < events.count - 1, let nextTime = events[i + 1].startTime, nextTime < lockedTime {
+            if let nextTime = events[(i + 1)...].compactMap(\.startTime).first,
+               nextTime < lockedTime {
                 violated.insert(event.id)
             }
         }
