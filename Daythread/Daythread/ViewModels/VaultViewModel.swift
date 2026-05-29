@@ -90,6 +90,7 @@ final class VaultViewModel {
             paidByMemberID: debtor.id,
             splitAmongIDs: [creditor.id]
         )
+        expense.isSettlement = true
         addExpense(expense, to: trip, context: context)
     }
 }

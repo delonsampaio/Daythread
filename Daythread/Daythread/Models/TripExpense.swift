@@ -32,6 +32,10 @@ final class TripExpense {
     /// JPEG receipt photo. Stored outside SQLite via externalStorage to keep
     /// ExpenseListView fetches fast regardless of how many receipts are attached.
     @Attribute(.externalStorage) var receiptImageData: Data?
+    /// Explicitly marks expenses created by settleDebt() so the app never has to
+    /// rely on structural heuristics (splitAmong.count == 1 etc.) to identify them.
+    /// SwiftData auto-migrates existing records with the default value of false.
+    var isSettlement: Bool = false
 
     var trip: Trip?
 

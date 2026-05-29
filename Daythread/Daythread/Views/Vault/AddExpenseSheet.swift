@@ -50,27 +50,21 @@ struct AddExpenseSheet: View {
         isSplitAmongAll ? Set(members.map(\.id)) : splitAmongIDs
     }
 
-    /// True if the trip has any settlement expenses (paidBy ≠ sole splitAmong member).
-    /// Settlements are TripExpenses with exactly one person in splitAmong who is not
-    /// the payer — the pattern created by SplitExpensesSheet.confirmSettle().
+    /// True if the trip has any explicitly flagged settlement expenses.
     private var tripHasSettlements: Bool {
-        (trip.expenses ?? []).contains { e in
-            e.splitAmongIDs.count == 1 &&
-            e.paidByMemberID != nil &&
-            e.paidByMemberID != e.splitAmongIDs.first
-        }
+        (trip.expenses ?? []).contains(where: \.isSettlement)
     }
 
-    /// True when editing would change the amount, split-among, or payer while
-    /// settlements exist. All three fields affect the debt calculation; changing
-    /// any of them can make already-recorded settlements inaccurate because
-    /// settlements have no foreign-key link back to the expense they were settling.
+    /// True when editing would change any field that affects the debt calculation
+    /// while settlements exist. Changing amount, split-among, payer, or currency
+    /// can make already-recorded settlements inaccurate.
     private var editWillAffectSettlements: Bool {
         guard let original = editingExpense else { return false }
-        let amountChanged = (Double(amount) ?? 0) != original.amount
-        let splitChanged  = currentSplitSet != Set(original.splitAmongIDs)
-        let payerChanged  = paidByMemberID != original.paidByMemberID
-        return (amountChanged || splitChanged || payerChanged) && tripHasSettlements
+        let amountChanged   = (Double(amount) ?? 0) != original.amount
+        let splitChanged    = currentSplitSet != Set(original.splitAmongIDs)
+        let payerChanged    = paidByMemberID != original.paidByMemberID
+        let currencyChanged = currencyCode != original.currencyCode
+        return (amountChanged || splitChanged || payerChanged || currencyChanged) && tripHasSettlements
     }
 
     init(trip: Trip, vm: VaultViewModel, editingExpense: TripExpense? = nil) {

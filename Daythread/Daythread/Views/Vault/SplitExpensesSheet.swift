@@ -35,7 +35,11 @@ struct SplitExpensesSheet: View {
     private var settlements: [Settlement] { computeSettlements() }
 
     private var untrackedExpenses: [TripExpense] {
-        expenses.filter { $0.paidByMemberID == nil }
+        expenses.filter { $0.paidByMemberID == nil && !$0.isSettlement }
+    }
+
+    private var hasPriorSettlements: Bool {
+        expenses.contains(where: \.isSettlement)
     }
 
     var body: some View {
@@ -80,7 +84,8 @@ struct SplitExpensesSheet: View {
                 Text("\(s.debtorName) owes \(s.creditorName) \(String(format: "%.2f %@", s.amount, s.currency)). Edit the amount for a partial payment.")
             }
             .sheet(isPresented: $showAssignPayers) {
-                AssignPayersSheet(untrackedExpenses: untrackedExpenses, members: members)
+                AssignPayersSheet(untrackedExpenses: untrackedExpenses, members: members,
+                                  hasPriorSettlements: hasPriorSettlements)
             }
         }
     }
@@ -265,8 +270,19 @@ struct SplitExpensesSheet: View {
                   memberIDs.contains(payer) else { return nil }
             let participants = expense.splitAmongIDs.filter { memberIDs.contains($0) }
             guard !participants.isEmpty else { return nil }
+
+            // If members have left the trip, scale the amount proportionally so
+            // remaining participants keep their original per-person share rather than
+            // having the departed members' shares silently redistributed among them.
+            // e.g. $90 split 3 ways: if one member leaves, pass $60 (not $90) so
+            // the two remaining members each owe $30, not $45.
+            let originalCount = expense.splitAmongIDs.count
+            let scaledAmount = originalCount > 0
+                ? expense.amount / Double(originalCount) * Double(participants.count)
+                : expense.amount
+
             return SplitExpense(
-                amount: expense.amount,
+                amount: scaledAmount,
                 currency: expense.currencyCode,
                 paidBy: payer,
                 splitAmong: participants
@@ -300,9 +316,11 @@ struct SplitExpensesSheet: View {
 private struct AssignPayersSheet: View {
     let untrackedExpenses: [TripExpense]
     let members: [TripMember]
+    let hasPriorSettlements: Bool
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @State private var showSettlementWarning = false
 
     var body: some View {
         NavigationStack {
@@ -340,11 +358,24 @@ private struct AssignPayersSheet: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
-                        try? context.save()
-                        dismiss()
+                        if hasPriorSettlements {
+                            showSettlementWarning = true
+                        } else {
+                            try? context.save()
+                            dismiss()
+                        }
                     }
                     .fontWeight(.semibold)
                 }
+            }
+            .alert("Settlements May Be Affected", isPresented: $showSettlementWarning) {
+                Button("Save Anyway", role: .destructive) {
+                    try? context.save()
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("You've already settled some debts for this trip. Assigning payers to previously untracked expenses will change the debt calculation and may make those settlements inaccurate.")
             }
         }
     }

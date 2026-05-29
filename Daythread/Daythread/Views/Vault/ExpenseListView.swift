@@ -29,12 +29,9 @@ struct ExpenseListView: View {
         }
     }
 
-    /// Settlements are intentional deletes (that's how users fix stale debts),
-    /// so only warn when deleting a regular expense while settlements exist.
+    /// Uses the explicit flag set by settleDebt() — no structural heuristics.
     private func isSettlement(_ expense: TripExpense) -> Bool {
-        expense.splitAmongIDs.count == 1 &&
-        expense.paidByMemberID != nil &&
-        expense.paidByMemberID != expense.splitAmongIDs.first
+        expense.isSettlement
     }
 
     private func requestDelete(_ expense: TripExpense) {
@@ -78,14 +75,28 @@ struct ExpenseListView: View {
             Section {
                 ForEach(expenses) { expense in
                     HStack(spacing: 12) {
-                        Image(systemName: expense.category.systemImage)
+                        Image(systemName: expense.isSettlement
+                              ? "arrow.triangle.2.circlepath"
+                              : expense.category.systemImage)
                             .frame(width: 28)
-                            .foregroundStyle(ThemeTokens.accent)
+                            .foregroundStyle(expense.isSettlement
+                                             ? ThemeTokens.textMuted
+                                             : ThemeTokens.accent)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(expense.title)
-                                .font(.system(size: 14, weight: .semibold))
+                            HStack(spacing: 6) {
+                                Text(expense.title)
+                                    .font(.system(size: 14, weight: .semibold))
+                                if expense.isSettlement {
+                                    Text("Settlement")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundStyle(ThemeTokens.textMuted)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 2)
+                                        .background(Capsule().fill(ThemeTokens.textMuted.opacity(0.12)))
+                                }
+                            }
                             HStack(spacing: 4) {
-                                Text(expense.category.displayName)
+                                Text(expense.isSettlement ? "Settlement" : expense.category.displayName)
                                     .font(.caption)
                                     .foregroundStyle(ThemeTokens.textSecondary)
                                 if let payerID = expense.paidByMemberID,

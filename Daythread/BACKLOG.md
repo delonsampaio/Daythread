@@ -13,6 +13,20 @@ Read-only watch app showing the active trip's current and next event, with a "Ne
 
 ---
 
+### Expense Audit Trail
+When settling up, users sometimes wonder "why do I owe this amount?" — especially on long trips with many expenses. A breakdown view accessible from each settlement row showing exactly which expenses contributed to the debt and each person's per-expense share. Increases trust in the splitter output and reduces "that doesn't look right" disputes.
+
+**Scope:** Sheet presented from settlement row → grouped list of contributing `TripExpense` records → per-person share for each · read-only, no mutations.
+
+---
+
+### Multiple Payers per Expense
+Some group bills are split across multiple cards at the point of sale (e.g. two people each pay half a restaurant bill). Today the model supports only one `paidByMemberID`. Supporting an array of (memberID, amountPaid) pairs would handle this without the workaround of logging two separate expenses.
+
+**Scope:** Model change: replace `paidByMemberID: UUID?` with `payers: [(memberID: UUID, amount: Double)]` · update AddExpenseSheet · update ExpenseSplitter input mapping · migration of existing single-payer records.
+
+---
+
 ### Ride-Share Deep Linking
 From a transit card in TransitCardView, one tap opens Uber or Lyft with the destination pre-filled. Solves standing-on-a-curb friction where the user already knows where they're going but has to context-switch apps to get there.
 
