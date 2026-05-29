@@ -138,6 +138,12 @@ struct TimelineView: View {
                             .frame(height: 3)
                     }
                 }
+                // preview: is required when .draggable is also present.
+                // Without it, iOS commits to the context menu at the minimum
+                // long-press duration (~0.5 s) before the user can start moving.
+                // Providing a preview switches to the "lift and wait" pattern:
+                // the card floats as a preview, and iOS then distinguishes
+                // movement (→ drag) from release (→ menu).
                 .contextMenu {
                     Button("Edit", systemImage: "pencil") {
                         editingEvent = event
@@ -159,6 +165,16 @@ struct TimelineView: View {
 
                     Button("Delete", systemImage: "trash", role: .destructive) {
                         vm.deleteEvent(event, context: context)
+                    }
+                } preview: {
+                    if event.category.requiresTransitDetails, let details = event.transitDetails {
+                        TransitCardView(event: event, details: details)
+                            .frame(width: 320)
+                            .padding(12)
+                    } else {
+                        EventCardView(event: event)
+                            .frame(width: 320)
+                            .padding(12)
                     }
                 }
             }
