@@ -166,17 +166,24 @@ final class TimelineViewModel {
     /// Untimed events are transparent — the check looks through them to find the
     /// nearest timed event in each direction, so an untimed event between B(8:30pm)
     /// and locked A(8pm) does not hide the violation.
+    /// Returns true if placing events in this order would put any time-locked
+    /// event out of chronological sequence with any of its timed neighbours —
+    /// not just the nearest one.
+    ///
+    /// Checking only the nearest timed predecessor/successor misses cases like
+    ///   [B(10pm), Y(6pm), A(8pm, locked)]
+    /// where Y(6pm) is the nearest predecessor of A and passes the check, but
+    /// B(10pm) further back also precedes A and violates its position.
+    /// Fix: scan ALL timed events on each side with `contains(where:)`.
     func isLockOrderViolated(in events: [TripEvent]) -> Bool {
         for (i, event) in events.enumerated() {
             guard event.isTimeLocked, let lockedTime = event.startTime else { continue }
-            // Nearest timed event BEFORE this locked event must not be later.
-            if let prevTime = events[..<i].reversed().compactMap(\.startTime).first,
-               prevTime > lockedTime {
+            // Any timed event BEFORE this locked event must not be later.
+            if events[..<i].compactMap(\.startTime).contains(where: { $0 > lockedTime }) {
                 return true
             }
-            // Nearest timed event AFTER this locked event must not be earlier.
-            if let nextTime = events[(i + 1)...].compactMap(\.startTime).first,
-               nextTime < lockedTime {
+            // Any timed event AFTER this locked event must not be earlier.
+            if events[(i + 1)...].compactMap(\.startTime).contains(where: { $0 < lockedTime }) {
                 return true
             }
         }
@@ -184,17 +191,15 @@ final class TimelineViewModel {
     }
 
     /// Returns the IDs of locked events that are currently out of chronological
-    /// order with their nearest timed neighbours. Used by the view to show warning badges.
+    /// order with any of their timed neighbours. Used by the view to show warning badges.
     func violatedLockIDs(in events: [TripEvent]) -> Set<UUID> {
         var violated = Set<UUID>()
         for (i, event) in events.enumerated() {
             guard event.isTimeLocked, let lockedTime = event.startTime else { continue }
-            if let prevTime = events[..<i].reversed().compactMap(\.startTime).first,
-               prevTime > lockedTime {
+            if events[..<i].compactMap(\.startTime).contains(where: { $0 > lockedTime }) {
                 violated.insert(event.id)
             }
-            if let nextTime = events[(i + 1)...].compactMap(\.startTime).first,
-               nextTime < lockedTime {
+            if events[(i + 1)...].compactMap(\.startTime).contains(where: { $0 < lockedTime }) {
                 violated.insert(event.id)
             }
         }

@@ -269,53 +269,67 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertEqual(order.map(\.title), ["C", "A", "B"], "Order must be unchanged")
     }
 
-    /// appendEvent is also refused when it would violate a locked event's time order.
+    /// Regression: B(10pm) is dragged before Y(6pm), which sits immediately before
+    /// locked A(8pm). The OLD check found Y(6pm) as the nearest timed predecessor
+    /// and passed (6pm ≤ 8pm). B(10pm) further back was never examined, so the
+    /// drop was wrongly allowed. The fix checks ALL timed predecessors/successors.
+    func testReorderRefusesWhenNonAdjacentTimedPredecessorViolatesLock() throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let vm = TimelineViewModel()
+
+        // Order: [Y(6pm), A(8pm, locked), B(10pm)]
+        let (day, events) = makeDay(eventTitles: ["Y", "A", "B"], context: context)
+        setTime(events[0], hour: 18, context: context)               // Y = 6 pm
+        setTime(events[1], hour: 20, context: context); events[1].isTimeLocked = true  // A = 8 pm, locked
+        setTime(events[2], hour: 22, context: context)               // B = 10 pm
+        try context.save()
+
+        // Drag B(10pm) before Y(6pm) → proposed [B(10pm), Y(6pm), A(8pm, locked)]
+        // Nearest timed pred of A = Y(6pm) ≤ 8pm → old code passes.
+        // B(10pm) is also before A → 10pm > 8pm → must be REFUSED.
+        let moved = vm.reorderEvent(draggedID: events[2].id.uuidString,
+                                    before: events[0], in: day, context: context)
+
+        XCTAssertFalse(moved, "Drop must be refused: B(10pm) precedes locked A(8pm) even though nearest pred Y(6pm) is valid")
+        let order = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        XCTAssertEqual(order.map(\.title), ["Y", "A", "B"], "Order must be unchanged")
+    }
+
+    /// appendEvent is refused when the proposed order would put a timed event
+    /// before or after a locked event in a way that violates chronological order —
+    /// regardless of whether an intervening untimed event "hides" the gap.
     func testAppendRefusesWhenViolatesLockedEvent() throws {
         let container = try makeContainer()
         let context = ModelContext(container)
         let vm = TimelineViewModel()
 
-        // [A(9am, locked), B(10am), C(8am)]
-        // Dragging C(8am) to end → [A(9am, locked), B(10am), C(8am)]
-        // A(locked,9am): next is B(10am) > 9am ✓. No new violation from A.
-        // Actually this test is about B being appended...
-        // Let's test: [A(9am, locked), B(11am)] drag B to end → no change since B is already last.
-        // Better test: [A(9am, locked), B(8am)] → append B → B moves to end → [A(9am,locked), B(8am)]
-        // A(locked,9am): next = B(8am) < 9am → VIOLATION after append.
+        // Case 1: locked predecessor — appending an 8am event after a locked 9am event.
+        // Day: [A(9am, locked), B(11am)]
+        // Append Early(8am) → proposed [A(9am, locked), B(11am), Early(8am)]
+        // A(locked, 9am): ALL events after A include Early(8am) < 9am → violation.
         let (day, events) = makeDay(eventTitles: ["A", "B"], context: context)
         setTime(events[0], hour: 9, context: context); events[0].isTimeLocked = true
         setTime(events[1], hour: 11, context: context)
-        try context.save()
-
-        // Add a third event at 8am so that appending it after locked 9am is a violation
         let early = TripEvent(title: "Early", category: .activity, sortOrder: 2)
         context.insert(early); early.day = day
         setTime(early, hour: 8, context: context)
         try context.save()
 
         let moved = vm.appendEvent(draggedID: early.id.uuidString, to: day, context: context)
+        XCTAssertFalse(moved, "Appending Early(8am) after locked A(9am) must be refused")
 
-        // [A(9am,locked), B(11am), Early(8am)] → A's next is B(11am) ✓, B's next is Early(8am) —
-        // but neither B nor Early is locked, so no violation. Hmm.
-        // Let me rethink: need a locked event BEFORE the appended position.
-        // Actually the issue is append puts it LAST, so locked events before it in sortOrder
-        // just need their NEXT neighbor checked. If B(11am) is locked and Early(8am) would be
-        // placed after B → B(11am, locked): next = Early(8am) < 11am → VIOLATION.
-        XCTAssertTrue(moved) // this specific case has no locked violation
-
-        // Reset and test an actual violation case for append
-        context.delete(early)
-        try context.save()
-
-        // [A(9am), B(11am, locked)] append A(9am) to end → [B(11am, locked), A(9am)]
-        // B(11am, locked) at position 0: prev=none. Next=A(9am) < 11am → VIOLATION.
+        // Case 2: locked event at the end — appending an event before it in time.
+        // Day: [X(9am), Y(11am, locked)]
+        // Append X(9am) to end → proposed [Y(11am, locked), X(9am)]
+        // Y(locked, 11am): X(9am) follows Y in sequence but 9am < 11am → violation.
         let (day2, events2) = makeDay(eventTitles: ["X", "Y"], context: context)
         setTime(events2[0], hour: 9, context: context)
         setTime(events2[1], hour: 11, context: context); events2[1].isTimeLocked = true
         try context.save()
 
         let moved2 = vm.appendEvent(draggedID: events2[0].id.uuidString, to: day2, context: context)
-        XCTAssertFalse(moved2, "Appending X(9am) after locked Y(11am) should be refused")
+        XCTAssertFalse(moved2, "Appending X(9am) after locked Y(11am) must be refused")
     }
 
     // MARK: — Shake feedback on refused drop
