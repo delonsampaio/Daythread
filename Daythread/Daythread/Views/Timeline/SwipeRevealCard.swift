@@ -116,17 +116,19 @@ struct SwipeRevealCard<Content: View>: View {
             close()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { action() }
         } label: {
-            VStack(spacing: 4) {
+            VStack(spacing: 3) {
                 Image(systemName: icon)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                 Text(label)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 10, weight: .semibold))
             }
             .foregroundStyle(.white)
-            .frame(width: buttonWidth)
-            .frame(maxHeight: .infinity)
-            .background(color)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(Capsule().fill(color))
         }
         .buttonStyle(.plain)
+        .frame(width: buttonWidth)
+        .frame(maxHeight: .infinity)
     }
 }
