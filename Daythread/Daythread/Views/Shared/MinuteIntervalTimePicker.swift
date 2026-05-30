@@ -44,6 +44,15 @@ struct MinuteIntervalTimePicker: UIViewRepresentable {
         }
     }
 
+    /// Report the compact picker's intrinsic button size so SwiftUI allocates
+    /// exactly that width. Without this the picker is handed the parent's
+    /// proposed width (often too narrow after a Spacer), and UIKit horizontally
+    /// compresses the "12:25 PM" label — the squished-digits bug.
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIDatePicker, context: Context) -> CGSize? {
+        let fitting = uiView.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
+        return CGSize(width: fitting.width, height: fitting.height)
+    }
+
     // MARK: — Coordinator
 
     final class Coordinator: NSObject {
