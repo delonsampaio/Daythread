@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import SwiftData
+import CoreData
 
 struct AddEditEventSheet: View {
     let trip: Trip?
@@ -14,7 +14,7 @@ struct AddEditEventSheet: View {
     let vm: TimelineViewModel
     var editingEvent: TripEvent? = nil
 
-    @Environment(\.modelContext) private var context
+    @Environment(\.managedObjectContext) private var context
     @Environment(\.dismiss) private var dismiss
 
     @State private var title: String = ""
@@ -28,11 +28,12 @@ struct AddEditEventSheet: View {
     @State private var selectedDay: TripDay?
     @State private var showTransitSheet: Bool = false
     @State private var transitDetails: TransitDetails?
+    @State private var pendingTransitDetails: TransitDetails?
     @State private var showConflictAlert: Bool = false
     @State private var pendingConflicts: [TripEvent] = []
 
     private var tripDays: [TripDay] {
-        (trip?.days ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        trip?.daysArray ?? []
     }
 
     var body: some View {
@@ -132,7 +133,10 @@ struct AddEditEventSheet: View {
                     Section {
                         Button("Edit Transit Details →") {
                             if transitDetails == nil {
-                                transitDetails = TransitDetails()
+                                let td = TransitDetails(context: context)
+                                td.id = UUID()
+                                transitDetails = td
+                                pendingTransitDetails = td
                             }
                             showTransitSheet = true
                         }
@@ -144,7 +148,12 @@ struct AddEditEventSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        if let td = pendingTransitDetails {
+                            context.delete(td)
+                        }
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Save") { checkAndSave() }
@@ -180,7 +189,7 @@ struct AddEditEventSheet: View {
         let conflicts = ScheduleEngine.findConflicts(
             startTime: startTime,
             endTime: endTime,
-            among: targetDay?.events ?? [],
+            among: targetDay?.eventsArray ?? [],
             excludingID: editingEvent?.id
         )
         guard !conflicts.isEmpty else {
@@ -290,29 +299,29 @@ struct AddEditEventSheet: View {
             // dragged to a different day before opening edit).
             if event.day?.id != targetDay?.id {
                 // Place at end of the target day.
-                let nextOrder = ((targetDay?.events ?? [])
+                let nextOrder = ((targetDay?.eventsArray ?? [])
                     .filter { $0.id != event.id }
                     .map(\.sortOrder).max() ?? 0) + 1024
                 event.sortOrder = nextOrder
                 event.day = targetDay
             }
         } else {
-            let nextOrder = ((targetDay?.events ?? []).map(\.sortOrder).max() ?? 0) + 1024
-            let event = TripEvent(
-                title: title,
-                startTime: hasStartTime ? startTime : nil,
-                endTime: hasStartTime ? endTime : nil,
-                location: location.isEmpty ? nil : location,
-                category: category,
-                isTimeLocked: isTimeLocked,
-                sortOrder: nextOrder,
-                notes: notes
-            )
-            // Insert into context BEFORE setting the relationship — setting
-            // event.day on an uninserted model leaves it half-tracked.
-            context.insert(event)
+            let nextOrder = ((targetDay?.eventsArray ?? []).map(\.sortOrder).max() ?? 0) + 1024
+            let event = TripEvent(context: context)
+            event.id = UUID()
+            event.title = title
+            event.startTime = hasStartTime ? startTime : nil
+            event.endTime = hasStartTime ? endTime : nil
+            event.location = location.isEmpty ? nil : location
+            event.category = category
+            event.isTimeLocked = isTimeLocked
+            event.sortOrder = nextOrder
+            event.notes = notes
+            // Zone-hopping: link parent before save so CloudKit assigns the
+            // record to the correct zone on first persist.
             event.day = targetDay
             if let td = transitDetails { event.transitDetails = td }
+            pendingTransitDetails = nil  // committed — don't delete on dismiss
         }
         try? context.save()
         HapticManager.shared.sheetConfirm()

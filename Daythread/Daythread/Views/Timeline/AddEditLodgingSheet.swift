@@ -6,13 +6,13 @@
 //
 
 import SwiftUI
-import SwiftData
+import CoreData
 
 struct AddEditLodgingSheet: View {
     let trip: Trip
     var editingLodging: LodgingInfo? = nil
 
-    @Environment(\.modelContext) private var context
+    @Environment(\.managedObjectContext) private var context
     @Environment(\.dismiss) private var dismiss
 
     @State private var name: String = ""
@@ -65,11 +65,16 @@ struct AddEditLodgingSheet: View {
             lodging.checkOut = checkOut; lodging.confirmationNumber = confirmationNumber
             lodging.notes = notes
         } else {
-            let lodging = LodgingInfo(name: name, address: address,
-                                      checkIn: checkIn, checkOut: checkOut,
-                                      confirmationNumber: confirmationNumber, notes: notes)
+            let lodging = LodgingInfo(context: context)
+            lodging.id = UUID()
+            lodging.name = name
+            lodging.address = address
+            lodging.checkIn = checkIn
+            lodging.checkOut = checkOut
+            lodging.confirmationNumber = confirmationNumber
+            lodging.notes = notes
+            // Zone-hopping: link parent before save.
             lodging.trip = trip
-            context.insert(lodging)
         }
         try? context.save()
         HapticManager.shared.sheetConfirm()

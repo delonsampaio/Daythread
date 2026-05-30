@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import SwiftData
+import CoreData
 import PhotosUI
 
 struct AddExpenseSheet: View {
@@ -14,7 +14,7 @@ struct AddExpenseSheet: View {
     let vm: VaultViewModel
     let editingExpense: TripExpense?  // nil = add mode, non-nil = edit mode
 
-    @Environment(\.modelContext) private var context
+    @Environment(\.managedObjectContext) private var context
     @Environment(TripStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
@@ -39,7 +39,7 @@ struct AddExpenseSheet: View {
     private let currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY"]
 
     private var members: [TripMember] {
-        (trip.members ?? []).sorted { $0.displayName < $1.displayName }
+        trip.membersArray.sorted { $0.displayName < $1.displayName }
     }
 
     /// True when splitAmongIDs represents "everyone" (the default).
@@ -52,7 +52,7 @@ struct AddExpenseSheet: View {
 
     /// True if the trip has any explicitly flagged settlement expenses.
     private var tripHasSettlements: Bool {
-        (trip.expenses ?? []).contains(where: \.isSettlement)
+        trip.expensesArray.contains(where: \.isSettlement)
     }
 
     /// True when editing would change any field that affects the debt calculation
@@ -293,8 +293,6 @@ struct AddExpenseSheet: View {
             : Array(splitAmongIDs)
 
         if let expense = editingExpense {
-            // Edit mode — mutate the existing @Model object in place.
-            // SwiftData tracks property changes automatically; no re-insert needed.
             expense.title           = title
             expense.amount          = Double(amount) ?? expense.amount
             expense.currencyCode    = currencyCode
@@ -306,18 +304,19 @@ struct AddExpenseSheet: View {
             if store.isPro { expense.receiptImageData = receiptImageData }
             try? context.save()
         } else {
-            // Add mode — create a new expense.
-            let newExpense = TripExpense(
-                title: title,
-                amount: Double(amount) ?? 0,
-                currencyCode: currencyCode,
-                category: category,
-                date: date,
-                paidByMemberID: paidByMemberID,
-                splitAmongIDs: finalSplitAmongIDs,
-                notes: notes,
-                receiptImageData: store.isPro ? receiptImageData : nil
-            )
+            let newExpense = TripExpense(context: context)
+            newExpense.id              = UUID()
+            newExpense.title           = title
+            newExpense.amount          = Double(amount) ?? 0
+            newExpense.currencyCode    = currencyCode
+            newExpense.category        = category
+            newExpense.date            = date
+            newExpense.paidByMemberID  = paidByMemberID
+            newExpense.splitAmongIDs   = finalSplitAmongIDs
+            newExpense.notes           = notes
+            newExpense.isSettlement    = false
+            if store.isPro { newExpense.receiptImageData = receiptImageData }
+            // Zone-hopping: link parent before save.
             vm.addExpense(newExpense, to: trip, context: context)
         }
         HapticManager.shared.sheetConfirm()

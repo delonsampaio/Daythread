@@ -6,17 +6,17 @@
 //
 
 import SwiftUI
-import SwiftData
+import CoreData
 
 struct PreTripTasksView: View {
     let trip: Trip
     let vm: TripsViewModel
 
-    @Environment(\.modelContext) private var context
+    @Environment(\.managedObjectContext) private var context
     @State private var newTaskTitle: String = ""
 
     private var tasks: [PreTripTask] {
-        (trip.preTripTasks ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        trip.preTripTasksArray
     }
 
     var body: some View {

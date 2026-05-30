@@ -6,13 +6,13 @@
 //
 
 import SwiftUI
-import SwiftData
+import CoreData
 
 struct ExpenseListView: View {
     let trip: Trip
     let vm: VaultViewModel
 
-    @Environment(\.modelContext) private var context
+    @Environment(\.managedObjectContext) private var context
     @Environment(TripStore.self) private var store
     @State private var showAdd = false
     @State private var showSplit = false
@@ -22,7 +22,7 @@ struct ExpenseListView: View {
 
     /// True if the trip has any settlement expenses.
     private var tripHasSettlements: Bool {
-        (trip.expenses ?? []).contains { e in
+        trip.expensesArray.contains { e in
             e.splitAmongIDs.count == 1 &&
             e.paidByMemberID != nil &&
             e.paidByMemberID != e.splitAmongIDs.first
@@ -43,7 +43,7 @@ struct ExpenseListView: View {
     }
 
     private var expenses: [TripExpense] {
-        (trip.expenses ?? []).sorted { $0.date > $1.date }
+        trip.expensesArray.sorted { $0.date > $1.date }
     }
 
     private var totalsByCurrency: [String: Double] {
@@ -100,7 +100,7 @@ struct ExpenseListView: View {
                                     .font(.caption)
                                     .foregroundStyle(ThemeTokens.textSecondary)
                                 if let payerID = expense.paidByMemberID,
-                                   let name = (trip.members ?? []).first(where: { $0.id == payerID })?.displayName {
+                                   let name = trip.membersArray.first(where: { $0.id == payerID })?.displayName {
                                     Text("·")
                                         .font(.caption)
                                         .foregroundStyle(ThemeTokens.textMuted)

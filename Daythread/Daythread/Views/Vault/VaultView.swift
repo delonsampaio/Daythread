@@ -6,11 +6,12 @@
 //
 
 import SwiftUI
-import SwiftData
+import CoreData
 
 struct VaultView: View {
     @Environment(TripStore.self) private var store
-    @Query(sort: \Trip.startDate, order: .reverse) private var trips: [Trip]
+    @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \Trip.startDate, ascending: false)])
+    private var trips: FetchedResults<Trip>
     @State private var vm = VaultViewModel()
     @State private var selectedSegment: Int = 0
 

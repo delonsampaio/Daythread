@@ -6,12 +6,13 @@
 //
 
 import SwiftUI
-import SwiftData
+import CoreData
 
 struct TripsListView: View {
-    @Environment(\.modelContext) private var context
+    @Environment(\.managedObjectContext) private var context
 
-    @Query(sort: \Trip.startDate) private var allTrips: [Trip]
+    @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \Trip.startDate, ascending: true)])
+    private var allTrips: FetchedResults<Trip>
     @State private var vm = TripsViewModel()
     @State private var showCreate = false
     @State private var editingTrip: Trip?

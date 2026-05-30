@@ -6,14 +6,14 @@
 //
 
 import SwiftUI
-import SwiftData
+import CoreData
 import QuickLook
 
 struct DocumentGridView: View {
     let trip: Trip
     let vm: VaultViewModel
 
-    @Environment(\.modelContext) private var context
+    @Environment(\.managedObjectContext) private var context
     @Environment(TripStore.self) private var store
     @State private var showAdd = false
     @State private var viewingDocument: TripDocument?
@@ -23,9 +23,9 @@ struct DocumentGridView: View {
 
     /// Documents sorted with the most urgent expiry dates first (ascending),
     /// then documents without expiry ordered by creation date. Keeps the grid
-    /// stable across navigations — relationship ordering in SwiftData is undefined.
+    /// stable across navigations — NSSet ordering is undefined.
     private var sortedDocuments: [TripDocument] {
-        (trip.documents ?? []).sorted { a, b in
+        trip.documentsArray.sorted { a, b in
             switch (a.expiryDate, b.expiryDate) {
             case (let ea?, let eb?): return ea < eb
             case (.some, nil):       return true   // expiring docs float to top

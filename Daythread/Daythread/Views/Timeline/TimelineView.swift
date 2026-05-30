@@ -13,7 +13,7 @@ struct TimelineView: View {
     @Environment(\.managedObjectContext) private var context
 
     @FetchRequest(
-        sortDescriptors: [SortDescriptor(\Trip.startDate)],
+        sortDescriptors: [NSSortDescriptor(keyPath: \Trip.startDate, ascending: true)],
         predicate: NSPredicate(format: "isArchived == NO")
     ) private var trips: FetchedResults<Trip>
 

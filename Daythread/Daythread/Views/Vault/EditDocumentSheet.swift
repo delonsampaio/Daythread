@@ -10,12 +10,12 @@
 //
 
 import SwiftUI
-import SwiftData
+import CoreData
 
 struct EditDocumentSheet: View {
     let document: TripDocument
 
-    @Environment(\.modelContext) private var context
+    @Environment(\.managedObjectContext) private var context
     @Environment(\.dismiss) private var dismiss
 
     @State private var title: String

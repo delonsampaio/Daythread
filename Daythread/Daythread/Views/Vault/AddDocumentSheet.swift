@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import SwiftData
+import CoreData
 import UniformTypeIdentifiers
 import PhotosUI
 
@@ -14,7 +14,7 @@ struct AddDocumentSheet: View {
     let trip: Trip
     let vm: VaultViewModel
 
-    @Environment(\.modelContext) private var context
+    @Environment(\.managedObjectContext) private var context
     @Environment(TripStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 

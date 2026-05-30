@@ -13,13 +13,13 @@
 //  to ExpenseSplitter so the UI is always in sync with the tested engine.
 
 import SwiftUI
-import SwiftData
+import CoreData
 
 struct SplitExpensesSheet: View {
     let trip: Trip
     let vm: VaultViewModel
 
-    @Environment(\.modelContext) private var context
+    @Environment(\.managedObjectContext) private var context
     @Environment(\.dismiss) private var dismiss
 
     @State private var newName: String = ""
@@ -29,9 +29,9 @@ struct SplitExpensesSheet: View {
     @State private var showAssignPayers = false
 
     private var members: [TripMember] {
-        (trip.members ?? []).sorted { $0.displayName < $1.displayName }
+        trip.membersArray.sorted { $0.displayName < $1.displayName }
     }
-    private var expenses: [TripExpense] { trip.expenses ?? [] }
+    private var expenses: [TripExpense] { trip.expensesArray }
     private var settlements: [Settlement] { computeSettlements() }
 
     private var untrackedExpenses: [TripExpense] {
@@ -252,7 +252,7 @@ struct SplitExpensesSheet: View {
         let currency: String
     }
 
-    /// Maps TripExpense (SwiftData) → SplitExpense (engine input),
+    /// Maps TripExpense (Core Data) → SplitExpense (engine input),
     /// calls the tested ExpenseSplitter engine, then maps Debt → Settlement for the view.
     /// Untracked expenses (no payer) and participants who left the trip are silently
     /// skipped — the banner above handles UX communication for untracked expenses.
@@ -264,7 +264,7 @@ struct SplitExpensesSheet: View {
             members.first { $0.id == id }?.displayName ?? "?"
         }
 
-        // Map SwiftData models → engine's pure value types.
+        // Map Core Data models → engine's pure value types.
         let splitExpenses: [SplitExpense] = expenses.compactMap { expense in
             guard let payer = expense.paidByMemberID,
                   memberIDs.contains(payer) else { return nil }
@@ -311,14 +311,14 @@ struct SplitExpensesSheet: View {
 // MARK: — Assign Payers sheet
 
 /// Presents the list of expenses that have no payer assigned.
-/// Mutates TripExpense.paidByMemberID directly (SwiftData @Model tracks changes),
+/// Mutates TripExpense.paidByMemberID directly (Core Data tracks pending changes),
 /// then saves on Done.
 private struct AssignPayersSheet: View {
     let untrackedExpenses: [TripExpense]
     let members: [TripMember]
     let hasPriorSettlements: Bool
 
-    @Environment(\.modelContext) private var context
+    @Environment(\.managedObjectContext) private var context
     @Environment(\.dismiss) private var dismiss
     @State private var showSettlementWarning = false
 
@@ -327,7 +327,6 @@ private struct AssignPayersSheet: View {
             List {
                 Section {
                     ForEach(untrackedExpenses) { expense in
-                        @Bindable var expense = expense
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Text(expense.title.isEmpty ? "Untitled expense" : expense.title)
@@ -337,7 +336,10 @@ private struct AssignPayersSheet: View {
                                     .font(.system(size: 13, design: .monospaced))
                                     .foregroundStyle(ThemeTokens.textSecondary)
                             }
-                            Picker("Paid by", selection: $expense.paidByMemberID) {
+                            Picker("Paid by", selection: Binding(
+                                get: { expense.paidByMemberID },
+                                set: { expense.paidByMemberID = $0 }
+                            )) {
                                 Text("Unassigned").tag(UUID?.none)
                                 ForEach(members) { member in
                                     Text(member.displayName).tag(UUID?.some(member.id))

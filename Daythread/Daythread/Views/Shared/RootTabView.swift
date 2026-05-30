@@ -40,15 +40,17 @@ struct RootTabView: View {
                 store.activeTrip = activeTrips.first
             }
         }
-        .onChange(of: activeTrips) { _, trips in
+        // FetchedResults<Trip> is not Equatable so we compare IDs to detect changes.
+        .onChange(of: activeTrips.map(\.id)) { _, _ in
+            let trips = Array(activeTrips)
             // A freshly accepted shared trip may have just synced in — switch to
             // it before the generic fallback logic picks an arbitrary first trip.
-            store.resolvePendingJoin(in: Array(trips))
+            store.resolvePendingJoin(in: trips)
 
             if store.activeTrip == nil {
                 // Covers two cases:
                 // 1. Reinstall — CloudKit syncs data after onAppear fired with empty results
-                // 2. Race where @Query hasn't returned data yet when onAppear ran
+                // 2. Race where @FetchRequest hasn't returned data yet when onAppear ran
                 store.activeTrip = trips.first
             } else if let active = store.activeTrip, !trips.contains(where: { $0.id == active.id }) {
                 // Active trip was deleted or archived — fall back to another trip

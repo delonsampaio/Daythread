@@ -11,14 +11,14 @@
 //
 
 import SwiftUI
-import SwiftData
+import CoreData
 import PhotosUI
 
 struct EditTripSheet: View {
     let trip: Trip
     let vm: TripsViewModel
 
-    @Environment(\.modelContext) private var context
+    @Environment(\.managedObjectContext) private var context
     @Environment(\.dismiss) private var dismiss
 
     @State private var name: String
