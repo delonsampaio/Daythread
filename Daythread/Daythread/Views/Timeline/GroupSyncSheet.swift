@@ -45,8 +45,9 @@ struct GroupSyncSheet: View {
                     }
                 }
 
-                // Members list
-                let members = trip.members ?? []
+                // Only show real co-editors — virtual (expense-only) members
+                // are managed in the Vault split-expenses sheet, not here.
+                let members = (trip.members ?? []).filter { !$0.isVirtual }
                 if !members.isEmpty {
                     Section("Members (\(members.count))") {
                         ForEach(members) { member in
