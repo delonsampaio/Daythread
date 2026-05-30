@@ -32,6 +32,11 @@ struct DebugSyncMenuButton: ToolbarContent {
                         simulateLodgingUpdate()
                     }
                 }
+                Section("Schema") {
+                    Button("Init CloudKit Schema (run once)") {
+                        PersistenceController.shared.initializeCloudKitSchemaIfNeeded()
+                    }
+                }
             } label: {
                 Label("Debug Sync", systemImage: "ant.circle.fill")
                     .foregroundStyle(.orange)

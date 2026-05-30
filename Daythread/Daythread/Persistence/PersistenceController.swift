@@ -42,6 +42,15 @@ struct PersistenceController {
         container.viewContext.transactionAuthor = "DaythreadApp"
     }
 
+    /// Run ONCE on a real device to push the record types to CloudKit's Development
+    /// environment. Remove the call after the schema has been pushed.
+    #if DEBUG
+    func initializeCloudKitSchemaIfNeeded() {
+        do { try container.initializeCloudKitSchema(options: []) }
+        catch { print("⚠️ initializeCloudKitSchema failed: \(error)") }
+    }
+    #endif
+
     /// Adds a second store description scoped to CloudKit's shared database so
     /// records from accepted CKShares sync into a separate SQLite store.
     private func addSharedStore() {
