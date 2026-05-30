@@ -789,6 +789,187 @@ git commit -m "chore: add DEBUG CloudKit schema initializer"
 
 ---
 
+---
+
+## Phase 7 — Integration test suite (CloudKit sync correctness)
+
+### Task 16: Write CoreDataSyncTests (in-memory CRUD + constraint behaviour)
+
+These tests run on the simulator against `PersistenceController(inMemory: true)` and verify: object creation discipline, uniqueness constraint enforcement, relationship cascade deletes, and the enum bridge round-trips. They don't test live CloudKit (device-only) but they prove the data layer is correct before you put it on a real device.
+
+**Files:**
+- Create: `DaythreadTests/Persistence/CoreDataSyncTests.swift`
+
+- [ ] **Step 1: Write tests RED (they compile after Task 5 because PersistenceController exists)**
+
+```swift
+// CoreDataSyncTests.swift
+import XCTest
+import CoreData
+@testable import Daythread
+
+@MainActor
+final class CoreDataSyncTests: XCTestCase {
+
+    private var controller: PersistenceController!
+    private var ctx: NSManagedObjectContext!
+
+    override func setUpWithError() throws {
+        controller = PersistenceController(inMemory: true)
+        ctx = controller.viewContext
+    }
+
+    override func tearDownWithError() throws {
+        controller = nil; ctx = nil
+    }
+
+    // MARK: — Object-creation discipline (zone-hopping prevention)
+
+    /// Parent must be set before first save — verifies the Zone Hopping rule.
+    func test_event_linkedToParentBeforeSave_roundTrips() throws {
+        let trip = Trip(context: ctx); trip.id = UUID(); trip.name = "Paris"
+        let day  = TripDay(context: ctx); day.id = UUID(); day.trip = trip   // ← link before save
+        let event = TripEvent(context: ctx); event.id = UUID(); event.title = "Lunch"
+        event.day = day                                                        // ← link before save
+        try ctx.save()
+
+        let fetched = try ctx.fetch(TripEvent.fetchRequest())
+        XCTAssertEqual(fetched.count, 1)
+        XCTAssertEqual(fetched.first?.day?.trip?.name, "Paris")
+    }
+
+    // MARK: — Uniqueness constraint enforcement
+
+    /// Inserting two objects with the same id must merge, not duplicate (unique constraint on id).
+    func test_uniquenessConstraint_mergeDuplicateID() throws {
+        let id = UUID()
+        let t1 = Trip(context: ctx); t1.id = id; t1.name = "First"
+        try ctx.save()
+
+        // Simulate incoming CloudKit record with same id but updated name.
+        let t2 = Trip(context: ctx); t2.id = id; t2.name = "Second"
+        try ctx.save()   // mergeByPropertyObjectTrump: t2 wins
+
+        let all = try ctx.fetch(Trip.fetchRequest())
+        XCTAssertEqual(all.count, 1, "Duplicate id must merge, not duplicate")
+        XCTAssertEqual(all.first?.name, "Second", "Object-trump: later write wins")
+    }
+
+    // MARK: — Cascade delete
+
+    func test_deletingTrip_cascadesTo_daysAndEvents() throws {
+        let trip = Trip(context: ctx); trip.id = UUID(); trip.name = "Tokyo"
+        let day  = TripDay(context: ctx);  day.id  = UUID(); day.trip  = trip
+        let ev   = TripEvent(context: ctx); ev.id  = UUID(); ev.day   = day; ev.title = "Ramen"
+        try ctx.save()
+
+        ctx.delete(trip)
+        try ctx.save()
+
+        XCTAssertEqual(try ctx.fetch(Trip.fetchRequest()).count, 0)
+        XCTAssertEqual(try ctx.fetch(TripDay.fetchRequest()).count, 0)
+        XCTAssertEqual(try ctx.fetch(TripEvent.fetchRequest()).count, 0)
+    }
+
+    // MARK: — Enum bridge round-trips
+
+    func test_eventCategory_bridgeRoundTrip() throws {
+        let ev = TripEvent(context: ctx); ev.id = UUID(); ev.category = .flight
+        try ctx.save()
+        let fetched = try ctx.fetch(TripEvent.fetchRequest()).first!
+        XCTAssertEqual(fetched.category, .flight)
+        XCTAssertEqual(fetched.categoryRaw, "flight")
+    }
+
+    func test_memberRole_bridgeRoundTrip() throws {
+        let m = TripMember(context: ctx); m.id = UUID(); m.appleUserID = "abc"; m.role = .viewer
+        try ctx.save()
+        let fetched = try ctx.fetch(TripMember.fetchRequest()).first!
+        XCTAssertEqual(fetched.role, .viewer)
+        XCTAssertFalse(fetched.isVirtual)
+    }
+
+    func test_isVirtual_emptyAppleUserID_returnsTrue() throws {
+        let m = TripMember(context: ctx); m.id = UUID(); m.appleUserID = ""
+        try ctx.save()
+        XCTAssertTrue(m.isVirtual)
+    }
+
+    func test_expenseCategory_bridgeRoundTrip() throws {
+        let e = TripExpense(context: ctx); e.id = UUID(); e.category = .food
+        try ctx.save()
+        XCTAssertEqual(try ctx.fetch(TripExpense.fetchRequest()).first!.category, .food)
+    }
+
+    // MARK: — splitAmongJoined string bridge
+
+    func test_splitAmongIDs_joinedStringRoundTrip() throws {
+        let a = UUID(); let b = UUID()
+        let e = TripExpense(context: ctx); e.id = UUID(); e.splitAmongIDs = [a, b]
+        try ctx.save()
+        let fetched = try ctx.fetch(TripExpense.fetchRequest()).first!
+        XCTAssertEqual(Set(fetched.splitAmongIDs), Set([a, b]))
+        XCTAssertFalse((fetched.splitAmongJoined ?? "").isEmpty)
+    }
+
+    // MARK: — Trip computed properties
+
+    func test_trip_daysArray_sortedBySortOrder() throws {
+        let trip = Trip(context: ctx); trip.id = UUID(); trip.name = "NYC"
+        let d1 = TripDay(context: ctx); d1.id = UUID(); d1.sortOrder = 10; d1.trip = trip
+        let d2 = TripDay(context: ctx); d2.id = UUID(); d2.sortOrder = 2;  d2.trip = trip
+        try ctx.save()
+        let fetched = try ctx.fetch(Trip.fetchRequest()).first!
+        XCTAssertEqual(fetched.daysArray.map(\.sortOrder), [2, 10])
+    }
+}
+```
+
+- [ ] **Step 2: Run full suite (after Task 12 migrations are done)**
+
+Run:
+```bash
+xcodebuild -scheme Daythread -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:DaythreadTests/CoreDataSyncTests test 2>&1 | grep -E "Test Case|Executed|TEST SUCCEEDED|TEST FAILED" | tail -20
+```
+Expected: all 10 tests pass.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add Daythread/DaythreadTests/Persistence/CoreDataSyncTests.swift
+git commit -m "test: CoreData sync correctness — constraints, cascade, enum bridges, zone-hopping rule"
+```
+
+---
+
+## Plan Amendments (from post-writing review)
+
+Three fixes applied after Gemini review:
+
+**1. Unique constraints (CRITICAL — already applied to model)**
+All 9 entities have `<uniquenessConstraints><constraint value="id"/>` in the `.xcdatamodeld`. Without this, CloudKit sync creates duplicate rows instead of merging. Committed in `fix: add id uniqueness constraints to all 9 Core Data entities`.
+
+**2. Zone-Hopping rule (CRITICAL — enforced in Tasks 10, 11)**
+Always link an object to its parent *before* the first `context.save()`. If you save an orphan, Core Data places it in the default private zone; when you later assign it to a shared trip, a cross-zone migration fires which can fail or stall sync.
+```swift
+// CORRECT — link first, save once
+let event = TripEvent(context: context)
+event.day = selectedDay   // ← before save
+event.title = "Lunch"
+try? context.save()
+
+// WRONG — do NOT do this
+let event = TripEvent(context: context)
+try? context.save()        // ← saved as orphan
+event.day = selectedDay    // ← too late
+```
+This rule is enforced in every object-creation step in Tasks 10 and 11.
+
+**3. transactionAuthor (minor — added to Task 5)**
+Add `container.viewContext.transactionAuthor = "DaythreadApp"` after `mergePolicy`. This lets the persistent history tracker distinguish app writes from CloudKit background imports, ensuring `automaticallyMergesChangesFromParent` responds correctly to remote changes.
+
+---
+
 ## Self-Review Notes
 
 - **Spec coverage:** invite (Task 7), accept (Task 8), shared store (Task 5), schema (Task 13), data visible to co-editors (Tasks 5–8 + 14). ✓
