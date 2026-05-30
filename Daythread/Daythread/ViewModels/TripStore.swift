@@ -20,7 +20,7 @@ final class TripStore {
     // MARK: — Active trip
 
     /// In-memory active trip. Setting it persists the ID to UserDefaults so
-    /// the same trip can be restored on cold launch (see TripSwitcherStrip.task).
+    /// the same trip can be restored on cold launch (see TimelineView.task).
     var activeTrip: Trip? {
         didSet {
             UserDefaults.standard.set(
@@ -30,7 +30,7 @@ final class TripStore {
         }
     }
 
-    /// The UUID stored at last launch — used by TripSwitcherStrip to restore context.
+    /// The UUID stored at last launch — used by TimelineView to restore context on cold launch.
     var storedActiveTripID: UUID? {
         UserDefaults.standard.string(forKey: "daythread.activeTripID")
             .flatMap { UUID(uuidString: $0) }

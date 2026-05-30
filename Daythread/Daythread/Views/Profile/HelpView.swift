@@ -74,7 +74,7 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "How do I switch between trips?",
-                answer: "The horizontal strip at the top of the Timeline shows all your trips. Tap any trip to make it active, or swipe left and right to cycle through them."
+                answer: "Tap the trip name in the centre of the Timeline navigation bar — it shows a dropdown of all your active trips. The current trip's date range appears just below the name so you always know which trip you're viewing."
             )
             FAQRow(
                 question: "How do I add an event to my itinerary?",
@@ -107,7 +107,7 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "What does the lodging banner at the top show?",
-                answer: "If you've added lodging that covers today's date, a banner appears just below the trip switcher strip showing your current accommodation. It updates automatically as your check-in and check-out dates change."
+                answer: "If you've added lodging that covers today's date, a banner appears at the top of the Timeline showing your current accommodation. It updates automatically as your check-in and check-out dates change."
             )
             FAQRow(
                 question: "How are transit events different from regular events?",
@@ -136,7 +136,7 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "How do I archive a trip?",
-                answer: "Long-press any trip card in the Trips list and tap Archive. Archived trips are hidden from the active switcher strip but remain accessible in the Archived section so you can refer back to them."
+                answer: "Long-press any trip card in the Trips list and tap Archive. Archived trips are hidden from the Timeline trip picker and the Vault, but remain accessible in the Archived section of the Trips tab so you can refer back to them."
             )
             FAQRow(
                 question: "How do I delete a trip?",
@@ -272,19 +272,19 @@ struct HelpView: View {
 
     private static let allFAQs: [FAQItem] = [
         .init(section: "Getting Started", question: "How do I create my first trip?", answer: "Tap the Trips tab, then tap the + button. The wizard walks you through naming your trip, setting the destination and dates, and optionally adding a cover photo. Once saved, the app switches to your new trip in the Timeline."),
-        .init(section: "Getting Started", question: "How do I switch between trips?", answer: "The horizontal strip at the top of the Timeline shows all your trips. Tap any trip to make it active, or swipe left and right to cycle through them."),
+        .init(section: "Getting Started", question: "How do I switch between trips?", answer: "Tap the trip name in the centre of the Timeline navigation bar — it shows a dropdown of all your active trips. The current trip's date range appears just below the name so you always know which trip you're viewing."),
         .init(section: "Getting Started", question: "How do I add an event to my itinerary?", answer: "In the Timeline, tap the blue + button in the bottom-right corner to open the Add Event sheet. Choose a category (Flight, Hotel, Restaurant, Museum, Activity, etc.), fill in the details, and save."),
         .init(section: "Getting Started", question: "What categories of events can I add?", answer: "Daythread supports: Flight, Train, Bus, Ferry (transit), Hotel, Rental Property, Restaurant, Café, Bar, Museum, Attraction, Tour, Show, Activity, Sport, Hike, Shopping, and Other. Transit categories open an extended form for carrier, flight/train number, booking code, and seat."),
         .init(section: "Getting Started", question: "How do I reorder events in my day?", answer: "Long-press and drag any event card to reorder it. You can also drag events between days — drop onto a different day's section and it moves there automatically. Time-Locked events cannot be dragged and will block any drop that would push them out of their time slot."),
         .init(section: "Getting Started", question: "How do I edit or delete an event?", answer: "Swipe left on any event card to reveal three actions: Edit, Lock/Unlock, and Delete. Tap the action you want, or swipe right to dismiss. Time-Locked events show Unlock instead of Lock."),
         .init(section: "Timeline", question: "What is a Time-Locked event?", answer: "A Time-Locked event is anchored to its time slot. It cannot be dragged, and other events cannot be dragged past it — if you try, the card snaps back with a warning vibration. When you set a start time on a new event the lock is suggested automatically. A padlock icon (amber) appears on the card, and an amber warning badge appears if the event is currently out of order."),
-        .init(section: "Timeline", question: "What does the lodging banner at the top show?", answer: "If you've added lodging that covers today's date, a banner appears just below the trip switcher strip showing your current accommodation. It updates automatically as your check-in and check-out dates change."),
+        .init(section: "Timeline", question: "What does the lodging banner at the top show?", answer: "If you've added lodging that covers today's date, a banner appears at the top of the Timeline showing your current accommodation. It updates automatically as your check-in and check-out dates change."),
         .init(section: "Timeline", question: "How are transit events different from regular events?", answer: "Flight, Train, Bus, and Ferry events show a detailed card with carrier name, flight or train number, booking code, terminal and gate, seat number, baggage claim, and timezone-corrected times."),
         .init(section: "Timeline", question: "Can I add notes to an event?", answer: "Yes. The Add/Edit Event sheet has a notes field where you can save anything relevant — confirmation numbers, meeting points, dress codes, etc."),
         .init(section: "Timeline", question: "How do I add lodging to a trip?", answer: "From the Timeline, tap the + button and choose Hotel or Rental Property. Alternatively, go to Trips, tap your trip, and use the Lodging section. Enter check-in and check-out dates and a confirmation number."),
         .init(section: "Trips", question: "How are trips organised?", answer: "The Trips tab groups your trips into Current, Upcoming, Past, and Archived. A trip is 'Current' if today falls within its start and end dates."),
         .init(section: "Trips", question: "How do I edit a trip?", answer: "Long-press any trip card in the Trips list and tap Edit. You can change the name, destination, cover photo, and dates. Shortening the date range shows a warning if events would be removed."),
-        .init(section: "Trips", question: "How do I archive a trip?", answer: "Long-press any trip card in the Trips list and tap Archive. Archived trips are hidden from the active switcher strip but remain accessible in the Archived section."),
+        .init(section: "Trips", question: "How do I archive a trip?", answer: "Long-press any trip card in the Trips list and tap Archive. Archived trips are hidden from the Timeline trip picker and the Vault, but remain accessible in the Archived section of the Trips tab."),
         .init(section: "Trips", question: "How do I delete a trip?", answer: "Long-press any trip card in the Trips list and tap Delete. This permanently removes the trip and all its days, events, documents, and expenses."),
         .init(section: "Trips", question: "What are Pre-Trip Tasks?", answer: "Pre-Trip Tasks are a checklist you can attach to any trip for things to do before you leave — booking insurance, printing documents, packing specific items, etc."),
         .init(section: "Trips", question: "Can I add a cover photo to a trip?", answer: "Yes. During trip creation, step 3 lets you pick a cover photo from your photo library. You can also change or remove it later via the Edit option in the trip card's long-press menu."),

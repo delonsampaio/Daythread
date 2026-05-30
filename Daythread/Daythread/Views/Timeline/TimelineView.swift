@@ -12,6 +12,11 @@ struct TimelineView: View {
     @Environment(TripStore.self) private var store
     @Environment(\.modelContext) private var context
 
+    @Query(
+        filter: #Predicate<Trip> { !$0.isArchived },
+        sort: \Trip.startDate
+    ) private var trips: [Trip]
+
     private var days: [TripDay] {
         (store.activeTrip?.days ?? []).sorted { $0.sortOrder < $1.sortOrder }
     }
@@ -60,11 +65,8 @@ struct TimelineView: View {
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            VStack(spacing: 0) {
-                TripSwitcherStrip()
-                if let activeLodging = vm.activeLodging {
-                    LodgingBannerView(lodging: activeLodging)
-                }
+            if let activeLodging = vm.activeLodging {
+                LodgingBannerView(lodging: activeLodging)
             }
         }
         .overlay(alignment: .bottomTrailing) {
@@ -92,9 +94,11 @@ struct TimelineView: View {
         .sheet(isPresented: $showPaywall) {
             ProPaywallView()
         }
-        .navigationTitle(store.activeTrip?.name ?? "Timeline")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                tripPickerTitle
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 if let trip = store.activeTrip {
                     Button {
@@ -112,8 +116,63 @@ struct TimelineView: View {
             DebugSyncMenuButton()
             #endif
         }
-        .task { vm.refresh(days: days, lodging: lodging) }
+        .task {
+            vm.refresh(days: days, lodging: lodging)
+            // Cold-launch restore: if no trip is active, look up the last-used trip by
+            // its persisted UUID (previously handled in TripSwitcherStrip.task).
+            if store.activeTrip == nil,
+               let id = store.storedActiveTripID,
+               let match = trips.first(where: { $0.id == id }) {
+                store.activeTrip = match
+            }
+        }
         } // NavigationStack
+    }
+
+    // MARK: — Trip picker title
+
+    @ViewBuilder
+    private var tripPickerTitle: some View {
+        if trips.isEmpty {
+            Text("Timeline")
+                .font(.headline)
+        } else {
+            Menu {
+                ForEach(trips) { trip in
+                    Button {
+                        store.activeTrip = trip
+                    } label: {
+                        if trip.id == store.activeTrip?.id {
+                            Label(trip.name, systemImage: "checkmark")
+                        } else {
+                            Text(trip.name)
+                        }
+                    }
+                }
+            } label: {
+                VStack(spacing: 1) {
+                    HStack(spacing: 4) {
+                        Text(store.activeTrip?.name ?? "Select Trip")
+                            .font(.headline)
+                            .foregroundStyle(ThemeTokens.textPrimary)
+                        Image(systemName: "chevron.down")
+                            .font(.caption2.bold())
+                            .foregroundStyle(ThemeTokens.textSecondary)
+                    }
+                    if let trip = store.activeTrip {
+                        Text(dateRange(for: trip))
+                            .font(.caption2)
+                            .foregroundStyle(ThemeTokens.textMuted)
+                    }
+                }
+            }
+        }
+    }
+
+    private func dateRange(for trip: Trip) -> String {
+        let start = trip.startDate.formatted(.dateTime.month(.abbreviated).day())
+        let end   = trip.endDate.formatted(.dateTime.month(.abbreviated).day())
+        return "\(start) – \(end)"
     }
 
     // MARK: — Day content
