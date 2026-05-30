@@ -6,15 +6,18 @@
 //
 //  When a recipient taps a CKShare invite link, the system launches the app and
 //  calls userDidAcceptCloudKitShareWith on the scene delegate (NOT onOpenURL).
-//  We accept the share via CKAcceptSharesOperation, then post a notification so
-//  DaythreadApp can route to the joined trip using the (unit-tested)
-//  TripStore.resolvePendingJoin path.
+//  We accept the share through NSPersistentCloudKitContainer.acceptShareInvitations
+//  so Core Data imports the shared object graph into the SHARED store — accepting
+//  via a bare CKAcceptSharesOperation would join the CloudKit share but never
+//  surface the records to Core Data. After acceptance we post a notification so
+//  DaythreadApp can route to the joined trip via TripStore.resolvePendingJoin.
 //
 //  ⚠️ DEVICE-ONLY: requires a real iCloud account; cannot run on the simulator.
 //
 
 import UIKit
 import CloudKit
+import CoreData
 
 extension Notification.Name {
     /// Posted after a CKShare is accepted. userInfo["recordName"] = share record name.
@@ -44,21 +47,37 @@ final class ShareSceneDelegate: NSObject, UIWindowSceneDelegate {
         _ windowScene: UIWindowScene,
         userDidAcceptCloudKitShareWith metadata: CKShare.Metadata
     ) {
-        let container = CKContainer(identifier: containerID)
-        let operation = CKAcceptSharesOperation(shareMetadatas: [metadata])
-        operation.acceptSharesResultBlock = { result in
-            switch result {
-            case .success:
-                let recordName = metadata.share.recordID.recordName
-                NotificationCenter.default.post(
-                    name: .daythreadDidAcceptShare,
-                    object: nil,
-                    userInfo: ["recordName": recordName]
-                )
-            case .failure(let error):
-                print("⚠️ Failed to accept CloudKit share: \(error)")
-            }
+        let persistentContainer = PersistenceController.shared.cloudKitContainer
+
+        // Accept INTO the shared store so Core Data imports the shared object
+        // graph (trip + days + events). The shared store is the one the
+        // PersistenceController created with databaseScope == .shared.
+        guard let sharedStore = Self.sharedStore(in: persistentContainer) else {
+            print("⚠️ No shared Core Data store found to accept the share into")
+            return
         }
-        container.add(operation)
+
+        persistentContainer.acceptShareInvitations(
+            from: [metadata],
+            into: sharedStore
+        ) { _, error in
+            if let error {
+                print("⚠️ Failed to accept CloudKit share: \(error)")
+                return
+            }
+            NotificationCenter.default.post(
+                name: .daythreadDidAcceptShare,
+                object: nil,
+                userInfo: ["recordName": metadata.share.recordID.recordName]
+            )
+        }
+    }
+
+    /// The persistent store scoped to CloudKit's shared database, identified by
+    /// its "shared.sqlite" filename (set in PersistenceController.addSharedStore).
+    private static func sharedStore(in container: NSPersistentCloudKitContainer) -> NSPersistentStore? {
+        container.persistentStoreCoordinator.persistentStores.first {
+            $0.url?.lastPathComponent == "shared.sqlite"
+        }
     }
 }
