@@ -52,7 +52,12 @@ struct RootTabView: View {
                 // 1. Reinstall — CloudKit syncs data after onAppear fired with empty results
                 // 2. Race where @FetchRequest hasn't returned data yet when onAppear ran
                 store.activeTrip = trips.first
-            } else if let active = store.activeTrip, !trips.contains(where: { $0.id == active.id }) {
+            } else if let active = store.activeTrip,
+                      // Guard first: accessing @NSManaged id on a deleted object whose
+                      // context was set to nil causes NSObjectInaccessibleException.
+                      // Swift || short-circuits, so id is only accessed when context is live.
+                      active.managedObjectContext == nil ||
+                      !trips.contains(where: { $0.id == active.id }) {
                 // Active trip was deleted or archived — fall back to another trip
                 store.activeTrip = trips.first
             }

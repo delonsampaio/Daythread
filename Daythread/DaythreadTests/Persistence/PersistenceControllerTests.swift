@@ -22,10 +22,8 @@ final class PersistenceControllerTests: XCTestCase {
 
     func test_inMemoryController_mergePolicyIsObjectTrump() {
         let controller = PersistenceController(inMemory: true)
-        XCTAssertEqual(
-            controller.viewContext.mergePolicy as? NSMergePolicy,
-            NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
-        )
+        let policy = controller.viewContext.mergePolicy as? NSMergePolicy
+        XCTAssertEqual(policy?.mergeType, .mergeByPropertyObjectTrumpMergePolicyType)
     }
 
     func test_inMemoryController_setsTransactionAuthor() {
