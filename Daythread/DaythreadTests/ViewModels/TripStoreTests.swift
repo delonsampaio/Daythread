@@ -155,4 +155,54 @@ final class TripStoreTests: XCTestCase {
         XCTAssertEqual(store.activeTrip?.id, tripB.id,
             "activeTrip should not change when it is still valid in the list")
     }
+
+    // MARK: — Pending share join resolution
+
+    /// After accepting an invite, the joined trip eventually syncs in. When it
+    /// appears, resolvePendingJoin must make it active and clear the pending name.
+    func testResolvePendingJoin_matchingTrip_activatesAndClears() throws {
+        let store = TripStore()
+        let joined = Trip(name: "Shared", destination: "Italy", startDate: .now, endDate: .now)
+        joined.cloudKitShareID = "share-rec-1"
+        context.insert(joined)
+        try context.save()
+
+        store.pendingJoinShareRecordName = "share-rec-1"
+        store.resolvePendingJoin(in: [joined])
+
+        XCTAssertEqual(store.activeTrip?.id, joined.id)
+        XCTAssertNil(store.pendingJoinShareRecordName, "pending name cleared once resolved")
+    }
+
+    /// If the joined trip hasn't synced yet, the pending name is retained so a
+    /// later @Query update can resolve it; activeTrip is left untouched.
+    func testResolvePendingJoin_noMatchYet_retainsPending() throws {
+        let store = TripStore()
+        let other = Trip(name: "Other", destination: "Spain", startDate: .now, endDate: .now)
+        other.cloudKitShareID = "different-rec"
+        context.insert(other)
+        try context.save()
+
+        store.pendingJoinShareRecordName = "share-rec-1"
+        store.resolvePendingJoin(in: [other])
+
+        XCTAssertNil(store.activeTrip)
+        XCTAssertEqual(store.pendingJoinShareRecordName, "share-rec-1",
+            "pending name retained until the trip syncs in")
+    }
+
+    /// With no pending join, resolvePendingJoin is a no-op and never changes activeTrip.
+    func testResolvePendingJoin_nilPending_isNoOp() throws {
+        let store = TripStore()
+        let trip = Trip(name: "Solo", destination: "Anywhere", startDate: .now, endDate: .now)
+        trip.cloudKitShareID = "rec-x"
+        context.insert(trip)
+        try context.save()
+
+        store.pendingJoinShareRecordName = nil
+        store.resolvePendingJoin(in: [trip])
+
+        XCTAssertNil(store.activeTrip)
+        XCTAssertNil(store.pendingJoinShareRecordName)
+    }
 }

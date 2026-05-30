@@ -36,6 +36,25 @@ final class TripStore {
             .flatMap { UUID(uuidString: $0) }
     }
 
+    // MARK: — Pending share join
+
+    /// Set when a CKShare is accepted (via a tapped invite link) but the joined
+    /// Trip hasn't synced into the local store yet. A view with @Query trips
+    /// resolves and clears this once the matching trip arrives — see
+    /// ShareDeepLinkHandler and RootTabView's resolution onChange.
+    var pendingJoinShareRecordName: String?
+
+    /// If a pending share-join is waiting and a matching trip is now present in
+    /// `trips`, make it active and clear the pending name. No-op when there is no
+    /// pending join or the trip hasn't synced in yet (the name is retained).
+    func resolvePendingJoin(in trips: [Trip]) {
+        guard let recordName = pendingJoinShareRecordName else { return }
+        guard let match = ShareDeepLinkHandler.trip(forShareRecordName: recordName, in: trips)
+        else { return }
+        activeTrip = match
+        pendingJoinShareRecordName = nil
+    }
+
     // MARK: — Other state
 
     var syncStatus: CloudKitSyncStatus = .idle

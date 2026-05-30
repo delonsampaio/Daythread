@@ -41,6 +41,10 @@ struct RootTabView: View {
             }
         }
         .onChange(of: activeTrips) { _, trips in
+            // A freshly accepted shared trip may have just synced in — switch to
+            // it before the generic fallback logic picks an arbitrary first trip.
+            store.resolvePendingJoin(in: trips)
+
             if store.activeTrip == nil {
                 // Covers two cases:
                 // 1. Reinstall — CloudKit syncs data after onAppear fired with empty results

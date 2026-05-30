@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import CloudKit
 
 struct GroupSyncSheet: View {
     let trip: Trip
@@ -16,6 +17,9 @@ struct GroupSyncSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var cloudKit = CloudKitService()
+    @State private var pendingShare: CKShare?
+    @State private var showShareSheet = false
+    @State private var isPreparingShare = false
 
     var body: some View {
         NavigationStack {
@@ -37,11 +41,18 @@ struct GroupSyncSheet: View {
                         }
                     } else {
                         Button {
-                            Task { await cloudKit.shareTrip(trip, modelContext: context) }
+                            inviteePeople()
                         } label: {
-                            Label("Invite People to This Trip", systemImage: "person.badge.plus")
-                                .foregroundStyle(ThemeTokens.accent)
+                            HStack {
+                                Label("Invite People to This Trip", systemImage: "person.badge.plus")
+                                    .foregroundStyle(ThemeTokens.accent)
+                                if isPreparingShare {
+                                    Spacer()
+                                    ProgressView()
+                                }
+                            }
                         }
+                        .disabled(isPreparingShare)
                     }
                 }
 
@@ -82,6 +93,31 @@ struct GroupSyncSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
+            }
+            .sheet(isPresented: $showShareSheet) {
+                if let share = pendingShare {
+                    CloudSharingControllerView(
+                        share: share,
+                        container: cloudKit.container,
+                        title: trip.name
+                    )
+                    .ignoresSafeArea()
+                }
+            }
+        }
+    }
+
+    /// Creates the CKShare (device-only) and presents the system invite sheet.
+    /// On the simulator this surfaces an error via cloudKit.errorMessage rather
+    /// than presenting, since CloudKit is unavailable there.
+    private func inviteePeople() {
+        isPreparingShare = true
+        Task {
+            let share = await cloudKit.shareTrip(trip, modelContext: context)
+            isPreparingShare = false
+            if let share {
+                pendingShare = share
+                showShareSheet = true
             }
         }
     }
