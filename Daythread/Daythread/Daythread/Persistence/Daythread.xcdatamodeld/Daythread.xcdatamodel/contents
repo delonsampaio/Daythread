@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="22758" systemVersion="24B91" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="" usedWithCloudKit="YES">
+    <entity name="Trip" representedClassName="Trip" syncable="YES">
+        <attribute name="cloudKitShareID" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="coverImageData" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES" syncable="YES"/>
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="destination" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="endDate" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="gradientSeed" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES" syncable="YES"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="isArchived" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES" syncable="YES"/>
+        <attribute name="name" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="startDate" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="YES"/>
+        <relationship name="days" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="TripDay" inverseName="trip" inverseEntity="TripDay" syncable="YES"/>
+        <relationship name="documents" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="TripDocument" inverseName="trip" inverseEntity="TripDocument" syncable="YES"/>
+        <relationship name="expenses" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="TripExpense" inverseName="trip" inverseEntity="TripExpense" syncable="YES"/>
+        <relationship name="lodging" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LodgingInfo" inverseName="trip" inverseEntity="LodgingInfo" syncable="YES"/>
+        <relationship name="members" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="TripMember" inverseName="trip" inverseEntity="TripMember" syncable="YES"/>
+        <relationship name="preTripTasks" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="PreTripTask" inverseName="trip" inverseEntity="PreTripTask" syncable="YES"/>
+    </entity>
+    <entity name="TripDay" representedClassName="TripDay" syncable="YES">
+        <attribute name="date" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="notes" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="sortOrder" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES" syncable="YES"/>
+        <relationship name="events" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="TripEvent" inverseName="day" inverseEntity="TripEvent" syncable="YES"/>
+        <relationship name="trip" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Trip" inverseName="days" inverseEntity="Trip" syncable="YES"/>
+    </entity>
+    <entity name="TripEvent" representedClassName="TripEvent" syncable="YES">
+        <attribute name="categoryRaw" optional="YES" attributeType="String" defaultValueString="activity" syncable="YES"/>
+        <attribute name="endTime" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="isTimeLocked" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES" syncable="YES"/>
+        <attribute name="latitude" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES" syncable="YES"/>
+        <attribute name="location" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="longitude" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES" syncable="YES"/>
+        <attribute name="notes" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="sortOrder" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES" syncable="YES"/>
+        <attribute name="startTime" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="title" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <relationship name="day" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="TripDay" inverseName="events" inverseEntity="TripDay" syncable="YES"/>
+        <relationship name="transitDetails" optional="YES" maxCount="1" deletionRule="Cascade" destinationEntity="TransitDetails" inverseName="event" inverseEntity="TransitDetails" syncable="YES"/>
+    </entity>
+    <entity name="TransitDetails" representedClassName="TransitDetails" syncable="YES">
+        <attribute name="arrivalCode" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="arrivalGate" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="arrivalName" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="arrivalTerminal" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="arrivalTZIdentifier" optional="YES" attributeType="String" defaultValueString="UTC" syncable="YES"/>
+        <attribute name="baggageClaim" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="carrier" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="departureCode" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="departureGate" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="departureName" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="departureTerminal" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="departureTZIdentifier" optional="YES" attributeType="String" defaultValueString="UTC" syncable="YES"/>
+        <attribute name="flightOrTrainNumber" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="pnr" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="seatNumber" optional="YES" attributeType="String" syncable="YES"/>
+        <relationship name="event" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="TripEvent" inverseName="transitDetails" inverseEntity="TripEvent" syncable="YES"/>
+    </entity>
+    <entity name="LodgingInfo" representedClassName="LodgingInfo" syncable="YES">
+        <attribute name="address" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="checkIn" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="checkOut" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="confirmationNumber" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="name" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="notes" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <relationship name="trip" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Trip" inverseName="lodging" inverseEntity="Trip" syncable="YES"/>
+    </entity>
+    <entity name="TripMember" representedClassName="TripMember" syncable="YES">
+        <attribute name="appleUserID" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="avatarData" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES" syncable="YES"/>
+        <attribute name="displayName" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="joinedAt" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="roleRaw" optional="YES" attributeType="String" defaultValueString="editor" syncable="YES"/>
+        <relationship name="trip" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Trip" inverseName="members" inverseEntity="Trip" syncable="YES"/>
+    </entity>
+    <entity name="TripDocument" representedClassName="TripDocument" syncable="YES">
+        <attribute name="addedAt" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="documentData" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES" syncable="YES"/>
+        <attribute name="expiryDate" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="mimeType" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="title" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <relationship name="trip" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Trip" inverseName="documents" inverseEntity="Trip" syncable="YES"/>
+    </entity>
+    <entity name="TripExpense" representedClassName="TripExpense" syncable="YES">
+        <attribute name="amount" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES" syncable="YES"/>
+        <attribute name="categoryRaw" optional="YES" attributeType="String" defaultValueString="other" syncable="YES"/>
+        <attribute name="currencyCode" optional="YES" attributeType="String" defaultValueString="USD" syncable="YES"/>
+        <attribute name="date" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="isSettlement" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES" syncable="YES"/>
+        <attribute name="notes" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="paidByMemberID" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="receiptImageData" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES" syncable="YES"/>
+        <attribute name="splitAmongJoined" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="title" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <relationship name="trip" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Trip" inverseName="expenses" inverseEntity="Trip" syncable="YES"/>
+    </entity>
+    <entity name="PreTripTask" representedClassName="PreTripTask" syncable="YES">
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="isComplete" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES" syncable="YES"/>
+        <attribute name="sortOrder" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES" syncable="YES"/>
+        <attribute name="title" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <relationship name="trip" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Trip" inverseName="preTripTasks" inverseEntity="Trip" syncable="YES"/>
+    </entity>
+    <elements>
+        <element name="LodgingInfo" positionX="0" positionY="0" width="128" height="134"/>
+        <element name="PreTripTask" positionX="0" positionY="0" width="128" height="104"/>
+        <element name="TransitDetails" positionX="0" positionY="0" width="128" height="284"/>
+        <element name="Trip" positionX="0" positionY="0" width="128" height="254"/>
+        <element name="TripDay" positionX="0" positionY="0" width="128" height="104"/>
+        <element name="TripDocument" positionX="0" positionY="0" width="128" height="134"/>
+        <element name="TripEvent" positionX="0" positionY="0" width="128" height="224"/>
+        <element name="TripExpense" positionX="0" positionY="0" width="128" height="224"/>
+        <element name="TripMember" positionX="0" positionY="0" width="128" height="134"/>
+    </elements>
+</model>
