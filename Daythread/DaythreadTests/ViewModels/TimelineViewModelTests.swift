@@ -5,49 +5,47 @@
 //  Created by Delon Sampaio on 5/27/26.
 //
 //  Tests for TimelineViewModel drag-and-drop reordering logic.
-//  Uses an in-memory container (cloudKitDatabase: .none) so saves are
-//  synchronous and tests complete in well under 1 second.
+//  Uses an in-memory container so saves are synchronous and tests
+//  complete in well under 1 second.
 //
 
 import XCTest
-import SwiftData
+import CoreData
 @testable import Daythread
-
-private let schema = Schema([
-    Trip.self, TripDay.self, TripEvent.self, TransitDetails.self,
-    LodgingInfo.self, TripMember.self, TripDocument.self,
-    TripExpense.self, PreTripTask.self
-])
 
 @MainActor
 final class TimelineViewModelTests: XCTestCase {
 
     // MARK: — Helpers
 
-    private func makeContainer() throws -> ModelContainer {
-        let config = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: true,
-            cloudKitDatabase: .none
-        )
-        return try ModelContainer(for: schema, configurations: config)
+    private var ctx: NSManagedObjectContext {
+        PersistenceController(inMemory: true).viewContext
     }
 
     /// Sets up a trip with one day and the given event titles (sortOrder assigned 0, 1, 2…).
     private func makeDay(
         eventTitles: [String],
-        context: ModelContext
+        context: NSManagedObjectContext
     ) -> (TripDay, [TripEvent]) {
-        let trip = Trip(name: "Test", destination: "Anywhere", startDate: .now, endDate: .now)
-        context.insert(trip)
+        let trip = Trip(context: context)
+        trip.id = UUID()
+        trip.name = "Test"
+        trip.destination = "Anywhere"
+        trip.startDate = .now
+        trip.endDate = .now
 
-        let day = TripDay(date: .now, sortOrder: 0)
-        context.insert(day)
+        let day = TripDay(context: context)
+        day.id = UUID()
+        day.date = .now
+        day.sortOrder = 0
         day.trip = trip
 
         let events: [TripEvent] = eventTitles.enumerated().map { i, title in
-            let e = TripEvent(title: title, category: .activity, sortOrder: i)
-            context.insert(e)
+            let e = TripEvent(context: context)
+            e.id = UUID()
+            e.title = title
+            e.category = .activity
+            e.sortOrder = i
             e.day = day
             return e
         }
@@ -59,8 +57,7 @@ final class TimelineViewModelTests: XCTestCase {
 
     /// Dragging the last event to before the first event makes it first.
     func testReorderMakesLastEventFirst() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         let (day, events) = makeDay(eventTitles: ["A", "B", "C"], context: context)
@@ -71,14 +68,13 @@ final class TimelineViewModelTests: XCTestCase {
                         in: day,
                         context: context)
 
-        let reordered = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let reordered = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(reordered.map(\.title), ["C", "A", "B"])
     }
 
     /// Dragging the first event to before the last event gives [B, A, C].
     func testReorderMovesFirstToSecondToLast() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         let (day, events) = makeDay(eventTitles: ["A", "B", "C"], context: context)
@@ -89,7 +85,7 @@ final class TimelineViewModelTests: XCTestCase {
                         in: day,
                         context: context)
 
-        let reordered = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let reordered = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(reordered.map(\.title), ["B", "A", "C"])
     }
 
@@ -98,8 +94,7 @@ final class TimelineViewModelTests: XCTestCase {
     /// Dragging C(sortOrder 2) before A(sortOrder 0): midOrder(pred:nil, succ:0)
     /// returns nil → renumber → [0, 1024, 2048].
     func testReorderRenumbersWithFractionalSpacingWhenGapExhausted() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         let (day, events) = makeDay(eventTitles: ["A", "B", "C"], context: context)
@@ -109,14 +104,13 @@ final class TimelineViewModelTests: XCTestCase {
                         in: day,
                         context: context)
 
-        let reordered = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let reordered = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(reordered.map(\.sortOrder), [0, 1024, 2048])
     }
 
     /// A time-locked event cannot be dragged — reorderEvent is a no-op for it.
     func testReorderIgnoresTimeLocked() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         let (day, events) = makeDay(eventTitles: ["A", "B", "C"], context: context)
@@ -129,14 +123,13 @@ final class TimelineViewModelTests: XCTestCase {
                         context: context)
 
         // Order must remain unchanged
-        let reordered = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let reordered = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(reordered.map(\.title), ["A", "B", "C"])
     }
 
     /// An invalid UUID string (e.g. empty) is silently ignored.
     func testReorderWithInvalidIDIsNoop() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         let (day, events) = makeDay(eventTitles: ["A", "B"], context: context)
@@ -146,7 +139,7 @@ final class TimelineViewModelTests: XCTestCase {
                         in: day,
                         context: context)
 
-        let reordered = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let reordered = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(reordered.map(\.title), ["A", "B"])
     }
 
@@ -154,22 +147,21 @@ final class TimelineViewModelTests: XCTestCase {
 
     /// Dragging the first event to the end moves it last.
     func testAppendMovesFirstToEnd() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         let (day, events) = makeDay(eventTitles: ["A", "B", "C"], context: context)
 
         vm.appendEvent(draggedID: events[0].id.uuidString, to: day, context: context)
 
-        let reordered = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let reordered = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(reordered.map(\.title), ["B", "C", "A"])
     }
 
     // MARK: — Lock-order conflict
 
     /// Helper: assigns a same-day Date at the given hour (and optional minute) to event.startTime.
-    private func setTime(_ event: TripEvent, hour: Int, minute: Int = 0, context: ModelContext) {
+    private func setTime(_ event: TripEvent, hour: Int, minute: Int = 0, context: NSManagedObjectContext) {
         var c = Calendar.current.dateComponents([.year, .month, .day], from: Date())
         c.hour = hour; c.minute = minute
         event.startTime = Calendar.current.date(from: c)!
@@ -178,8 +170,7 @@ final class TimelineViewModelTests: XCTestCase {
     /// Dragging an event to a position that would put a LOCKED event out of
     /// chronological order must be refused (returns false, order unchanged).
     func testReorderRefusesDropViolatingLockedEvent() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         // [A(9am), B(10am, locked), C(11am)]
@@ -195,14 +186,13 @@ final class TimelineViewModelTests: XCTestCase {
                                     before: events[1], in: day, context: context)
 
         XCTAssertFalse(moved, "Drop must be refused: would put a 11am event before a locked 10am event")
-        let order = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let order = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(order.map(\.title), ["A", "B", "C"], "Order must be unchanged after refused drop")
     }
 
     /// A drop that respects all locked events is allowed normally.
     func testReorderAllowsDropThatRespectsLockedOrder() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         // [A(9am, locked), B(10am), C(11am)]
@@ -218,15 +208,14 @@ final class TimelineViewModelTests: XCTestCase {
                                     before: events[1], in: day, context: context)
 
         XCTAssertTrue(moved, "Drop should be allowed: locked event A is still in correct time order")
-        let order = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let order = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(order.map(\.title), ["A", "C", "B"])
     }
 
     /// Events without a startTime are skipped in the lock check — only timed
     /// neighbors can trigger a violation.
     func testReorderIgnoresUntimedNeighborsInLockCheck() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         // [A(no time), B(10am, locked), C(no time)]
@@ -240,7 +229,7 @@ final class TimelineViewModelTests: XCTestCase {
                                     before: events[0], in: day, context: context)
 
         XCTAssertTrue(moved)
-        let order = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let order = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(order.map(\.title), ["C", "A", "B"])
     }
 
@@ -248,8 +237,7 @@ final class TimelineViewModelTests: XCTestCase {
     /// between C and B must be refused. The untimed C masked the violation because
     /// the old check only looked at the immediate neighbor, not the nearest timed one.
     func testReorderRefusesWhenViolationIsHiddenByUntimedGap() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         // Order: [C(no time), A(8pm, locked), B(8:30pm)]
@@ -265,7 +253,7 @@ final class TimelineViewModelTests: XCTestCase {
                                     before: events[0], in: day, context: context)
 
         XCTAssertFalse(moved, "Drop must be refused: B(8:30pm) is the nearest timed predecessor of locked A(8pm)")
-        let order = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let order = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(order.map(\.title), ["C", "A", "B"], "Order must be unchanged")
     }
 
@@ -274,8 +262,7 @@ final class TimelineViewModelTests: XCTestCase {
     /// and passed (6pm ≤ 8pm). B(10pm) further back was never examined, so the
     /// drop was wrongly allowed. The fix checks ALL timed predecessors/successors.
     func testReorderRefusesWhenNonAdjacentTimedPredecessorViolatesLock() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         // Order: [Y(6pm), A(8pm, locked), B(10pm)]
@@ -292,7 +279,7 @@ final class TimelineViewModelTests: XCTestCase {
                                     before: events[0], in: day, context: context)
 
         XCTAssertFalse(moved, "Drop must be refused: B(10pm) precedes locked A(8pm) even though nearest pred Y(6pm) is valid")
-        let order = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let order = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(order.map(\.title), ["Y", "A", "B"], "Order must be unchanged")
     }
 
@@ -300,8 +287,7 @@ final class TimelineViewModelTests: XCTestCase {
     /// before or after a locked event in a way that violates chronological order —
     /// regardless of whether an intervening untimed event "hides" the gap.
     func testAppendRefusesWhenViolatesLockedEvent() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         // Case 1: locked predecessor — appending an 8am event after a locked 9am event.
@@ -311,8 +297,12 @@ final class TimelineViewModelTests: XCTestCase {
         let (day, events) = makeDay(eventTitles: ["A", "B"], context: context)
         setTime(events[0], hour: 9, context: context); events[0].isTimeLocked = true
         setTime(events[1], hour: 11, context: context)
-        let early = TripEvent(title: "Early", category: .activity, sortOrder: 2)
-        context.insert(early); early.day = day
+        let early = TripEvent(context: context)
+        early.id = UUID()
+        early.title = "Early"
+        early.category = .activity
+        early.sortOrder = 2
+        early.day = day
         setTime(early, hour: 8, context: context)
         try context.save()
 
@@ -337,8 +327,7 @@ final class TimelineViewModelTests: XCTestCase {
     /// When a drop is refused because it would violate a locked event's time order,
     /// the VM sets shakingEventIDs to the IDs of the locked events that blocked it.
     func testRefusedReorderPopulatesShakingIDs() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         // [A(9am), B(10am, locked), C(11am)]
@@ -360,8 +349,7 @@ final class TimelineViewModelTests: XCTestCase {
     /// When an append is refused due to a lock violation, shakingEventIDs contains
     /// the blocking locked event's ID.
     func testRefusedAppendPopulatesShakingIDs() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         // [X(9am), Y(11am, locked)] — appending X to end puts it after Y → violation
@@ -382,8 +370,7 @@ final class TimelineViewModelTests: XCTestCase {
     /// Dragging an event from Day 1 and dropping it before an event in Day 2
     /// moves it to Day 2 and inserts it at the correct position.
     func testReorderMovesEventCrossDay() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         let (day1, events1) = makeDay(eventTitles: ["A", "B"], context: context)
@@ -395,7 +382,7 @@ final class TimelineViewModelTests: XCTestCase {
                         in: day2,
                         context: context)
 
-        let day2Order = (day2.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let day2Order = day2.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(day2Order.map(\.title), ["X", "A", "Y"])
     }
 
@@ -403,8 +390,7 @@ final class TimelineViewModelTests: XCTestCase {
     /// original sortOrders (fractional indexing: only the moved event is written,
     /// relative order of the remaining events is preserved without renumbering).
     func testReorderPreservesSourceDaySortOrdersAfterCrossMove() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         let (day1, events1) = makeDay(eventTitles: ["A", "B", "C"], context: context)
@@ -416,7 +402,7 @@ final class TimelineViewModelTests: XCTestCase {
                         in: day2,
                         context: context)
 
-        let day1Order = (day1.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let day1Order = day1.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         // "A"(0) and "C"(2) remain — source day is NOT renumbered (one CloudKit write)
         XCTAssertEqual(day1Order.map(\.title), ["A", "C"])
         XCTAssertEqual(day1Order.map(\.sortOrder), [0, 2])
@@ -424,11 +410,10 @@ final class TimelineViewModelTests: XCTestCase {
 
     /// Dragged event's .day relationship is updated to the target day.
     func testReorderUpdatesEventDayRelationship() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
-        let (day1, events1) = makeDay(eventTitles: ["A"], context: context)
+        let (_, events1) = makeDay(eventTitles: ["A"], context: context)
         let (day2, events2) = makeDay(eventTitles: ["X"], context: context)
 
         vm.reorderEvent(draggedID: events1[0].id.uuidString,
@@ -443,16 +428,15 @@ final class TimelineViewModelTests: XCTestCase {
 
     /// Appending an event from Day 1 to Day 2 moves it to the end of Day 2.
     func testAppendMovesEventCrossDay() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
-        let (day1, events1) = makeDay(eventTitles: ["A", "B"], context: context)
-        let (day2, _)       = makeDay(eventTitles: ["X", "Y"], context: context)
+        let (_, events1) = makeDay(eventTitles: ["A", "B"], context: context)
+        let (day2, _)    = makeDay(eventTitles: ["X", "Y"], context: context)
 
         vm.appendEvent(draggedID: events1[0].id.uuidString, to: day2, context: context)
 
-        let day2Order = (day2.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let day2Order = day2.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(day2Order.map(\.title), ["X", "Y", "A"])
     }
 
@@ -460,8 +444,7 @@ final class TimelineViewModelTests: XCTestCase {
     /// original sortOrders (fractional indexing: only the appended event is written,
     /// relative order of the remaining events is preserved without renumbering).
     func testAppendPreservesSourceDaySortOrdersAfterCrossMove() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         let (day1, events1) = makeDay(eventTitles: ["A", "B", "C"], context: context)
@@ -469,7 +452,7 @@ final class TimelineViewModelTests: XCTestCase {
 
         vm.appendEvent(draggedID: events1[0].id.uuidString, to: day2, context: context)
 
-        let day1Order = (day1.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let day1Order = day1.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         // "B"(1) and "C"(2) remain — source day is NOT renumbered (one CloudKit write)
         XCTAssertEqual(day1Order.map(\.title), ["B", "C"])
         XCTAssertEqual(day1Order.map(\.sortOrder), [1, 2])
@@ -477,8 +460,7 @@ final class TimelineViewModelTests: XCTestCase {
 
     /// Appending a time-locked event is a no-op.
     func testAppendIgnoresTimeLocked() throws {
-        let container = try makeContainer()
-        let context = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
 
         let (day, events) = makeDay(eventTitles: ["A", "B", "C"], context: context)
@@ -487,7 +469,7 @@ final class TimelineViewModelTests: XCTestCase {
 
         vm.appendEvent(draggedID: events[0].id.uuidString, to: day, context: context)
 
-        let reordered = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let reordered = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(reordered.map(\.title), ["A", "B", "C"])
     }
 }

@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import SwiftData
+import CoreData
 import Observation
 
 @Observable
@@ -36,7 +36,7 @@ final class TimelineViewModel {
         _ event: TripEvent,
         toDay day: TripDay,
         newSortOrder: Int,
-        context: ModelContext
+        context: NSManagedObjectContext
     ) {
         guard !event.isTimeLocked else { return }
         event.day = day
@@ -53,14 +53,14 @@ final class TimelineViewModel {
         draggedID: String,
         before targetEvent: TripEvent,
         in targetDay: TripDay,
-        context: ModelContext
+        context: NSManagedObjectContext
     ) -> Bool {
         guard let uuid = UUID(uuidString: draggedID) else { return false }
         guard let dragged = fetchEvent(id: uuid, context: context) else { return false }
         guard !dragged.isTimeLocked else { return false }
 
         // Build the proposed new order for the target day.
-        var proposed = (targetDay.events ?? [])
+        var proposed = targetDay.eventsArray
             .filter { $0.id != dragged.id }
             .sorted { $0.sortOrder < $1.sortOrder }
         let insertAt = proposed.firstIndex(where: { $0.id == targetEvent.id }) ?? proposed.endIndex
@@ -97,12 +97,12 @@ final class TimelineViewModel {
     /// Returns `false` (and fires a warning haptic) if appending would violate a
     /// locked event's chronological position.
     @discardableResult
-    func appendEvent(draggedID: String, to targetDay: TripDay, context: ModelContext) -> Bool {
+    func appendEvent(draggedID: String, to targetDay: TripDay, context: NSManagedObjectContext) -> Bool {
         guard let uuid = UUID(uuidString: draggedID) else { return false }
         guard let dragged = fetchEvent(id: uuid, context: context) else { return false }
         guard !dragged.isTimeLocked else { return false }
 
-        var proposed = (targetDay.events ?? [])
+        var proposed = targetDay.eventsArray
             .filter { $0.id != dragged.id }
             .sorted { $0.sortOrder < $1.sortOrder }
         proposed.append(dragged)
@@ -154,11 +154,11 @@ final class TimelineViewModel {
         }
     }
 
-    private func fetchEvent(id: UUID, context: ModelContext) -> TripEvent? {
-        let descriptor = FetchDescriptor<TripEvent>(
-            predicate: #Predicate { $0.id == id }
-        )
-        return (try? context.fetch(descriptor))?.first
+    private func fetchEvent(id: UUID, context: NSManagedObjectContext) -> TripEvent? {
+        let request = TripEvent.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.fetchLimit = 1
+        return (try? context.fetch(request))?.first
     }
 
     /// Returns true if placing events in this order would put any time-locked
@@ -234,8 +234,8 @@ final class TimelineViewModel {
     /// Re-sorts a day's events so untimed events float to the top (preserving their
     /// relative order) and timed events follow in strict chronological order.
     /// Uses 1024-spaced sortOrders for fractional-indexing compatibility.
-    func sortDayByTime(_ day: TripDay, context: ModelContext) {
-        let sorted = (day.events ?? []).sorted { a, b in
+    func sortDayByTime(_ day: TripDay, context: NSManagedObjectContext) {
+        let sorted = day.eventsArray.sorted { a, b in
             switch (a.startTime, b.startTime) {
             case (nil, nil):           return a.sortOrder < b.sortOrder  // preserve untimed order
             case (nil, _):             return true                        // untimed floats up
@@ -250,12 +250,12 @@ final class TimelineViewModel {
         HapticManager.shared.sheetConfirm()
     }
 
-    func deleteEvent(_ event: TripEvent, context: ModelContext) {
+    func deleteEvent(_ event: TripEvent, context: NSManagedObjectContext) {
         context.delete(event)
         try? context.save()
     }
 
-    func lockEvent(_ event: TripEvent, context: ModelContext) {
+    func lockEvent(_ event: TripEvent, context: NSManagedObjectContext) {
         event.isTimeLocked.toggle()
         try? context.save()
     }

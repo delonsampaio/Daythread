@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import SwiftData
+import CoreData
 import Observation
 
 @Observable
@@ -20,19 +20,24 @@ final class TripsViewModel {
         destination: String,
         start: Date,
         end: Date,
-        context: ModelContext
+        context: NSManagedObjectContext
     ) -> Trip {
-        // Insert parent first, then children — SwiftData relationship tracking
-        // is fragile when you set a relationship on an uninserted parent object.
-        let trip = Trip(name: name, destination: destination, startDate: start, endDate: end)
-        context.insert(trip)
+        let trip = Trip(context: context)
+        trip.id = UUID()
+        trip.name = name
+        trip.destination = destination
+        trip.startDate = start
+        trip.endDate = end
+        trip.createdAt = Date()
+        trip.gradientSeed = Int.random(in: 0..<1_000_000)
 
-        // Auto-generate TripDay entries (one per calendar day in range).
         let days = Calendar.current.dateComponents([.day], from: start, to: end).day ?? 0
         for i in 0...days {
             if let date = Calendar.current.date(byAdding: .day, value: i, to: start) {
-                let day = TripDay(date: date, sortOrder: i * 1024)
-                context.insert(day)
+                let day = TripDay(context: context)
+                day.id = UUID()
+                day.date = date
+                day.sortOrder = i * 1024
                 day.trip = trip
             }
         }
@@ -41,17 +46,17 @@ final class TripsViewModel {
         return trip
     }
 
-    func archiveTrip(_ trip: Trip, context: ModelContext) {
+    func archiveTrip(_ trip: Trip, context: NSManagedObjectContext) {
         trip.isArchived = true
         try? context.save()
     }
 
-    func unarchiveTrip(_ trip: Trip, context: ModelContext) {
+    func unarchiveTrip(_ trip: Trip, context: NSManagedObjectContext) {
         trip.isArchived = false
         try? context.save()
     }
 
-    func deleteTrip(_ trip: Trip, context: ModelContext) {
+    func deleteTrip(_ trip: Trip, context: NSManagedObjectContext) {
         context.delete(trip)
         try? context.save()
     }
@@ -65,7 +70,7 @@ final class TripsViewModel {
         start: Date,
         end: Date,
         coverImageData: Data?,
-        context: ModelContext
+        context: NSManagedObjectContext
     ) {
         trip.name = name
         trip.destination = destination
@@ -83,17 +88,9 @@ final class TripsViewModel {
         try? context.save()
     }
 
-    /// Reconciles TripDay records after a date range change:
-    /// - Removes days outside the new range (cascades to their events).
-    /// - Adds new TripDay records for dates added to the range.
-    /// - Re-sequences sortOrder across all days.
-    ///
-    /// The caller is responsible for warning the user before calling this
-    /// if any removed days contain events (use `eventCountOutsideRange`).
-    func reconcileDays(trip: Trip, newStart: Date, newEnd: Date, context: ModelContext) {
+    func reconcileDays(trip: Trip, newStart: Date, newEnd: Date, context: NSManagedObjectContext) {
         let cal = Calendar.current
 
-        // Build the target date set.
         let span = cal.dateComponents([.day], from: newStart, to: newEnd).day ?? 0
         var targetDates: [Date] = []
         for i in 0...span {
@@ -103,58 +100,55 @@ final class TripsViewModel {
         }
         let targetDateSet = Set(targetDates)
 
-        let existingDays = (trip.days ?? []).sorted { $0.date < $1.date }
+        let existingDays = trip.daysArray.sorted { $0.date < $1.date }
         let existingDateSet = Set(existingDays.map { cal.startOfDay(for: $0.date) })
 
-        // Remove days outside the new range (cascade deletes their events).
         let daysToRemove = existingDays.filter { !targetDateSet.contains(cal.startOfDay(for: $0.date)) }
         daysToRemove.forEach { context.delete($0) }
 
-        // Add days for dates not already covered.
         var newlyAdded: [TripDay] = []
         for date in targetDates where !existingDateSet.contains(date) {
-            let day = TripDay(date: date, sortOrder: 0)
-            context.insert(day)
+            let day = TripDay(context: context)
+            day.id = UUID()
+            day.date = date
+            day.sortOrder = 0
             day.trip = trip
             newlyAdded.append(day)
         }
 
-        // Re-sequence sort orders across surviving + newly added days.
         let surviving = existingDays.filter { targetDateSet.contains(cal.startOfDay(for: $0.date)) }
         let allDays = (surviving + newlyAdded).sorted { $0.date < $1.date }
         for (i, day) in allDays.enumerated() { day.sortOrder = i * 1024 }
     }
 
-    /// Returns the total number of events on days that would be removed
-    /// if the trip were shortened to [newStart, newEnd]. Used by EditTripSheet
-    /// to decide whether to show a destructive-action warning.
     func eventCountOutsideRange(trip: Trip, newStart: Date, newEnd: Date) -> Int {
         let cal = Calendar.current
-        return (trip.days ?? [])
+        return trip.daysArray
             .filter { day in
                 let d = cal.startOfDay(for: day.date)
                 return d < cal.startOfDay(for: newStart) || d > cal.startOfDay(for: newEnd)
             }
-            .reduce(0) { $0 + ($1.events ?? []).count }
+            .reduce(0) { $0 + $1.eventsArray.count }
     }
 
     // MARK: — Pre-trip tasks
 
-    func toggleTask(_ task: PreTripTask, context: ModelContext) {
+    func toggleTask(_ task: PreTripTask, context: NSManagedObjectContext) {
         task.isComplete.toggle()
         try? context.save()
     }
 
-    func addTask(to trip: Trip, title: String, context: ModelContext) {
-        // +1024 spacing — consistent with TripEvent fractional indexing.
-        let nextOrder = ((trip.preTripTasks ?? []).map(\.sortOrder).max() ?? 0) + 1024
-        let task = PreTripTask(title: title, sortOrder: nextOrder)
-        context.insert(task)
+    func addTask(to trip: Trip, title: String, context: NSManagedObjectContext) {
+        let nextOrder = (trip.preTripTasksArray.map(\.sortOrder).max() ?? 0) + 1024
+        let task = PreTripTask(context: context)
+        task.id = UUID()
+        task.title = title
+        task.sortOrder = nextOrder
         task.trip = trip
         try? context.save()
     }
 
-    func deleteTask(_ task: PreTripTask, context: ModelContext) {
+    func deleteTask(_ task: PreTripTask, context: NSManagedObjectContext) {
         context.delete(task)
         try? context.save()
     }

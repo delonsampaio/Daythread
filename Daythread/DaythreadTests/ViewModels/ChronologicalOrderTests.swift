@@ -12,37 +12,39 @@
 //
 
 import XCTest
-import SwiftData
+import CoreData
 @testable import Daythread
-
-private let chronoSchema = Schema([
-    Trip.self, TripDay.self, TripEvent.self, TransitDetails.self,
-    LodgingInfo.self, TripMember.self, TripDocument.self,
-    TripExpense.self, PreTripTask.self
-])
 
 @MainActor
 final class ChronologicalOrderTests: XCTestCase {
 
     // MARK: — Helpers
 
-    private func makeContainer() throws -> ModelContainer {
-        let config = ModelConfiguration(
-            schema: chronoSchema,
-            isStoredInMemoryOnly: true,
-            cloudKitDatabase: .none
-        )
-        return try ModelContainer(for: chronoSchema, configurations: config)
+    private var ctx: NSManagedObjectContext {
+        PersistenceController(inMemory: true).viewContext
     }
 
-    private func makeDay(eventTitles: [String], context: ModelContext) -> (TripDay, [TripEvent]) {
-        let trip = Trip(name: "Test", destination: "Anywhere", startDate: .now, endDate: .now)
-        context.insert(trip)
-        let day = TripDay(date: .now, sortOrder: 0)
-        context.insert(day); day.trip = trip
+    private func makeDay(eventTitles: [String], context: NSManagedObjectContext) -> (TripDay, [TripEvent]) {
+        let trip = Trip(context: context)
+        trip.id = UUID()
+        trip.name = "Test"
+        trip.destination = "Anywhere"
+        trip.startDate = .now
+        trip.endDate = .now
+
+        let day = TripDay(context: context)
+        day.id = UUID()
+        day.date = .now
+        day.sortOrder = 0
+        day.trip = trip
+
         let events: [TripEvent] = eventTitles.enumerated().map { i, title in
-            let e = TripEvent(title: title, category: .activity, sortOrder: i * 1024)
-            context.insert(e); e.day = day
+            let e = TripEvent(context: context)
+            e.id = UUID()
+            e.title = title
+            e.category = .activity
+            e.sortOrder = i * 1024
+            e.day = day
             return e
         }
         try? context.save()
@@ -62,8 +64,8 @@ final class ChronologicalOrderTests: XCTestCase {
     /// Walk is out of order because something after it has an earlier time.
     /// Breakfast is out of order because something before it has a later time.
     func testOutOfOrderFlagsBothEventsWhenOrderInverted() throws {
-        let ctx = ModelContext(try makeContainer())
-        let (_, events) = makeDay(eventTitles: ["Walk", "Breakfast"], context: ctx)
+        let context = ctx
+        let (_, events) = makeDay(eventTitles: ["Walk", "Breakfast"], context: context)
         setTime(events[0], hour: 8, minute: 37)  // Walk at 8:37 AM — placed first
         setTime(events[1], hour: 7, minute: 35)  // Breakfast at 7:35 AM — placed second
 
@@ -74,8 +76,8 @@ final class ChronologicalOrderTests: XCTestCase {
 
     /// Breakfast(7:35) before Walk(8:37) — correct chronological order → empty set.
     func testOutOfOrderReturnsEmptyForChronologicalOrder() throws {
-        let ctx = ModelContext(try makeContainer())
-        let (_, events) = makeDay(eventTitles: ["Breakfast", "Walk"], context: ctx)
+        let context = ctx
+        let (_, events) = makeDay(eventTitles: ["Breakfast", "Walk"], context: context)
         setTime(events[0], hour: 7, minute: 35)
         setTime(events[1], hour: 8, minute: 37)
 
@@ -86,8 +88,8 @@ final class ChronologicalOrderTests: XCTestCase {
 
     /// Untimed events are transparent — they never trigger or absorb violations.
     func testOutOfOrderIgnoresUntimedEvents() throws {
-        let ctx = ModelContext(try makeContainer())
-        let (_, events) = makeDay(eventTitles: ["Wait", "Walk", "Breakfast"], context: ctx)
+        let context = ctx
+        let (_, events) = makeDay(eventTitles: ["Wait", "Walk", "Breakfast"], context: context)
         // events[0] = Wait — no time set
         setTime(events[1], hour: 8, minute: 37)  // Walk placed second
         setTime(events[2], hour: 7, minute: 35)  // Breakfast placed third
@@ -101,8 +103,8 @@ final class ChronologicalOrderTests: XCTestCase {
 
     /// Locked events already have their own amber indicator — skip them here.
     func testOutOfOrderSkipsLockedEvents() throws {
-        let ctx = ModelContext(try makeContainer())
-        let (_, events) = makeDay(eventTitles: ["Walk", "Breakfast"], context: ctx)
+        let context = ctx
+        let (_, events) = makeDay(eventTitles: ["Walk", "Breakfast"], context: context)
         setTime(events[0], hour: 8, minute: 37)
         events[0].isTimeLocked = true              // Walk is locked
         setTime(events[1], hour: 7, minute: 35)   // Breakfast placed after
@@ -123,8 +125,8 @@ final class ChronologicalOrderTests: XCTestCase {
 
     /// Single timed event — nothing to compare against → no violation.
     func testOutOfOrderReturnsEmptyForSingleTimedEvent() throws {
-        let ctx = ModelContext(try makeContainer())
-        let (_, events) = makeDay(eventTitles: ["Walk"], context: ctx)
+        let context = ctx
+        let (_, events) = makeDay(eventTitles: ["Walk"], context: context)
         setTime(events[0], hour: 8)
 
         let result = TimelineViewModel().outOfOrderEventIDs(in: events)
@@ -134,8 +136,8 @@ final class ChronologicalOrderTests: XCTestCase {
 
     /// Completely reversed order — all three timed events flagged.
     func testOutOfOrderFlagsAllEventsInCompletelyReversedOrder() throws {
-        let ctx = ModelContext(try makeContainer())
-        let (_, events) = makeDay(eventTitles: ["C", "B", "A"], context: ctx)
+        let context = ctx
+        let (_, events) = makeDay(eventTitles: ["C", "B", "A"], context: context)
         setTime(events[0], hour: 9)   // C(9am) placed first
         setTime(events[1], hour: 8)   // B(8am) placed second
         setTime(events[2], hour: 7)   // A(7am) placed third
@@ -149,82 +151,77 @@ final class ChronologicalOrderTests: XCTestCase {
 
     /// Out-of-order timed events get sorted chronologically.
     func testSortDayByTimeOrdersTimedEventsChronologically() throws {
-        let container = try makeContainer()
-        let ctx = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
-        let (day, events) = makeDay(eventTitles: ["Walk", "Breakfast"], context: ctx)
+        let (day, events) = makeDay(eventTitles: ["Walk", "Breakfast"], context: context)
         setTime(events[0], hour: 8, minute: 37)  // Walk placed first but has later time
         setTime(events[1], hour: 7, minute: 35)  // Breakfast placed second but has earlier time
-        try ctx.save()
+        try context.save()
 
-        vm.sortDayByTime(day, context: ctx)
+        vm.sortDayByTime(day, context: context)
 
-        let sorted = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let sorted = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(sorted.map(\.title), ["Breakfast", "Walk"])
     }
 
     /// Untimed events always come before timed events after sorting.
     func testSortDayByTimePutsUntimedEventsBeforeTimedEvents() throws {
-        let container = try makeContainer()
-        let ctx = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
-        let (day, events) = makeDay(eventTitles: ["Walk", "Wait"], context: ctx)
+        let (day, events) = makeDay(eventTitles: ["Walk", "Wait"], context: context)
         setTime(events[0], hour: 8)   // Walk has a time
         // events[1] = Wait — no time
-        try ctx.save()
+        try context.save()
 
-        vm.sortDayByTime(day, context: ctx)
+        vm.sortDayByTime(day, context: context)
 
-        let sorted = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let sorted = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(sorted.map(\.title), ["Wait", "Walk"])
     }
 
     /// Multiple untimed events preserve their relative order (by original sortOrder) at the top.
     func testSortDayByTimePreservesRelativeOrderOfUntimedEvents() throws {
-        let container = try makeContainer()
-        let ctx = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
         // Untimed1 < Untimed2 by original sortOrder — that relative order must be kept.
-        let (day, events) = makeDay(eventTitles: ["Untimed1", "Untimed2", "Walk"], context: ctx)
+        let (day, events) = makeDay(eventTitles: ["Untimed1", "Untimed2", "Walk"], context: context)
         setTime(events[2], hour: 8)
-        try ctx.save()
+        try context.save()
 
-        vm.sortDayByTime(day, context: ctx)
+        vm.sortDayByTime(day, context: context)
 
-        let sorted = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let sorted = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(sorted.map(\.title), ["Untimed1", "Untimed2", "Walk"])
     }
 
     /// Mixed: timed events reorder, untimed float to top, locked timed events still sort.
     func testSortDayByTimeSortsMixedDayCorrectly() throws {
-        let container = try makeContainer()
-        let ctx = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
-        let (day, events) = makeDay(eventTitles: ["Walk", "Wait", "Breakfast"], context: ctx)
+        let (day, events) = makeDay(eventTitles: ["Walk", "Wait", "Breakfast"], context: context)
         setTime(events[0], hour: 8, minute: 37)   // Walk — timed, placed first
         // events[1] = Wait — untimed, placed second
         setTime(events[2], hour: 7, minute: 35)   // Breakfast — timed, placed third
-        try ctx.save()
+        try context.save()
 
-        vm.sortDayByTime(day, context: ctx)
+        vm.sortDayByTime(day, context: context)
 
-        let sorted = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let sorted = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(sorted.map(\.title), ["Wait", "Breakfast", "Walk"])
     }
 
     /// After sorting, sortOrder values use 1024 spacing (fractional indexing compatibility).
     func testSortDayByTimeUses1024Spacing() throws {
-        let container = try makeContainer()
-        let ctx = ModelContext(container)
+        let context = ctx
         let vm = TimelineViewModel()
-        let (day, events) = makeDay(eventTitles: ["B", "A"], context: ctx)
+        let (day, events) = makeDay(eventTitles: ["B", "A"], context: context)
         setTime(events[0], hour: 10)
         setTime(events[1], hour: 9)
-        try ctx.save()
+        try context.save()
 
-        vm.sortDayByTime(day, context: ctx)
+        vm.sortDayByTime(day, context: context)
 
-        let sorted = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let sorted = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(sorted.map(\.sortOrder), [0, 1024])
     }
 }
