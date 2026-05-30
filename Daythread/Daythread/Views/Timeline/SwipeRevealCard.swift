@@ -23,6 +23,29 @@
 
 import SwiftUI
 
+/// Pure snap-decision logic for the swipe panel, extracted into a non-generic
+/// namespace so it can be unit-tested without specifying SwipeRevealCard's
+/// `Content` generic parameter.
+enum SwipeRevealSnap {
+    /// Decides whether the panel should be open at gesture end.
+    ///
+    /// Fast flick (|velocity| > 300 pt/s): follow the flick direction.
+    /// Slow release: snap to whichever side the card is closer to (midpoint rule).
+    /// This lets the user drag slowly past the halfway point and release without
+    /// needing a precise flick — the original velocity-only check required >120 pt/s
+    /// which caused the panel to snap back on careful slow swipes.
+    nonisolated static func resolveOpenState(
+        offset: CGFloat,
+        velocityX: CGFloat,
+        revealWidth: CGFloat
+    ) -> Bool {
+        if abs(velocityX) > 300 {
+            return velocityX < 0   // fast flick: follow direction
+        }
+        return offset < -(revealWidth / 2)   // slow release: midpoint rule
+    }
+}
+
 struct SwipeRevealCard<Content: View>: View {
     let id: UUID
     let isLocked: Bool
@@ -41,26 +64,6 @@ struct SwipeRevealCard<Content: View>: View {
     let revealWidth: CGFloat = 216   // 3 slots × 72 pt — also passed to GestureHostView
     private let buttonWidth: CGFloat = 72
     private let circleSize:  CGFloat = 46
-
-    // MARK: — Snap decision (extracted for testability)
-
-    /// Decides whether the panel should be open at gesture end.
-    ///
-    /// Fast flick (|velocity| > 300 pt/s): follow the flick direction.
-    /// Slow release: snap to whichever side the card is closer to (midpoint rule).
-    /// This lets the user drag slowly past the halfway point and release without
-    /// needing a precise flick — the original velocity-only check required >120 pt/s
-    /// which caused the panel to snap back on careful slow swipes.
-    static func resolveOpenState(
-        offset: CGFloat,
-        velocityX: CGFloat,
-        revealWidth: CGFloat
-    ) -> Bool {
-        if abs(velocityX) > 300 {
-            return velocityX < 0   // fast flick: follow direction
-        }
-        return offset < -(revealWidth / 2)   // slow release: midpoint rule
-    }
 
     init(
         id: UUID,
@@ -112,7 +115,7 @@ struct SwipeRevealCard<Content: View>: View {
                             offset = max(-revealWidth, min(0, base + translationX))
                         },
                         onEnded: { _, velocityX in
-                            let shouldOpen = SwipeRevealCard.resolveOpenState(
+                            let shouldOpen = SwipeRevealSnap.resolveOpenState(
                                 offset: offset,
                                 velocityX: velocityX,
                                 revealWidth: revealWidth

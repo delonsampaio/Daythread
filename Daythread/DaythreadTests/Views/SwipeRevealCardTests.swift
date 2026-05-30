@@ -3,13 +3,14 @@
 //  DaythreadTests
 //
 //  Tests for:
-//  • SwipeRevealCard.resolveOpenState — panel open/close decision from gesture end state.
+//  • SwipeRevealSnap.resolveOpenState — panel open/close decision from gesture end state.
 //  • GestureHostView.hitTest — pass-through of taps to circle buttons when panel is open.
 //
 
 import XCTest
 @testable import Daythread
 
+@MainActor
 final class SwipeRevealCardTests: XCTestCase {
 
     // MARK: — resolveOpenState
@@ -17,56 +18,56 @@ final class SwipeRevealCardTests: XCTestCase {
     // Fast leftward flick: open regardless of current position.
     func test_fastLeftFlick_opensPanel() {
         XCTAssertTrue(
-            SwipeRevealCard.resolveOpenState(offset: -10, velocityX: -400, revealWidth: 216)
+            SwipeRevealSnap.resolveOpenState(offset: -10, velocityX: -400, revealWidth: 216)
         )
     }
 
     // Fast leftward flick from fully-closed position: still opens.
     func test_fastLeftFlick_fromClosed_opensPanel() {
         XCTAssertTrue(
-            SwipeRevealCard.resolveOpenState(offset: 0, velocityX: -301, revealWidth: 216)
+            SwipeRevealSnap.resolveOpenState(offset: 0, velocityX: -301, revealWidth: 216)
         )
     }
 
     // Fast rightward flick: close regardless of current position.
     func test_fastRightFlick_closesPanel() {
         XCTAssertFalse(
-            SwipeRevealCard.resolveOpenState(offset: -200, velocityX: 400, revealWidth: 216)
+            SwipeRevealSnap.resolveOpenState(offset: -200, velocityX: 400, revealWidth: 216)
         )
     }
 
     // Slow release past midpoint (>108 pt): open.
     func test_slowRelease_pastMidpoint_opensPanel() {
         XCTAssertTrue(
-            SwipeRevealCard.resolveOpenState(offset: -109, velocityX: 50, revealWidth: 216)
+            SwipeRevealSnap.resolveOpenState(offset: -109, velocityX: 50, revealWidth: 216)
         )
     }
 
     // Slow release exactly at midpoint: close (not past, use closed-side default).
     func test_slowRelease_atMidpoint_closesPanel() {
         XCTAssertFalse(
-            SwipeRevealCard.resolveOpenState(offset: -108, velocityX: 0, revealWidth: 216)
+            SwipeRevealSnap.resolveOpenState(offset: -108, velocityX: 0, revealWidth: 216)
         )
     }
 
     // Slow release before midpoint: close.
     func test_slowRelease_beforeMidpoint_closesPanel() {
         XCTAssertFalse(
-            SwipeRevealCard.resolveOpenState(offset: -50, velocityX: 20, revealWidth: 216)
+            SwipeRevealSnap.resolveOpenState(offset: -50, velocityX: 20, revealWidth: 216)
         )
     }
 
     // No movement at all: close.
     func test_atRest_noSwipe_closesPanel() {
         XCTAssertFalse(
-            SwipeRevealCard.resolveOpenState(offset: 0, velocityX: 0, revealWidth: 216)
+            SwipeRevealSnap.resolveOpenState(offset: 0, velocityX: 0, revealWidth: 216)
         )
     }
 
     // Boundary: exactly one point past midpoint.
     func test_onePointPastMidpoint_opensPanel() {
         XCTAssertTrue(
-            SwipeRevealCard.resolveOpenState(offset: -109, velocityX: 0, revealWidth: 216)
+            SwipeRevealSnap.resolveOpenState(offset: -109, velocityX: 0, revealWidth: 216)
         )
     }
 
@@ -74,11 +75,11 @@ final class SwipeRevealCardTests: XCTestCase {
     func test_velocityAtThreshold_usesPositionRule() {
         // Offset is before midpoint → close even at exactly 300 pt/s
         XCTAssertFalse(
-            SwipeRevealCard.resolveOpenState(offset: -50, velocityX: -300, revealWidth: 216)
+            SwipeRevealSnap.resolveOpenState(offset: -50, velocityX: -300, revealWidth: 216)
         )
         // Offset is past midpoint → open at exactly 300 pt/s
         XCTAssertTrue(
-            SwipeRevealCard.resolveOpenState(offset: -120, velocityX: -300, revealWidth: 216)
+            SwipeRevealSnap.resolveOpenState(offset: -120, velocityX: -300, revealWidth: 216)
         )
     }
 
@@ -86,10 +87,10 @@ final class SwipeRevealCardTests: XCTestCase {
     func test_customRevealWidth_midpointScales() {
         // revealWidth = 144, midpoint = 72
         XCTAssertTrue(
-            SwipeRevealCard.resolveOpenState(offset: -73, velocityX: 0, revealWidth: 144)
+            SwipeRevealSnap.resolveOpenState(offset: -73, velocityX: 0, revealWidth: 144)
         )
         XCTAssertFalse(
-            SwipeRevealCard.resolveOpenState(offset: -72, velocityX: 0, revealWidth: 144)
+            SwipeRevealSnap.resolveOpenState(offset: -72, velocityX: 0, revealWidth: 144)
         )
     }
 
