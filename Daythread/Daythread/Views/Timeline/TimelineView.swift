@@ -32,6 +32,7 @@ struct TimelineView: View {
     @State private var swipeOpenEventID: UUID?
 
     var body: some View {
+        NavigationStack {
         Group {
             if store.activeTrip == nil {
                 emptyState
@@ -112,6 +113,7 @@ struct TimelineView: View {
             #endif
         }
         .task { vm.refresh(days: days, lodging: lodging) }
+        } // NavigationStack
     }
 
     // MARK: — Day content
