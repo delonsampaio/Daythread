@@ -14,6 +14,34 @@
 
 ---
 
+## Model Assignment (Opus controller + Sonnet workers)
+
+Execution uses an **Opus controller** that dispatches **Sonnet subagents** (`model: sonnet`) for mechanical work. The controller does the thinking and review; workers do the typing.
+
+| Task | Worker model | Why |
+|---|---|---|
+| 0 — branch + baseline | Sonnet | rote git/build |
+| 1 — .xcdatamodeld | Sonnet | exact XML provided |
+| 2 — NSManagedObject subclasses | Sonnet | boilerplate |
+| 3 — delete @Model classes | Sonnet | `rm` + build check |
+| 4 — optionality + bridges | **Opus decides, Sonnet writes** | optional-vs-non-optional split is a judgment call (done); file writes are mechanical |
+| 5 — PersistenceController + tests | Sonnet | exact code in plan |
+| 6 — wire into DaythreadApp | Sonnet | exact code in plan |
+| 7 — CloudKitTripSharingBackend | Sonnet | exact code in plan |
+| **8 — share acceptance** | **OPUS** | `acceptShareInvitations(from:into:)` API is the least-certain code; needs iteration + judgment |
+| 9 — ViewModels migration | Sonnet | mechanical ModelContext→NSManagedObjectContext |
+| 10 — Timeline views | Sonnet | mechanical @Query→@FetchRequest (follow zone-hopping rule) |
+| 11 — Trips/Vault/Profile views | Sonnet | mechanical @Query→@FetchRequest (follow zone-hopping rule) |
+| 12 — migrate tests | Sonnet | mechanical constructor swaps |
+| 13 — DEBUG schema init | Sonnet | exact code in plan |
+| 16 — CoreDataSyncTests | Sonnet | exact code in plan |
+| 14 — on-device verification | **human + OPUS** | OPUS for diagnosing CloudKit sync failures from console logs |
+| 15 — finish/merge | **OPUS controller** | review + merge judgment |
+
+**Controller (Opus) always handles:** reviewing each subagent's output, the optionality/concurrency decisions, Task 8, and CloudKit sync debugging. If a future stretch is purely mechanical with no controller judgment, drop the controller to Sonnet too.
+
+---
+
 ## File Structure
 
 **New files:**
