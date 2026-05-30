@@ -103,7 +103,7 @@ struct TimelineView: View {
                         Image(systemName: trip.cloudKitShareID != nil ? "person.2.fill" : "person.2")
                             .foregroundStyle(trip.cloudKitShareID != nil
                                              ? ThemeTokens.accent
-                                             : ThemeTokens.textMuted)
+                                             : ThemeTokens.textSecondary)
                     }
                 }
             }
