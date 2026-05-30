@@ -18,6 +18,28 @@
 import SwiftUI
 import UIKit
 
+/// UIView subclass that allows taps to pass through to SwiftUI action buttons
+/// in the revealed swipe panel. When isOpen and the touch lands in the button
+/// strip at the trailing edge, hitTest returns nil so UIKit falls back to the
+/// SwiftUI hosting view's own gesture handling — letting the circle buttons fire.
+///
+/// Background: SwiftUI's .offset() is a visual-only modifier. Apple's docs state
+/// "the original layout position is used for interaction areas," so the UIView
+/// remains at its un-shifted layout frame even when the card slides left by
+/// revealWidth. Without this override every tap on the exposed button strip would
+/// be consumed by the gesture host instead of the circle buttons.
+final class GestureHostView: UIView {
+    var isOpen: Bool = false
+    var revealWidth: CGFloat = 216
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        if isOpen && point.x >= bounds.width - revealWidth {
+            return nil
+        }
+        return super.hitTest(point, with: event)
+    }
+}
+
 struct HorizontalDragGestureHost: UIViewRepresentable {
     /// Called when the horizontal pan gesture begins (use to capture pre-gesture state).
     var onBegan: () -> Void = {}
@@ -27,15 +49,21 @@ struct HorizontalDragGestureHost: UIViewRepresentable {
     var onEnded: (CGFloat, CGFloat) -> Void
     /// Fired when the user taps (no significant movement) — use to close the swipe panel.
     var onTap: () -> Void
+    /// Whether the swipe panel is currently open. Drives GestureHostView.hitTest behaviour.
+    var isOpen: Bool = false
+    /// Width of the revealed button strip (must match SwipeRevealCard.revealWidth).
+    var revealWidth: CGFloat = 216
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onBegan: onBegan, onChanged: onChanged, onEnded: onEnded, onTap: onTap)
     }
 
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
+    func makeUIView(context: Context) -> GestureHostView {
+        let view = GestureHostView()
         view.backgroundColor = .clear
         view.isOpaque = false
+        view.isOpen = isOpen
+        view.revealWidth = revealWidth
 
         let pan = UIPanGestureRecognizer(
             target: context.coordinator,
@@ -54,7 +82,9 @@ struct HorizontalDragGestureHost: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ uiView: UIView, context: Context) {
+    func updateUIView(_ uiView: GestureHostView, context: Context) {
+        uiView.isOpen     = isOpen
+        uiView.revealWidth = revealWidth
         context.coordinator.onBegan   = onBegan
         context.coordinator.onChanged = onChanged
         context.coordinator.onEnded   = onEnded

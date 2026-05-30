@@ -38,9 +38,29 @@ struct SwipeRevealCard<Content: View>: View {
     /// so the base offset stays stable throughout the drag even if isOpen changes.
     @State private var gestureStartedOpen: Bool = false
 
-    private let revealWidth: CGFloat = 216   // 3 slots × 72 pt
+    let revealWidth: CGFloat = 216   // 3 slots × 72 pt — also passed to GestureHostView
     private let buttonWidth: CGFloat = 72
     private let circleSize:  CGFloat = 46
+
+    // MARK: — Snap decision (extracted for testability)
+
+    /// Decides whether the panel should be open at gesture end.
+    ///
+    /// Fast flick (|velocity| > 300 pt/s): follow the flick direction.
+    /// Slow release: snap to whichever side the card is closer to (midpoint rule).
+    /// This lets the user drag slowly past the halfway point and release without
+    /// needing a precise flick — the original velocity-only check required >120 pt/s
+    /// which caused the panel to snap back on careful slow swipes.
+    static func resolveOpenState(
+        offset: CGFloat,
+        velocityX: CGFloat,
+        revealWidth: CGFloat
+    ) -> Bool {
+        if abs(velocityX) > 300 {
+            return velocityX < 0   // fast flick: follow direction
+        }
+        return offset < -(revealWidth / 2)   // slow release: midpoint rule
+    }
 
     init(
         id: UUID,
@@ -92,17 +112,18 @@ struct SwipeRevealCard<Content: View>: View {
                             offset = max(-revealWidth, min(0, base + translationX))
                         },
                         onEnded: { _, velocityX in
-                            // Not enough velocity — snap back to current state.
-                            guard abs(velocityX) > 120 else {
-                                snap(to: gestureStartedOpen ? -revealWidth : 0)
-                                return
-                            }
-                            let shouldOpen = velocityX < 0   // leftward = open
-                            if shouldOpen { openID = id }    // signal other cards to close
+                            let shouldOpen = SwipeRevealCard.resolveOpenState(
+                                offset: offset,
+                                velocityX: velocityX,
+                                revealWidth: revealWidth
+                            )
+                            if shouldOpen { openID = id }
                             isOpen = shouldOpen
                             snap(to: shouldOpen ? -revealWidth : 0)
                         },
-                        onTap: { if isOpen { close() } }
+                        onTap: { if isOpen { close() } },
+                        isOpen: isOpen,
+                        revealWidth: revealWidth
                     )
                 }
         }
