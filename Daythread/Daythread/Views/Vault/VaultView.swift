@@ -89,15 +89,28 @@ struct VaultView: View {
                     }
                 }
             } label: {
-                HStack(spacing: 4) {
-                    Text(store.activeTrip?.name ?? "Select Trip")
-                        .font(.headline)
-                        .foregroundStyle(ThemeTokens.textPrimary)
-                    Image(systemName: "chevron.down")
-                        .font(.caption2.bold())
-                        .foregroundStyle(ThemeTokens.textSecondary)
+                VStack(spacing: 1) {
+                    HStack(spacing: 4) {
+                        Text(store.activeTrip?.name ?? "Select Trip")
+                            .font(.headline)
+                            .foregroundStyle(ThemeTokens.textPrimary)
+                        Image(systemName: "chevron.down")
+                            .font(.caption2.bold())
+                            .foregroundStyle(ThemeTokens.textSecondary)
+                    }
+                    if let trip = store.activeTrip {
+                        Text(dateRange(for: trip))
+                            .font(.caption2)
+                            .foregroundStyle(ThemeTokens.textMuted)
+                    }
                 }
             }
         }
+    }
+
+    private func dateRange(for trip: Trip) -> String {
+        let start = trip.startDate.formatted(.dateTime.month(.abbreviated).day())
+        let end   = trip.endDate.formatted(.dateTime.month(.abbreviated).day())
+        return "\(start) – \(end)"
     }
 }
