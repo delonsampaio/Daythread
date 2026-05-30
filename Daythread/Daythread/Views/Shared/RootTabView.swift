@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import SwiftData
+import CoreData
 
 enum DaythreadTab {
     case timeline, trips, vault, profile
@@ -14,7 +14,7 @@ enum DaythreadTab {
 
 struct RootTabView: View {
     @Environment(TripStore.self) private var store
-    @Query(filter: #Predicate<Trip> { !$0.isArchived }) private var activeTrips: [Trip]
+    @FetchRequest(sortDescriptors: [], predicate: NSPredicate(format: "isArchived == NO")) private var activeTrips: FetchedResults<Trip>
 
     @State private var selectedTab: DaythreadTab = .timeline
 
@@ -43,7 +43,7 @@ struct RootTabView: View {
         .onChange(of: activeTrips) { _, trips in
             // A freshly accepted shared trip may have just synced in — switch to
             // it before the generic fallback logic picks an arbitrary first trip.
-            store.resolvePendingJoin(in: trips)
+            store.resolvePendingJoin(in: Array(trips))
 
             if store.activeTrip == nil {
                 // Covers two cases:

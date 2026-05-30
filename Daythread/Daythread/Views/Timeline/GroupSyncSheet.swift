@@ -6,14 +6,14 @@
 //
 
 import SwiftUI
-import SwiftData
+import CoreData
 import CloudKit
 
 struct GroupSyncSheet: View {
     let trip: Trip
 
     @Environment(TripStore.self) private var store
-    @Environment(\.modelContext) private var context
+    @Environment(\.managedObjectContext) private var context
     @Environment(\.dismiss) private var dismiss
 
     @State private var cloudKit = CloudKitService()
@@ -58,7 +58,7 @@ struct GroupSyncSheet: View {
 
                 // Only show real co-editors — virtual (expense-only) members
                 // are managed in the Vault split-expenses sheet, not here.
-                let members = (trip.members ?? []).filter { !$0.isVirtual }
+                let members = trip.membersArray.filter { !$0.isVirtual }
                 if !members.isEmpty {
                     Section("Members (\(members.count))") {
                         ForEach(members) { member in

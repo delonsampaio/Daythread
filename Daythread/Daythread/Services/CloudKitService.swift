@@ -16,7 +16,7 @@
 //
 
 import CloudKit
-import SwiftData
+import CoreData
 import Observation
 
 // MARK: — Backend seam
@@ -55,7 +55,7 @@ final class CloudKitService {
     /// record name onto `trip.cloudKitShareID` and persists it. On failure,
     /// sets `errorMessage` and leaves the trip unshared.
     @discardableResult
-    func shareTrip(_ trip: Trip, modelContext: ModelContext) async -> CKShare? {
+    func shareTrip(_ trip: Trip, modelContext: NSManagedObjectContext) async -> CKShare? {
         // Already shared — caller should fetch the existing share to present.
         guard trip.cloudKitShareID == nil else {
             isSharing = true
@@ -74,7 +74,7 @@ final class CloudKitService {
         }
     }
 
-    func stopSharing(_ trip: Trip, modelContext: ModelContext) {
+    func stopSharing(_ trip: Trip, modelContext: NSManagedObjectContext) {
         trip.cloudKitShareID = nil
         try? modelContext.save()
         isSharing = false

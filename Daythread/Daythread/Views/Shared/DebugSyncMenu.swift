@@ -10,12 +10,12 @@
 
 #if DEBUG
 import SwiftUI
-import SwiftData
+import CoreData
 
 /// Debug-only menu to simulate CloudKit sync scenarios.
 /// Attach to any view with .toolbar { DebugSyncMenuButton() }
 struct DebugSyncMenuButton: ToolbarContent {
-    @Environment(\.modelContext) private var context
+    @Environment(\.managedObjectContext) private var context
     @Environment(TripStore.self) private var store
 
     var body: some ToolbarContent {
@@ -43,17 +43,16 @@ struct DebugSyncMenuButton: ToolbarContent {
 
     private func simulateCoEditorAddsEvent() {
         guard let trip = store.activeTrip,
-              let day = (trip.days ?? []).sorted(by: { $0.sortOrder < $1.sortOrder }).first else {
+              let day = trip.daysArray.first else {
             return
         }
-        let nextOrder = ((day.events ?? []).map(\.sortOrder).max() ?? -1) + 1
-        let event = TripEvent(
-            title: "[Sync Test] Co-editor added this",
-            category: .museum,
-            sortOrder: nextOrder
-        )
+        let nextOrder = (day.eventsArray.map(\.sortOrder).max() ?? -1) + 1
+        let event = TripEvent(context: context)
+        event.id = UUID()
+        event.title = "[Sync Test] Co-editor added this"
+        event.category = .museum
+        event.sortOrder = nextOrder
         event.day = day
-        context.insert(event)
         try? context.save()
         print("🔵 DEBUG: Simulated co-editor adding TripEvent '\(event.title)'")
     }
@@ -62,7 +61,7 @@ struct DebugSyncMenuButton: ToolbarContent {
 
     private func simulateAdminDeletesDay() {
         guard let trip = store.activeTrip else { return }
-        let sortedDays = (trip.days ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let sortedDays = trip.daysArray
         if let lastDay = sortedDays.last, sortedDays.count > 1 {
             context.delete(lastDay)
             try? context.save()
@@ -76,7 +75,7 @@ struct DebugSyncMenuButton: ToolbarContent {
 
     private func simulateLodgingUpdate() {
         guard let trip = store.activeTrip,
-              let lodging = (trip.lodging ?? []).first else {
+              let lodging = trip.lodgingArray.first else {
             print("🔵 DEBUG: No lodging found on active trip — add lodging first")
             return
         }

@@ -6,23 +6,23 @@
 //
 
 import SwiftUI
-import SwiftData
+import CoreData
 
 struct TimelineView: View {
     @Environment(TripStore.self) private var store
-    @Environment(\.modelContext) private var context
+    @Environment(\.managedObjectContext) private var context
 
-    @Query(
-        filter: #Predicate<Trip> { !$0.isArchived },
-        sort: \Trip.startDate
-    ) private var trips: [Trip]
+    @FetchRequest(
+        sortDescriptors: [SortDescriptor(\Trip.startDate)],
+        predicate: NSPredicate(format: "isArchived == NO")
+    ) private var trips: FetchedResults<Trip>
 
     private var days: [TripDay] {
-        (store.activeTrip?.days ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        store.activeTrip?.daysArray ?? []
     }
 
     private var lodging: [LodgingInfo] {
-        store.activeTrip?.lodging ?? []
+        store.activeTrip?.lodgingArray ?? []
     }
 
     @State private var vm = TimelineViewModel()
@@ -48,7 +48,7 @@ struct TimelineView: View {
                             Section {
                                 dayContent(day: day, dayNumber: index + 1)
                             } header: {
-                                let events = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+                                let events = day.eventsArray
                                 let hasOutOfOrder = !vm.outOfOrderEventIDs(in: events).isEmpty
                                 DayHeaderView(
                                     day: day,
@@ -183,7 +183,7 @@ struct TimelineView: View {
 
     @ViewBuilder
     private func dayContent(day: TripDay, dayNumber: Int) -> some View {
-        let events = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        let events = day.eventsArray
         let violated = vm.violatedLockIDs(in: events)
         let outOfOrder = vm.outOfOrderEventIDs(in: events)
         VStack(spacing: 12) {
