@@ -90,14 +90,18 @@ struct VaultView: View {
                 }
             } label: {
                 VStack(spacing: 1) {
-                    HStack(spacing: 4) {
-                        Text(store.activeTrip?.name ?? "Select Trip")
-                            .font(.headline)
-                            .foregroundStyle(ThemeTokens.textPrimary)
-                        Image(systemName: "chevron.down")
-                            .font(.caption2.bold())
-                            .foregroundStyle(ThemeTokens.textSecondary)
-                    }
+                    // The chevron is an overlay (via alignmentGuide) so it doesn't
+                    // widen the name's layout frame — that keeps the date below
+                    // centered under the trip name text, not under name + chevron.
+                    Text(store.activeTrip?.name ?? "Select Trip")
+                        .font(.headline)
+                        .foregroundStyle(ThemeTokens.textPrimary)
+                        .overlay(alignment: .trailing) {
+                            Image(systemName: "chevron.down")
+                                .font(.caption2.bold())
+                                .foregroundStyle(ThemeTokens.textSecondary)
+                                .alignmentGuide(.trailing) { d in d[.leading] - 4 }
+                        }
                     if let trip = store.activeTrip {
                         Text(dateRange(for: trip))
                             .font(.caption2)
