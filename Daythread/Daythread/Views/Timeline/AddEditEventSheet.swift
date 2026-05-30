@@ -75,8 +75,17 @@ struct AddEditEventSheet: View {
                 Section("Time") {
                     Toggle("Set a time", isOn: $hasStartTime)
                     if hasStartTime {
-                        DatePicker("Start", selection: $startTime, displayedComponents: .hourAndMinute)
-                        DatePicker("End", selection: $endTime, displayedComponents: .hourAndMinute)
+                        // UIDatePicker-backed pickers: wheel snaps to 5-minute marks.
+                        HStack {
+                            Text("Start")
+                            Spacer()
+                            MinuteIntervalTimePicker(label: "Start", selection: $startTime)
+                        }
+                        HStack {
+                            Text("End")
+                            Spacer()
+                            MinuteIntervalTimePicker(label: "End", selection: $endTime)
+                        }
                     }
 
                     Toggle(isOn: $isTimeLocked) {
@@ -103,6 +112,13 @@ struct AddEditEventSheet: View {
                         isTimeLocked = false
                     } else if editingEvent == nil {
                         isTimeLocked = true
+                    }
+                }
+                // If the user moves startTime past endTime, slide endTime forward
+                // by 1 hour so the window is always valid without manual correction.
+                .onChange(of: startTime) { _, newStart in
+                    if endTime <= newStart {
+                        endTime = newStart.addingTimeInterval(3600)
                     }
                 }
 
@@ -170,7 +186,10 @@ struct AddEditEventSheet: View {
         guard !conflicts.isEmpty else {
             save(); return
         }
-        pendingConflicts = conflicts
+        // Sort chronologically so the alert always leads with the earliest conflict.
+        pendingConflicts = conflicts.sorted {
+            ($0.startTime ?? .distantFuture) < ($1.startTime ?? .distantFuture)
+        }
         showConflictAlert = true
     }
 
