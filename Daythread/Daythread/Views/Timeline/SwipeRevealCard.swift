@@ -10,13 +10,14 @@
 //  • Icon-only circles — no text labels, matching the native iOS swipe-action
 //    aesthetic. accessibilityLabel provides text for VoiceOver.
 //  • Edit = blue, Lock/Unlock = orange (mirrors the amber lock icon on cards),
-//    Delete = red. Color is the only affordance on icon-only circles, especially
-//    in dark mode, so each action keeps a distinct semantic colour.
+//    Delete = red.
 //  • openID binding — shared across the whole timeline. Opening this card sets
 //    openID = self.id; any other open card observes the change and closes itself,
 //    so at most one panel is visible at a time.
-//  • simultaneousGesture lets horizontal swipes be caught here while vertical
-//    pans still propagate to the enclosing ScrollView.
+//  • HorizontalDragGestureHost replaces DragGesture + simultaneousGesture.
+//    Using a real UIPanGestureRecognizer that fails for vertical swipes at the
+//    UIKit level (gestureRecognizerShouldBegin) means the enclosing ScrollView
+//    always gets vertical pans — scroll is never blocked.
 //  • Velocity check (> 120 pt/s) prevents drag-and-drop motion from accidentally
 //    opening the swipe panel after a long-press lift.
 
@@ -33,6 +34,9 @@ struct SwipeRevealCard<Content: View>: View {
 
     @State private var offset: CGFloat = 0
     @State private var isOpen: Bool = false
+    /// Captures whether the panel was open at the START of the current gesture,
+    /// so the base offset stays stable throughout the drag even if isOpen changes.
+    @State private var gestureStartedOpen: Bool = false
 
     private let revealWidth: CGFloat = 216   // 3 slots × 72 pt
     private let buttonWidth: CGFloat = 72
@@ -58,14 +62,12 @@ struct SwipeRevealCard<Content: View>: View {
 
     var body: some View {
         ZStack(alignment: .trailing) {
-            // Action circles — hidden at rest so they don't bleed through
-            // the card's rounded-corner gaps; appear as soon as swipe starts.
+            // Action circles — appear as soon as swipe starts.
             HStack(spacing: 0) {
                 circleButton(label: "Edit",
                              icon: "pencil",
                              color: Color(uiColor: .systemBlue),
                              action: editAction)
-                // Orange matches the amber lock icon already used on locked cards.
                 circleButton(label: isLocked ? "Unlock" : "Lock",
                              icon: isLocked ? "lock.open.fill" : "lock.fill",
                              color: Color(uiColor: .systemOrange),
@@ -78,39 +80,37 @@ struct SwipeRevealCard<Content: View>: View {
             .frame(width: revealWidth)
             .opacity(offset < -8 ? 1 : 0)
 
-            // Card slides left; tap it while open to close the panel.
+            // Card slides left; the gesture host is overlaid on the card so it
+            // slides with it — action circles remain reachable when panel is open.
             content
                 .offset(x: offset)
-                .onTapGesture { if isOpen { close() } }
+                .overlay {
+                    HorizontalDragGestureHost(
+                        onBegan:   { gestureStartedOpen = isOpen },
+                        onChanged: { translationX in
+                            let base: CGFloat = gestureStartedOpen ? -revealWidth : 0
+                            offset = max(-revealWidth, min(0, base + translationX))
+                        },
+                        onEnded: { _, velocityX in
+                            // Not enough velocity — snap back to current state.
+                            guard abs(velocityX) > 120 else {
+                                snap(to: gestureStartedOpen ? -revealWidth : 0)
+                                return
+                            }
+                            let shouldOpen = velocityX < 0   // leftward = open
+                            if shouldOpen { openID = id }    // signal other cards to close
+                            isOpen = shouldOpen
+                            snap(to: shouldOpen ? -revealWidth : 0)
+                        },
+                        onTap: { if isOpen { close() } }
+                    )
+                }
         }
         .clipped()
-        .simultaneousGesture(swipeGesture)
         // Close when another card's panel opens.
         .onChange(of: openID) { _, newID in
             if newID != id, isOpen { close() }
         }
-    }
-
-    // MARK: — Gesture
-
-    private var swipeGesture: some Gesture {
-        DragGesture(minimumDistance: 10, coordinateSpace: .local)
-            .onChanged { value in
-                guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                let base: CGFloat = isOpen ? -revealWidth : 0
-                offset = max(-revealWidth, min(0, base + value.translation.width))
-            }
-            .onEnded { value in
-                guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                guard abs(value.velocity.width) > 120 else {
-                    snap(to: isOpen ? -revealWidth : 0)
-                    return
-                }
-                let shouldOpen = isOpen ? value.velocity.width < 0 : value.velocity.width < 0
-                if shouldOpen { openID = id }   // signal other cards to close
-                isOpen = shouldOpen
-                snap(to: shouldOpen ? -revealWidth : 0)
-            }
     }
 
     // MARK: — Helpers
@@ -119,6 +119,8 @@ struct SwipeRevealCard<Content: View>: View {
         withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
             offset = targetOffset
         }
+        if targetOffset == 0 { isOpen = false }
+        else { isOpen = true }
     }
 
     private func close() {

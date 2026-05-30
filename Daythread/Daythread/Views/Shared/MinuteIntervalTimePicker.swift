@@ -35,12 +35,6 @@ struct MinuteIntervalTimePicker: UIViewRepresentable {
         return picker
     }
 
-    /// Tells SwiftUI the picker's preferred size so it doesn't guess wrong.
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIDatePicker,
-                      context: Context) -> CGSize? {
-        uiView.intrinsicContentSize
-    }
-
     func updateUIView(_ uiView: UIDatePicker, context: Context) {
         // Snap the bound date to the nearest interval so the wheel always
         // shows a valid tick mark even if the value arrived from elsewhere.

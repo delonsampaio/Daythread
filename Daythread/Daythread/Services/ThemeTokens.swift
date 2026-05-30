@@ -39,23 +39,46 @@ enum ThemeTokens {
 
     // Card style
     nonisolated static let cardCornerRadius: CGFloat = 16
-    nonisolated static let cardShadow = Shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 4)
 
     // Typography
     nonisolated static let monoFont    = Font.system(.body, design: .monospaced)
     nonisolated static let monoCaption = Font.system(.caption, design: .monospaced)
 }
 
-struct Shadow: Sendable {
-    let color: Color
-    let radius: CGFloat
-    let x: CGFloat
-    let y: CGFloat
+extension View {
+    /// Applies a shadow that is visible in both light and dark mode.
+    ///
+    /// Light mode: white cards on a white background have almost no contrast.
+    /// A stronger shadow (0.12 opacity) plus a hairline separator border gives
+    /// cards their "pill" shape on light backgrounds.
+    /// Dark mode: the original subtle shadow (0.04) is fine — contrast already
+    /// comes from the card surface being lighter than the page background.
+    func cardShadow() -> some View {
+        modifier(CardShadowModifier())
+    }
 }
 
-extension View {
-    func cardShadow() -> some View {
-        let s = ThemeTokens.cardShadow
-        return self.shadow(color: s.color, radius: s.radius, x: s.x, y: s.y)
+private struct CardShadowModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        content
+            .shadow(
+                color: .black.opacity(colorScheme == .light ? 0.10 : 0.04),
+                radius: colorScheme == .light ? 6 : 8,
+                x: 0,
+                y: colorScheme == .light ? 2 : 4
+            )
+            .overlay {
+                if colorScheme == .light {
+                    // Hairline border so cards read as distinct bubbles on
+                    // white backgrounds without a heavy visual weight.
+                    RoundedRectangle(
+                        cornerRadius: ThemeTokens.cardCornerRadius,
+                        style: .continuous
+                    )
+                    .strokeBorder(Color(.separator).opacity(0.4), lineWidth: 0.5)
+                }
+            }
     }
 }

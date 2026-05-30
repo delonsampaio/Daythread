@@ -42,9 +42,11 @@ struct TimelineItem<Content: View>: View {
         }
     }
 
-    // 64 pt gives "12:00 PM" (the widest possible time string) comfortable room
-    // in a monospaced font at size 11 without truncation.
-    private let columnWidth: CGFloat = 64
+    // 76 pt accommodates the widest time strings across all locales.
+    // Date.FormatStyle uses locale-specific thin/narrow spaces around AM/PM
+    // which can make "12:00 PM" render wider than a raw character-count
+    // estimate suggests.  76 pt + minimumScaleFactor gives a safe margin.
+    private let columnWidth: CGFloat = 76
 
     private var leftColumn: some View {
         VStack(spacing: 0) {
@@ -58,6 +60,7 @@ struct TimelineItem<Content: View>: View {
                         : ThemeTokens.textSecondary
                     )
                     .lineLimit(1)
+                    .minimumScaleFactor(0.80)   // shrink before truncating
                     .frame(width: columnWidth, alignment: .trailing)
             } else {
                 Spacer().frame(width: columnWidth, height: 14)
