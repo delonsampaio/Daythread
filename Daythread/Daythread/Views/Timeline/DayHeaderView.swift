@@ -10,6 +10,9 @@ import SwiftUI
 struct DayHeaderView: View {
     let day: TripDay
     let dayNumber: Int
+    /// Non-nil when one or more events in this day are out of chronological order.
+    /// Tapping the sort button calls this closure.
+    var sortByTimeAction: (() -> Void)? = nil
 
     private var formattedDate: String {
         day.date.formatted(.dateTime.weekday(.wide).month(.wide).day())
@@ -27,7 +30,17 @@ struct DayHeaderView: View {
                     .foregroundStyle(ThemeTokens.textPrimary)
             }
             Spacer()
-            WeatherBadgePlaceholder()
+            if let sort = sortByTimeAction {
+                Button(action: sort) {
+                    Label("Sort by Time", systemImage: "arrow.up.arrow.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(ThemeTokens.warningAmber)
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.plain)
+            } else {
+                WeatherBadgePlaceholder()
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

@@ -86,11 +86,15 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "How do I reorder events in my day?",
-                answer: "Long-press and drag any event card to reorder it. You can also drag events between days — drop onto a different day's section and it moves there automatically. Time-Locked events cannot be dragged and will block any drop that would push them out of their time slot."
+                answer: "Long-press and drag any event card to reorder it. You can also drag events between days — drop onto a different day's section and it moves there automatically. Time-Locked events cannot be dragged and will block any drop that would push them out of their time slot. If any timed events end up out of chronological order, their time label turns amber and a \"Sort by Time\" button appears in the day header — tap it to instantly restore chronological order."
             )
             FAQRow(
                 question: "How do I edit or delete an event?",
                 answer: "Swipe left on any event card to reveal three actions: Edit, Lock/Unlock, and Delete. Tap the action you want, or swipe right to dismiss. Time-Locked events show Unlock instead of Lock."
+            )
+            FAQRow(
+                question: "What happens if I add an event that overlaps another?",
+                answer: "When you save a timed event whose start–end window overlaps another timed event on the same day, Daythread shows an alert naming the conflicting event(s). You can tap \"Adjust Time\" to return to the form and fix the times, or \"Save Anyway\" to keep the overlap — for example, when two people are splitting up for part of the day."
             )
         }
     }

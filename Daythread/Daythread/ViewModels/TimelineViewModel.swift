@@ -206,6 +206,50 @@ final class TimelineViewModel {
         return violated
     }
 
+    // MARK: — Chronological order
+
+    /// Returns IDs of unlocked, timed events whose visual `sortOrder` position
+    /// contradicts their `startTime` relative to any other timed event in the list.
+    ///
+    /// Locked events are intentionally excluded — `violatedLockIDs` already surfaces
+    /// them with the full amber ring + badge treatment. This function targets the
+    /// softer case: the user dragged an unlocked event out of time order while
+    /// drafting, and the UI should note it passively (amber time text only).
+    func outOfOrderEventIDs(in events: [TripEvent]) -> Set<UUID> {
+        var outOfOrder = Set<UUID>()
+        for (i, event) in events.enumerated() {
+            guard !event.isTimeLocked, let eventTime = event.startTime else { continue }
+            // Flagged if any earlier-positioned event has a later startTime.
+            if events[..<i].compactMap(\.startTime).contains(where: { $0 > eventTime }) {
+                outOfOrder.insert(event.id)
+            }
+            // Flagged if any later-positioned event has an earlier startTime.
+            if events[(i + 1)...].compactMap(\.startTime).contains(where: { $0 < eventTime }) {
+                outOfOrder.insert(event.id)
+            }
+        }
+        return outOfOrder
+    }
+
+    /// Re-sorts a day's events so untimed events float to the top (preserving their
+    /// relative order) and timed events follow in strict chronological order.
+    /// Uses 1024-spaced sortOrders for fractional-indexing compatibility.
+    func sortDayByTime(_ day: TripDay, context: ModelContext) {
+        let sorted = (day.events ?? []).sorted { a, b in
+            switch (a.startTime, b.startTime) {
+            case (nil, nil):           return a.sortOrder < b.sortOrder  // preserve untimed order
+            case (nil, _):             return true                        // untimed floats up
+            case (_, nil):             return false                       // timed sinks below
+            case (let ta?, let tb?):   return ta < tb                    // chronological
+            }
+        }
+        for (i, event) in sorted.enumerated() {
+            event.sortOrder = i * 1024
+        }
+        try? context.save()
+        HapticManager.shared.sheetConfirm()
+    }
+
     func deleteEvent(_ event: TripEvent, context: ModelContext) {
         context.delete(event)
         try? context.save()

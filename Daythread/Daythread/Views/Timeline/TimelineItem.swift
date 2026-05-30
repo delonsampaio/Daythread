@@ -16,6 +16,10 @@ struct TimelineItem<Content: View>: View {
     let event: TripEvent
     let isLast: Bool
     var isTimeViolated: Bool = false
+    /// True when this unlocked timed event's visual position contradicts its
+    /// startTime relative to surrounding events. Shows amber time text only —
+    /// no ring or badge (lighter than the lock-violation treatment).
+    var isOutOfOrder: Bool = false
     /// Drives a horizontal shake animation when a drop was refused because this
     /// locked event's time constraint blocked it. Set and cleared by the VM.
     var isShaking: Bool = false
@@ -44,7 +48,11 @@ struct TimelineItem<Content: View>: View {
             if let time = event.startTime {
                 Text(TimezoneEngine.displayTime(date: time, in: .current))
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(isTimeViolated ? ThemeTokens.warningAmber : ThemeTokens.textSecondary)
+                    .foregroundStyle(
+                        isTimeViolated || isOutOfOrder
+                        ? ThemeTokens.warningAmber
+                        : ThemeTokens.textSecondary
+                    )
                     .frame(width: 52, alignment: .trailing)
             } else {
                 Spacer().frame(width: 52, height: 14)

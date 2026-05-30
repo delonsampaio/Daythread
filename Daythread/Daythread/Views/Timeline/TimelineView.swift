@@ -42,7 +42,15 @@ struct TimelineView: View {
                             Section {
                                 dayContent(day: day, dayNumber: index + 1)
                             } header: {
-                                DayHeaderView(day: day, dayNumber: index + 1)
+                                let events = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
+                                let hasOutOfOrder = !vm.outOfOrderEventIDs(in: events).isEmpty
+                                DayHeaderView(
+                                    day: day,
+                                    dayNumber: index + 1,
+                                    sortByTimeAction: hasOutOfOrder
+                                        ? { vm.sortDayByTime(day, context: context) }
+                                        : nil
+                                )
                             }
                         }
                     }
@@ -112,11 +120,13 @@ struct TimelineView: View {
     private func dayContent(day: TripDay, dayNumber: Int) -> some View {
         let events = (day.events ?? []).sorted { $0.sortOrder < $1.sortOrder }
         let violated = vm.violatedLockIDs(in: events)
+        let outOfOrder = vm.outOfOrderEventIDs(in: events)
         VStack(spacing: 12) {
             ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
                 TimelineItem(event: event,
                              isLast: index == events.count - 1,
                              isTimeViolated: violated.contains(event.id),
+                             isOutOfOrder: outOfOrder.contains(event.id),
                              isShaking: vm.shakingEventIDs.contains(event.id)) {
                     // Swipe left to reveal Edit · Lock · Delete.
                     // Long-press is now exclusively for drag-to-reorder — no gesture conflict.
