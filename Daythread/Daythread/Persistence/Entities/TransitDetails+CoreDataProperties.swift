@@ -6,22 +6,22 @@ extension TransitDetails {
         NSFetchRequest<TransitDetails>(entityName: "TransitDetails")
     }
 
-    @NSManaged public var id: UUID?
-    @NSManaged public var carrier: String?
-    @NSManaged public var flightOrTrainNumber: String?
-    @NSManaged public var pnr: String?
-    @NSManaged public var departureCode: String?
-    @NSManaged public var arrivalCode: String?
-    @NSManaged public var departureName: String?
-    @NSManaged public var arrivalName: String?
+    @NSManaged public var id: UUID
+    @NSManaged public var carrier: String
+    @NSManaged public var flightOrTrainNumber: String
+    @NSManaged public var pnr: String
+    @NSManaged public var departureCode: String
+    @NSManaged public var arrivalCode: String
+    @NSManaged public var departureName: String
+    @NSManaged public var arrivalName: String
     @NSManaged public var departureTerminal: String?
     @NSManaged public var arrivalTerminal: String?
     @NSManaged public var departureGate: String?
     @NSManaged public var arrivalGate: String?
     @NSManaged public var seatNumber: String?
     @NSManaged public var baggageClaim: String?
-    @NSManaged public var departureTZIdentifier: String?
-    @NSManaged public var arrivalTZIdentifier: String?
+    @NSManaged public var departureTZIdentifier: String
+    @NSManaged public var arrivalTZIdentifier: String
     @NSManaged public var event: TripEvent?
 }
 

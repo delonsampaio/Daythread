@@ -6,16 +6,18 @@ extension Trip {
         NSFetchRequest<Trip>(entityName: "Trip")
     }
 
-    @NSManaged public var id: UUID?
-    @NSManaged public var name: String?
-    @NSManaged public var destination: String?
-    @NSManaged public var startDate: Date?
-    @NSManaged public var endDate: Date?
+    // Always-set / defaulted attributes are declared non-optional to match the
+    // app's existing call sites. Genuinely-optional attributes stay Optional.
+    @NSManaged public var id: UUID
+    @NSManaged public var name: String
+    @NSManaged public var destination: String
+    @NSManaged public var startDate: Date
+    @NSManaged public var endDate: Date
     @NSManaged public var coverImageData: Data?
     @NSManaged public var cloudKitShareID: String?
     @NSManaged public var isArchived: Bool
-    @NSManaged public var createdAt: Date?
-    @NSManaged public var gradientSeed: Int64
+    @NSManaged public var createdAt: Date
+    @NSManaged public var gradientSeed: Int
     @NSManaged public var days: NSSet?
     @NSManaged public var members: NSSet?
     @NSManaged public var documents: NSSet?
