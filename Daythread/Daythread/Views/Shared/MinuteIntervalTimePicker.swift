@@ -22,15 +22,23 @@ struct MinuteIntervalTimePicker: UIViewRepresentable {
 
     func makeUIView(context: Context) -> UIDatePicker {
         let picker = UIDatePicker()
-        picker.datePickerMode    = .time
+        picker.datePickerMode           = .time
         picker.preferredDatePickerStyle = .compact
-        picker.minuteInterval    = minuteInterval
+        picker.minuteInterval           = minuteInterval
         picker.addTarget(context.coordinator,
                          action: #selector(Coordinator.dateChanged(_:)),
                          for: .valueChanged)
-        // Match the Form row label alignment used by native DatePicker.
-        picker.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        // Resist both compression and expansion so SwiftUI respects the
+        // picker's intrinsic button size and doesn't squish it.
+        picker.setContentHuggingPriority(.required, for: .horizontal)
+        picker.setContentCompressionResistancePriority(.required, for: .horizontal)
         return picker
+    }
+
+    /// Tells SwiftUI the picker's preferred size so it doesn't guess wrong.
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIDatePicker,
+                      context: Context) -> CGSize? {
+        uiView.intrinsicContentSize
     }
 
     func updateUIView(_ uiView: UIDatePicker, context: Context) {

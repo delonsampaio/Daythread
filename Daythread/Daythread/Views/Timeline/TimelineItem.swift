@@ -42,9 +42,13 @@ struct TimelineItem<Content: View>: View {
         }
     }
 
+    // 64 pt gives "12:00 PM" (the widest possible time string) comfortable room
+    // in a monospaced font at size 11 without truncation.
+    private let columnWidth: CGFloat = 64
+
     private var leftColumn: some View {
         VStack(spacing: 0) {
-            // Time label — amber when violated
+            // Time label — amber when violated or out of order
             if let time = event.startTime {
                 Text(TimezoneEngine.displayTime(date: time, in: .current))
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
@@ -53,9 +57,10 @@ struct TimelineItem<Content: View>: View {
                         ? ThemeTokens.warningAmber
                         : ThemeTokens.textSecondary
                     )
-                    .frame(width: 52, alignment: .trailing)
+                    .lineLimit(1)
+                    .frame(width: columnWidth, alignment: .trailing)
             } else {
-                Spacer().frame(width: 52, height: 14)
+                Spacer().frame(width: columnWidth, height: 14)
             }
 
             // Category icon circle — amber ring when violated
@@ -74,18 +79,18 @@ struct TimelineItem<Content: View>: View {
                     .foregroundStyle(event.category.accentColor)
             }
             .frame(width: 30, height: 30)
-            // Warning badge sits outside the ZStack so it doesn't affect alignment
-            .overlay(alignment: .topTrailing) {
+            // Badge: SF Symbol renders crisply at any size; positioned at
+            // bottom-trailing so it doesn't compete with the time label above.
+            .overlay(alignment: .bottomTrailing) {
                 if isTimeViolated {
-                    Circle()
-                        .fill(ThemeTokens.warningAmber)
-                        .frame(width: 12, height: 12)
-                        .overlay {
-                            Image(systemName: "exclamationmark")
-                                .font(.system(size: 7, weight: .black))
-                                .foregroundStyle(.white)
-                        }
-                        .offset(x: 6, y: -6)
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(ThemeTokens.warningAmber)
+                        .background(
+                            Circle().fill(Color(uiColor: .systemBackground))
+                                .padding(-1)   // 1 pt halo so amber doesn't bleed into the icon
+                        )
+                        .offset(x: 7, y: 7)
                 }
             }
 
@@ -97,7 +102,7 @@ struct TimelineItem<Content: View>: View {
                     .frame(maxHeight: .infinity)
             }
         }
-        .frame(width: 52)
+        .frame(width: columnWidth)
     }
 }
 

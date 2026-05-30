@@ -114,12 +114,12 @@ struct AddEditEventSheet: View {
                         isTimeLocked = true
                     }
                 }
-                // If the user moves startTime past endTime, slide endTime forward
-                // by 1 hour so the window is always valid without manual correction.
-                .onChange(of: startTime) { _, newStart in
-                    if endTime <= newStart {
-                        endTime = newStart.addingTimeInterval(3600)
-                    }
+                // When start changes, keep the current gap (e.g. 10am→2pm stays 4h
+                // when start moves to 11am → end becomes 3pm). If the existing gap
+                // is invalid (end ≤ start), default to 1 hour.
+                .onChange(of: startTime) { oldStart, newStart in
+                    let gap = endTime.timeIntervalSince(oldStart)
+                    endTime = newStart.addingTimeInterval(gap > 0 ? gap : 3600)
                 }
 
                 Section("Details") {
