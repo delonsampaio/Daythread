@@ -37,6 +37,11 @@
 		<string>remote-notification</string>
 	</array>
 
+	<!-- ── CloudKit sharing: required so tapping a CKShare invite link routes
+	     to the app and triggers userDidAcceptCloudKitShareWith ── -->
+	<key>CKSharingSupported</key>
+	<true/>
+
 	<!-- ── Supported orientations ── -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>

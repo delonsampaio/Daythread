@@ -8,14 +8,12 @@
 import SwiftUI
 import SwiftData
 import StoreKit
-import CloudKit
 
 @main
 struct DaythreadApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store = TripStore()
     @State private var container: ModelContainer?
-
-    private let cloudKitContainerID = "iCloud.com.delonsampaio.daythread"
 
     var body: some Scene {
         WindowGroup {
@@ -28,12 +26,17 @@ struct DaythreadApp: App {
                     LaunchSplashView()
                 }
             }
-            // Co-editing invite links — a recipient taps the CKShare URL and the
-            // app accepts the share, then stashes the record name so RootTabView
-            // can switch to the joined trip once it syncs in. DEVICE-ONLY:
-            // requires a real iCloud account; no-ops meaningfully on simulator.
-            .onOpenURL { url in
-                acceptSharedTrip(from: url)
+            // Co-editing: ShareSceneDelegate accepts the tapped CKShare invite
+            // and posts .daythreadDidAcceptShare with the share record name. We
+            // stash it on TripStore so RootTabView can switch to the joined trip
+            // once it syncs in. DEVICE-ONLY — requires a real iCloud account.
+            .onReceive(NotificationCenter.default.publisher(for: .daythreadDidAcceptShare)) { note in
+                guard let recordName = note.userInfo?["recordName"] as? String else { return }
+                store.pendingJoinShareRecordName = recordName
+                if let container {
+                    let trips = (try? container.mainContext.fetch(FetchDescriptor<Trip>())) ?? []
+                    store.resolvePendingJoin(in: trips)
+                }
             }
             .task {
                 guard container == nil else { return }
@@ -63,30 +66,6 @@ struct DaythreadApp: App {
                     }
                     await transaction.finish()
                 }
-            }
-        }
-    }
-
-    /// Accepts a tapped CKShare invite URL and routes to the joined trip.
-    /// The actual trip records arrive via CloudKit sync after acceptance, so the
-    /// share record name is stashed on TripStore; RootTabView resolves it to the
-    /// active trip once @Query delivers the synced trip.
-    private func acceptSharedTrip(from url: URL) {
-        let ckContainer = CKContainer(identifier: cloudKitContainerID)
-        Task { @MainActor in
-            do {
-                let metadata = try await ckContainer.shareMetadata(for: url)
-                try await ckContainer.accept(metadata)
-                let recordName = metadata.share.recordID.recordName
-                // Try to resolve immediately if the trip is already present;
-                // otherwise stash for RootTabView to pick up after sync.
-                store.pendingJoinShareRecordName = recordName
-                if let container {
-                    let trips = (try? container.mainContext.fetch(FetchDescriptor<Trip>())) ?? []
-                    store.resolvePendingJoin(in: trips)
-                }
-            } catch {
-                print("⚠️ Failed to accept shared trip: \(error)")
             }
         }
     }
