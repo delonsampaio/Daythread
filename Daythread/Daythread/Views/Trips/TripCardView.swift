@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct TripCardView: View {
-    let trip: Trip
+    @ObservedObject var trip: Trip
 
     private var dateRangeLabel: String {
         let formatter = DateIntervalFormatter()

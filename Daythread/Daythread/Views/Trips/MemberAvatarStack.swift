@@ -86,7 +86,7 @@ struct MemberAvatarStack: View {
             .split(separator: " ")
         switch parts.count {
         case 0:  return "?"
-        case 1:  return String(parts[0].prefix(1)).uppercased()
+        case 1:  return String(parts[0].prefix(2)).uppercased()
         default: return "\(parts[0].prefix(1))\(parts[1].prefix(1))".uppercased()
         }
     }

@@ -14,6 +14,7 @@ struct TripsListView: View {
     @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \Trip.startDate, ascending: true)])
     private var allTrips: FetchedResults<Trip>
     @State private var vm = TripsViewModel()
+    @State private var cloudKit = CloudKitService()
     @State private var showCreate = false
     @State private var editingTrip: Trip?
     // Single snapshot per render — prevents repeated Date() calls from causing
@@ -58,7 +59,14 @@ struct TripsListView: View {
             .sheet(item: $editingTrip) { trip in
                 EditTripSheet(trip: trip, vm: vm)
             }
-            .onAppear { now = Date() }
+            .onAppear {
+                now = Date()
+                // Sync participants for every shared trip so avatar stacks on
+                // trip cards populate without the user having to open GroupSync.
+                for trip in allTrips where trip.cloudKitShareID != nil {
+                    cloudKit.syncParticipants(for: trip, context: context)
+                }
+            }
         }
     }
 
