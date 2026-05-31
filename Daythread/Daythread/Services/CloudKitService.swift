@@ -117,4 +117,27 @@ final class CloudKitService {
         guard let share = try? backend.existingShare(for: trip) else { return false }
         return share.currentUserParticipant?.role == .owner
     }
+
+    /// Registers the current iCloud user as a real member of a shared trip
+    /// (owner → admin, joiner → editor) so co-editors see real names + roles.
+    /// Device-only and best-effort: no-op when the trip isn't shared or identity
+    /// is unavailable. `displayName` falls back to "Me" when blank.
+    func registerCurrentUserMembership(
+        in trip: Trip,
+        displayName: String,
+        context: NSManagedObjectContext
+    ) async {
+        guard trip.cloudKitShareID != nil else { return }
+        guard let uid = await currentUserRecordName() else { return }
+        let role: MemberRole = currentUserIsOwner(of: trip) ? .admin : .editor
+        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        TripMemberRegistry.upsertCurrentUser(
+            in: trip,
+            appleUserID: uid,
+            displayName: trimmed.isEmpty ? "Me" : trimmed,
+            role: role,
+            context: context
+        )
+        try? context.save()
+    }
 }

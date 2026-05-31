@@ -104,7 +104,7 @@ struct GroupSyncSheet: View {
                     }
                 }
             }
-            .navigationTitle("Group Sync")
+            .navigationTitle(trip.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -145,20 +145,11 @@ struct GroupSyncSheet: View {
         }
     }
 
-    /// Registers the current iCloud user as a real member of this shared trip
-    /// (owner → admin, joiner → editor) so co-editors see real names + roles
-    /// instead of Apple's Contacts-dependent "Owner" label. Best-effort and
-    /// device-only — silently skips when iCloud identity isn't available.
+    /// Registers the current iCloud user as a real member of this shared trip so
+    /// co-editors see real names + roles instead of Apple's Contacts-dependent
+    /// "Owner" label.
     private func registerMyMembership() async {
-        guard trip.cloudKitShareID != nil else { return }
-        guard let uid = await cloudKit.currentUserRecordName() else { return }
-        let role: MemberRole = cloudKit.currentUserIsOwner(of: trip) ? .admin : .editor
-        let trimmed = myName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let name = trimmed.isEmpty ? "Me" : trimmed
-        TripMemberRegistry.upsertCurrentUser(
-            in: trip, appleUserID: uid, displayName: name, role: role, context: context
-        )
-        try? context.save()
+        await cloudKit.registerCurrentUserMembership(in: trip, displayName: myName, context: context)
     }
 
     /// Opens the system sharing sheet for the trip's EXISTING share so the user
