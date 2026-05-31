@@ -158,7 +158,12 @@ struct ExpenseListView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    guard store.isPro else { vm.showPaywall = true; return }
+                    // Skip Pro gate when the trip is shared — the invitee
+                    // didn't choose to need Pro, and splitting in a shared
+                    // trip requires the feature to work for all participants.
+                    guard store.isPro || trip.cloudKitShareID != nil else {
+                        vm.showPaywall = true; return
+                    }
                     showSplit = true
                 } label: {
                     Image(systemName: "arrow.triangle.2.circlepath")
