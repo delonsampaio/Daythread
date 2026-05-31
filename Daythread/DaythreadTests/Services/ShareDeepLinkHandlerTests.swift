@@ -93,4 +93,17 @@ final class ShareDeepLinkHandlerTests: XCTestCase {
         )
         XCTAssertEqual(result?.id, shared.id)
     }
+
+    // MARK: — Share-acceptance notification contract
+
+    /// The raw value is the string contract between the `post` in
+    /// ShareAcceptance.windowScene(_:userDidAcceptCloudKitShareWith:) and the
+    /// observer in DaythreadApp. If either side drifts, accepted shares stop
+    /// routing to the joined trip — so the constant is pinned here.
+    func test_daythreadDidAcceptShare_rawValueIsStable() {
+        XCTAssertEqual(
+            Notification.Name.daythreadDidAcceptShare.rawValue,
+            "DaythreadDidAcceptShare"
+        )
+    }
 }

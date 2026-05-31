@@ -21,7 +21,11 @@ import CoreData
 
 extension Notification.Name {
     /// Posted after a CKShare is accepted. userInfo["recordName"] = share record name.
-    static let daythreadDidAcceptShare = Notification.Name("DaythreadDidAcceptShare")
+    ///
+    /// `nonisolated` because it is referenced from `acceptShareInvitations`'s
+    /// completion handler — a non-isolated Sendable closure. The value is an
+    /// immutable `Sendable` `Notification.Name`, so cross-context reads are safe.
+    nonisolated static let daythreadDidAcceptShare = Notification.Name("DaythreadDidAcceptShare")
 }
 
 /// App delegate that installs a scene delegate capable of handling CloudKit
