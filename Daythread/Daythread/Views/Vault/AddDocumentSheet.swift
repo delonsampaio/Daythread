@@ -23,6 +23,7 @@ struct AddDocumentSheet: View {
     @State private var mimeType: String = "application/pdf"
     @State private var expiryDate: Date = Date()
     @State private var hasExpiry: Bool = false
+    @State private var isShared: Bool = false
 
     @State private var showSourcePicker = false
     @State private var showFilePicker = false
@@ -53,6 +54,15 @@ struct AddDocumentSheet: View {
                     Toggle("Has expiry date", isOn: $hasExpiry)
                     if hasExpiry {
                         DatePicker("Expiry", selection: $expiryDate, displayedComponents: .date)
+                    }
+                }
+                if trip.cloudKitShareID != nil {
+                    Section {
+                        Toggle("Share with trip members", isOn: $isShared)
+                    } footer: {
+                        Text(isShared
+                            ? "Co-editors can view this document."
+                            : "Only you can see this document. Toggle on to share it.")
                     }
                 }
             }
@@ -105,7 +115,7 @@ struct AddDocumentSheet: View {
     private func save() {
         guard let data = selectedData else { return }
         vm.addDocument(title: title, data: data, mimeType: mimeType,
-                       to: trip, isPro: store.isPro, context: context)
+                       isShared: isShared, to: trip, isPro: store.isPro, context: context)
         HapticManager.shared.sheetConfirm()
         dismiss()
     }

@@ -15,6 +15,16 @@ struct DocumentGridView: View {
 
     @Environment(\.managedObjectContext) private var context
     @Environment(TripStore.self) private var store
+
+    /// True when the current device's user is the admin/owner of a shared trip,
+    /// or when the trip isn't shared. Admins see all documents; participants see
+    /// only documents the owner has marked as shared.
+    private var currentUserIsOwner: Bool {
+        guard trip.cloudKitShareID != nil,
+              let myID = store.currentUserCloudKitID else { return true }
+        return trip.membersArray.first { $0.appleUserID == myID }?.role == .admin
+    }
+
     @State private var showAdd = false
     @State private var viewingDocument: TripDocument?
     @State private var editingDocument: TripDocument?
@@ -28,6 +38,7 @@ struct DocumentGridView: View {
     private var sortedDocuments: [TripDocument] {
         trip.documentsArray
             .filter { $0.objectID != pendingUndoDelete?.id }
+            .filter { currentUserIsOwner || $0.isShared }
             .sorted { a, b in
             switch (a.expiryDate, b.expiryDate) {
             case (let ea?, let eb?): return ea < eb

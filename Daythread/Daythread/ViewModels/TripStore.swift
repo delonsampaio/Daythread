@@ -81,4 +81,13 @@ final class TripStore {
     var isPro: Bool = UserDefaults.standard.bool(forKey: "daythread.isPro") {
         didSet { UserDefaults.standard.set(isPro, forKey: "daythread.isPro") }
     }
+
+    /// The current device's CloudKit user record name, cached after the first
+    /// successful call to registerCurrentUserMembership. Used to determine
+    /// whether the current user owns a shared trip (admin) or is a participant,
+    /// without requiring an async CloudKit call on every view render.
+    var currentUserCloudKitID: String? {
+        get { UserDefaults.standard.string(forKey: "daythread.currentUserCloudKitID") }
+        set { UserDefaults.standard.set(newValue, forKey: "daythread.currentUserCloudKitID") }
+    }
 }

@@ -153,7 +153,7 @@ struct GroupSyncSheet: View {
     /// co-editors see real names + roles instead of Apple's Contacts-dependent
     /// "Owner" label.
     private func registerMyMembership() async {
-        await cloudKit.registerCurrentUserMembership(in: trip, displayName: myName, context: context)
+        await cloudKit.registerCurrentUserMembership(in: trip, displayName: myName, context: context, store: store)
     }
 
     /// Opens the system sharing sheet for the trip's EXISTING share so the user

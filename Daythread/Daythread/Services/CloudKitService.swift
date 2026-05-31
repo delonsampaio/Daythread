@@ -212,10 +212,12 @@ final class CloudKitService {
     func registerCurrentUserMembership(
         in trip: Trip,
         displayName: String,
-        context: NSManagedObjectContext
+        context: NSManagedObjectContext,
+        store: TripStore? = nil
     ) async {
         guard trip.cloudKitShareID != nil else { return }
         guard let uid = await currentUserRecordName() else { return }
+        store?.currentUserCloudKitID = uid
         let role: MemberRole = currentUserIsOwner(of: trip) ? .admin : .editor
         let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         TripMemberRegistry.upsertCurrentUser(

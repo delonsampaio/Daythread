@@ -21,12 +21,14 @@ struct EditDocumentSheet: View {
     @State private var title: String
     @State private var hasExpiry: Bool
     @State private var expiryDate: Date
+    @State private var isShared: Bool
 
     init(document: TripDocument) {
         self.document = document
         _title      = State(initialValue: document.title)
         _hasExpiry  = State(initialValue: document.expiryDate != nil)
         _expiryDate = State(initialValue: document.expiryDate ?? .now)
+        _isShared   = State(initialValue: document.isShared)
     }
 
     var body: some View {
@@ -43,6 +45,15 @@ struct EditDocumentSheet: View {
                 } footer: {
                     Text("Set an expiry date for passports, visas, and insurance cards to get advance warnings on the document tile.")
                         .font(.caption)
+                }
+                if document.trip?.cloudKitShareID != nil {
+                    Section {
+                        Toggle("Share with trip members", isOn: $isShared)
+                    } footer: {
+                        Text(isShared
+                            ? "Co-editors can view this document."
+                            : "Only you can see this document. Toggle on to share it.")
+                    }
                 }
             }
             .navigationTitle("Edit Document")
@@ -63,6 +74,7 @@ struct EditDocumentSheet: View {
     private func save() {
         document.title      = title.trimmingCharacters(in: .whitespaces)
         document.expiryDate = hasExpiry ? expiryDate : nil
+        document.isShared   = isShared
         try? context.save()
         HapticManager.shared.sheetConfirm()
         dismiss()

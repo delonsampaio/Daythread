@@ -21,6 +21,7 @@ final class VaultViewModel {
         title: String,
         data: Data,
         mimeType: String,
+        isShared: Bool = false,
         to trip: Trip,
         isPro: Bool,
         context: NSManagedObjectContext
@@ -34,6 +35,7 @@ final class VaultViewModel {
         doc.title = title
         doc.documentData = data
         doc.mimeType = mimeType
+        doc.isShared = isShared
         doc.addedAt = Date()
         doc.trip = trip
         try? context.save()
