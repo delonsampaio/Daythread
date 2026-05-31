@@ -41,7 +41,7 @@ struct TripCardView: View {
                     .frame(height: 120)
                 }
 
-                HStack {
+                HStack(alignment: .bottom) {
                     Text(durationLabel)
                         .font(.caption.bold())
                         .foregroundStyle(.white)
@@ -49,13 +49,9 @@ struct TripCardView: View {
                         .padding(.vertical, 4)
                         .background(Capsule().fill(.black.opacity(0.45)))
                     Spacer()
-                    if !trip.membersArray.isEmpty {
-                        Label("\(trip.membersArray.count)", systemImage: "person.2.fill")
-                            .font(.caption.bold())
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(ThemeTokens.accent.opacity(0.75)))
+                    let coEditors = trip.membersArray.filter { !$0.isVirtual }
+                    if !coEditors.isEmpty {
+                        MemberAvatarStack(members: coEditors)
                     }
                 }
                 .padding(10)
