@@ -232,8 +232,18 @@ struct HelpView: View {
                 answer: "The app automatically merges changes made at the same time. If two people edit the exact same detail simultaneously, the most recent change is saved."
             )
             FAQRow(
+                question: "How do I add or remove people after sharing?",
+                answer: "Open Group Sync and tap 'Trip is shared — Manage people & permissions'. This opens the system sharing sheet where you can add people, change each person's permission (edit or view-only), or stop sharing — without having to stop and re-invite.",
+                isPro: true
+            )
+            FAQRow(
+                question: "Why do my co-editors show as 'Owner' instead of a name?",
+                answer: "That label comes from Apple's system sharing sheet, which only shows a name when you have that person saved in Contacts under their iCloud email or phone number. Daythread also keeps its own member list in Group Sync that shows real names regardless of Contacts — set yours in Settings → Your Profile → Your name. Everyone's name appears in the Members list once each person has opened Group Sync once.",
+                isPro: true
+            )
+            FAQRow(
                 question: "How do I stop sharing a trip?",
-                answer: "Open Group Sync (the people icon in the Timeline toolbar) and tap 'Stop Sharing'. This removes shared access to the trip. Co-editors will no longer see updates.",
+                answer: "Open Group Sync, tap 'Trip is shared — Manage people & permissions', then choose 'Stop Sharing' in the system sheet. Co-editors will no longer see updates.",
                 isPro: true
             )
         }
@@ -304,7 +314,9 @@ struct HelpView: View {
         .init(section: "Co-editing & Sync", question: "How quickly do changes appear for co-editors?", answer: "Updates sync over the internet and typically appear within a few seconds.", isPro: true),
         .init(section: "Co-editing & Sync", question: "Does my data sync across my own devices?", answer: "Yes. If you're signed into the same iCloud account on multiple devices, your trips, events, documents, and expenses sync automatically."),
         .init(section: "Co-editing & Sync", question: "What happens if two people edit at the same time?", answer: "The app automatically merges changes made at the same time. If two people edit the exact same detail simultaneously, the most recent change is saved."),
-        .init(section: "Co-editing & Sync", question: "How do I stop sharing a trip?", answer: "Open Group Sync (the people icon in the Timeline toolbar) and tap 'Stop Sharing'. This removes shared access to the trip.", isPro: true),
+        .init(section: "Co-editing & Sync", question: "How do I add or remove people after sharing?", answer: "Open Group Sync and tap 'Trip is shared — Manage people & permissions' to add people, change permissions, or stop sharing — no need to stop and re-invite.", isPro: true),
+        .init(section: "Co-editing & Sync", question: "Why do my co-editors show as 'Owner' instead of a name?", answer: "Apple's system sharing sheet only shows names for people in your Contacts. Set your name in Settings → Your Profile so co-editors see it in Daythread's own Members list, regardless of Contacts.", isPro: true),
+        .init(section: "Co-editing & Sync", question: "How do I stop sharing a trip?", answer: "Open Group Sync, tap 'Trip is shared — Manage people & permissions', then choose 'Stop Sharing' in the system sheet.", isPro: true),
         .init(section: "Pro Features", question: "What's included in Daythread Pro?", answer: "Pro unlocks: Unlimited document storage · Receipt photo attachments on expenses · Expense splitting with debt minimisation · Trip sharing & co-editing · ETA badges between events · Role-based permissions.", isPro: true),
         .init(section: "Pro Features", question: "How do I upgrade to Pro?", answer: "Go to the Profile tab and tap 'Upgrade to Pro'. The one-time $9.99 Lifetime purchase includes Family Sharing.", isPro: true),
         .init(section: "Pro Features", question: "How do I restore my Pro purchase on a new device?", answer: "Go to Profile → Settings and tap 'Restore Purchases'.", isPro: true),
