@@ -16,6 +16,8 @@ struct GroupSyncSheet: View {
     @Environment(\.managedObjectContext) private var context
     @Environment(\.dismiss) private var dismiss
 
+    @AppStorage("daythread.userDisplayName") private var myName = ""
+
     @State private var cloudKit = CloudKitService()
     @State private var pendingShare: CKShare?
     @State private var showShareSheet = false
@@ -120,6 +122,9 @@ struct GroupSyncSheet: View {
                     .ignoresSafeArea()
                 }
             }
+            .task {
+                await registerMyMembership()
+            }
         }
     }
 
@@ -134,8 +139,26 @@ struct GroupSyncSheet: View {
             if let share {
                 pendingShare = share
                 showShareSheet = true
+                // Register the owner immediately so they appear in the roster.
+                await registerMyMembership()
             }
         }
+    }
+
+    /// Registers the current iCloud user as a real member of this shared trip
+    /// (owner → admin, joiner → editor) so co-editors see real names + roles
+    /// instead of Apple's Contacts-dependent "Owner" label. Best-effort and
+    /// device-only — silently skips when iCloud identity isn't available.
+    private func registerMyMembership() async {
+        guard trip.cloudKitShareID != nil else { return }
+        guard let uid = await cloudKit.currentUserRecordName() else { return }
+        let role: MemberRole = cloudKit.currentUserIsOwner(of: trip) ? .admin : .editor
+        let trimmed = myName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = trimmed.isEmpty ? "Me" : trimmed
+        TripMemberRegistry.upsertCurrentUser(
+            in: trip, appleUserID: uid, displayName: name, role: role, context: context
+        )
+        try? context.save()
     }
 
     /// Opens the system sharing sheet for the trip's EXISTING share so the user

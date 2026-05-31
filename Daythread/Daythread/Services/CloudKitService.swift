@@ -97,4 +97,24 @@ final class CloudKitService {
         try? modelContext.save()
         isSharing = false
     }
+
+    // MARK: — Current-user identity (for the named member roster)
+
+    /// The current iCloud user's record name — a stable per-account identity used
+    /// to register the user as a real trip member. Device-only; returns nil on
+    /// the simulator or when iCloud is unavailable.
+    func currentUserRecordName() async -> String? {
+        do { return try await backend.container.userRecordID().recordName }
+        catch {
+            errorMessage = nil   // identity lookup is best-effort; don't alarm the user
+            return nil
+        }
+    }
+
+    /// True when the current user owns the trip's CKShare (vs. a participant).
+    /// Used to register the owner as admin and joiners as editors.
+    func currentUserIsOwner(of trip: Trip) -> Bool {
+        guard let share = try? backend.existingShare(for: trip) else { return false }
+        return share.currentUserParticipant?.role == .owner
+    }
 }
