@@ -8,7 +8,9 @@
 import SwiftUI
 
 struct EventCardView: View {
-    let event: TripEvent
+    // @ObservedObject so edits to the event's fields (title, time, location…)
+    // repaint the card live instead of only after a cold relaunch.
+    @ObservedObject var event: TripEvent
 
     var body: some View {
         HStack(spacing: 0) {

@@ -39,29 +39,21 @@ struct TimelineView: View {
     var body: some View {
         NavigationStack {
         Group {
-            if store.activeTrip == nil {
-                emptyState
+            if let trip = store.activeTrip {
+                // TripTimelineList observes `trip` so adding/removing whole days
+                // repaints the list; each day section observes its TripDay so
+                // event add/edit/delete/reorder repaints live (the @Query→
+                // @FetchRequest migration otherwise loses this auto-refresh).
+                TripTimelineList(
+                    trip: trip,
+                    vm: vm,
+                    dragTargetEventID: $dragTargetEventID,
+                    endDropTargetDayID: $endDropTargetDayID,
+                    swipeOpenEventID: $swipeOpenEventID,
+                    editingEvent: $editingEvent
+                )
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                        ForEach(Array(days.enumerated()), id: \.element.id) { index, day in
-                            Section {
-                                dayContent(day: day, dayNumber: index + 1)
-                            } header: {
-                                let events = day.eventsArray
-                                let hasOutOfOrder = !vm.outOfOrderEventIDs(in: events).isEmpty
-                                DayHeaderView(
-                                    day: day,
-                                    dayNumber: index + 1,
-                                    sortByTimeAction: hasOutOfOrder
-                                        ? { vm.sortDayByTime(day, context: context) }
-                                        : nil
-                                )
-                            }
-                        }
-                    }
-                    .padding(.bottom, 100)
-                }
+                emptyState
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -118,13 +110,6 @@ struct TimelineView: View {
         }
         .task {
             vm.refresh(days: days, lodging: lodging)
-            // Cold-launch restore: if no trip is active, look up the last-used trip by
-            // its persisted UUID (previously handled in TripSwitcherStrip.task).
-            if store.activeTrip == nil,
-               let id = store.storedActiveTripID,
-               let match = trips.first(where: { $0.id == id }) {
-                store.activeTrip = match
-            }
         }
         } // NavigationStack
     }
@@ -179,10 +164,109 @@ struct TimelineView: View {
         return "\(start) – \(end)"
     }
 
-    // MARK: — Day content
+    // MARK: — FAB
+
+    private var fabButton: some View {
+        Button {
+            showAddEvent = true
+            HapticManager.shared.fabTap()
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 56, height: 56)
+                .background(Circle().fill(ThemeTokens.accent))
+                .cardShadow()
+        }
+        .glassEffect(.regular, in: Circle())
+    }
+
+    // MARK: — Empty state
+
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "airplane.departure")
+                .font(.system(size: 48))
+                .foregroundStyle(ThemeTokens.textMuted)
+            Text("No trips yet")
+                .font(.title2.bold())
+                .foregroundStyle(ThemeTokens.textPrimary)
+            Text("Create your first trip in the Trips tab.")
+                .font(.subheadline)
+                .foregroundStyle(ThemeTokens.textSecondary)
+                .multilineTextAlignment(.center)
+            Spacer()
+        }
+        .padding()
+    }
+}
+
+// MARK: — Trip day list (observes the trip)
+
+/// Renders the scrolling list of day sections for one trip. Holds the trip as
+/// `@ObservedObject` so inserting or deleting a whole TripDay repaints the list.
+private struct TripTimelineList: View {
+    @ObservedObject var trip: Trip
+    let vm: TimelineViewModel
+    @Binding var dragTargetEventID: UUID?
+    @Binding var endDropTargetDayID: UUID?
+    @Binding var swipeOpenEventID: UUID?
+    @Binding var editingEvent: TripEvent?
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                ForEach(Array(trip.daysArray.enumerated()), id: \.element.id) { index, day in
+                    DayTimelineSection(
+                        day: day,
+                        dayNumber: index + 1,
+                        vm: vm,
+                        dragTargetEventID: $dragTargetEventID,
+                        endDropTargetDayID: $endDropTargetDayID,
+                        swipeOpenEventID: $swipeOpenEventID,
+                        editingEvent: $editingEvent
+                    )
+                }
+            }
+            .padding(.bottom, 100)
+        }
+    }
+}
+
+// MARK: — Single day section (observes the day)
+
+/// One day's header + event rows. Holds the day as `@ObservedObject` so adding,
+/// editing, deleting, or reordering its events repaints immediately.
+private struct DayTimelineSection: View {
+    @ObservedObject var day: TripDay
+    let dayNumber: Int
+    let vm: TimelineViewModel
+    @Binding var dragTargetEventID: UUID?
+    @Binding var endDropTargetDayID: UUID?
+    @Binding var swipeOpenEventID: UUID?
+    @Binding var editingEvent: TripEvent?
+
+    @Environment(\.managedObjectContext) private var context
+
+    var body: some View {
+        Section {
+            dayContent
+        } header: {
+            let events = day.eventsArray
+            let hasOutOfOrder = !vm.outOfOrderEventIDs(in: events).isEmpty
+            DayHeaderView(
+                day: day,
+                dayNumber: dayNumber,
+                sortByTimeAction: hasOutOfOrder
+                    ? { vm.sortDayByTime(day, context: context) }
+                    : nil
+            )
+        }
+    }
 
     @ViewBuilder
-    private func dayContent(day: TripDay, dayNumber: Int) -> some View {
+    private var dayContent: some View {
         let events = day.eventsArray
         let violated = vm.violatedLockIDs(in: events)
         let outOfOrder = vm.outOfOrderEventIDs(in: events)
@@ -257,43 +341,6 @@ struct TimelineView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-    }
-
-    // MARK: — FAB
-
-    private var fabButton: some View {
-        Button {
-            showAddEvent = true
-            HapticManager.shared.fabTap()
-        } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 56, height: 56)
-                .background(Circle().fill(ThemeTokens.accent))
-                .cardShadow()
-        }
-        .glassEffect(.regular, in: Circle())
-    }
-
-    // MARK: — Empty state
-
-    private var emptyState: some View {
-        VStack(spacing: 16) {
-            Spacer()
-            Image(systemName: "airplane.departure")
-                .font(.system(size: 48))
-                .foregroundStyle(ThemeTokens.textMuted)
-            Text("No trips yet")
-                .font(.title2.bold())
-                .foregroundStyle(ThemeTokens.textPrimary)
-            Text("Create your first trip in the Trips tab.")
-                .font(.subheadline)
-                .foregroundStyle(ThemeTokens.textSecondary)
-                .multilineTextAlignment(.center)
-            Spacer()
-        }
-        .padding()
     }
 }
 
