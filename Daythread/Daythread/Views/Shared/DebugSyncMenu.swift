@@ -37,6 +37,19 @@ struct DebugSyncMenuButton: ToolbarContent {
                         PersistenceController.shared.initializeCloudKitSchemaIfNeeded()
                     }
                 }
+                Section("Pro") {
+                    if store.isPro {
+                        Button("Reset Pro (lock + re-test purchase)", role: .destructive) {
+                            store.isPro = false
+                            print("🔵 DEBUG: Pro reset — isPro = false")
+                        }
+                    } else {
+                        Button("Grant Pro (unlock locally)") {
+                            store.isPro = true
+                            print("🔵 DEBUG: Pro granted — isPro = true")
+                        }
+                    }
+                }
             } label: {
                 Label("Debug Sync", systemImage: "ant.circle.fill")
                     .foregroundStyle(.orange)
