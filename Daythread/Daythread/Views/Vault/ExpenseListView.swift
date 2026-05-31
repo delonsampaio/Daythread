@@ -17,7 +17,8 @@ struct ExpenseListView: View {
     @State private var showAdd = false
     @State private var showSplit = false
     @State private var editingExpense: TripExpense?
-    @State private var pendingDelete: TripExpense?
+    @State private var pendingDelete: TripExpense?      // settlements alert
+    @State private var pendingUndoDelete: PendingDelete? // undo toast
     @State private var viewingReceiptData: Data?
 
     /// True if the trip has any settlement expenses.
@@ -36,14 +37,20 @@ struct ExpenseListView: View {
 
     private func requestDelete(_ expense: TripExpense) {
         if tripHasSettlements && !isSettlement(expense) {
+            // Settlements alert first — undo toast fires after confirmation.
             pendingDelete = expense
         } else {
-            vm.deleteExpense(expense, context: context)
+            pendingUndoDelete = PendingDelete(
+                id: expense.objectID,
+                label: expense.title.isEmpty ? "Expense" : expense.title
+            )
         }
     }
 
     private var expenses: [TripExpense] {
-        trip.expensesArray.sorted { $0.date > $1.date }
+        trip.expensesArray
+            .filter { $0.objectID != pendingUndoDelete?.id }
+            .sorted { $0.date > $1.date }
     }
 
     private var totalsByCurrency: [String: Double] {
@@ -182,7 +189,10 @@ struct ExpenseListView: View {
         )) {
             Button("Delete Anyway", role: .destructive) {
                 if let expense = pendingDelete {
-                    vm.deleteExpense(expense, context: context)
+                    pendingUndoDelete = PendingDelete(
+                        id: expense.objectID,
+                        label: expense.title.isEmpty ? "Expense" : expense.title
+                    )
                 }
                 pendingDelete = nil
             }
@@ -198,6 +208,11 @@ struct ExpenseListView: View {
             set: { _ in viewingReceiptData = nil }
         )) { wrapper in
             ReceiptViewerSheet(imageData: wrapper.data)
+        }
+        .undoDelete(pending: $pendingUndoDelete) { id in
+            if let expense = try? context.existingObject(with: id) as? TripExpense {
+                vm.deleteExpense(expense, context: context)
+            }
         }
     }
 }

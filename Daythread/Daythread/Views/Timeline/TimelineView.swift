@@ -260,10 +260,16 @@ private struct DayTimelineSection: View {
     @Binding var editingEvent: TripEvent?
 
     @Environment(\.managedObjectContext) private var context
+    @State private var pendingDelete: PendingDelete?
 
     var body: some View {
         Section {
             dayContent
+                .undoDelete(pending: $pendingDelete) { id in
+                    if let event = try? context.existingObject(with: id) as? TripEvent {
+                        vm.deleteEvent(event, context: context)
+                    }
+                }
         } header: {
             let events = day.eventsArray
             let hasOutOfOrder = !vm.outOfOrderEventIDs(in: events).isEmpty
@@ -279,7 +285,9 @@ private struct DayTimelineSection: View {
 
     @ViewBuilder
     private var dayContent: some View {
-        let events = day.eventsArray
+        // Soft-filter the pending deletion so it vanishes immediately while
+        // the undo toast counts down. Actual context.delete fires on commit.
+        let events = day.eventsArray.filter { $0.objectID != pendingDelete?.id }
         let violated = vm.violatedLockIDs(in: events)
         let outOfOrder = vm.outOfOrderEventIDs(in: events)
         VStack(spacing: 12) {
@@ -300,7 +308,12 @@ private struct DayTimelineSection: View {
                             vm.lockEvent(event, context: context)
                             HapticManager.shared.lockToggle()
                         },
-                        deleteAction: { vm.deleteEvent(event, context: context) },
+                        deleteAction: {
+                            pendingDelete = PendingDelete(
+                                id: event.objectID,
+                                label: event.title.isEmpty ? "Event" : event.title
+                            )
+                        },
                         openID: $swipeOpenEventID
                     ) {
                         if event.category.requiresTransitDetails, let details = event.transitDetails {

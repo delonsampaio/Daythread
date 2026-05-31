@@ -18,6 +18,7 @@ struct DocumentGridView: View {
     @State private var showAdd = false
     @State private var viewingDocument: TripDocument?
     @State private var editingDocument: TripDocument?
+    @State private var pendingUndoDelete: PendingDelete?
 
     private let columns = [GridItem(.adaptive(minimum: 100))]
 
@@ -25,7 +26,9 @@ struct DocumentGridView: View {
     /// then documents without expiry ordered by creation date. Keeps the grid
     /// stable across navigations — NSSet ordering is undefined.
     private var sortedDocuments: [TripDocument] {
-        trip.documentsArray.sorted { a, b in
+        trip.documentsArray
+            .filter { $0.objectID != pendingUndoDelete?.id }
+            .sorted { a, b in
             switch (a.expiryDate, b.expiryDate) {
             case (let ea?, let eb?): return ea < eb
             case (.some, nil):       return true   // expiring docs float to top
@@ -65,6 +68,11 @@ struct DocumentGridView: View {
         }
         .sheet(item: $editingDocument) { doc in
             EditDocumentSheet(document: doc)
+        }
+        .undoDelete(pending: $pendingUndoDelete) { id in
+            if let doc = try? context.existingObject(with: id) as? TripDocument {
+                vm.deleteDocument(doc, context: context)
+            }
         }
     }
 
@@ -121,7 +129,10 @@ struct DocumentGridView: View {
             }
             Divider()
             Button("Delete", systemImage: "trash", role: .destructive) {
-                vm.deleteDocument(doc, context: context)
+                pendingUndoDelete = PendingDelete(
+                    id: doc.objectID,
+                    label: doc.title.isEmpty ? "Document" : doc.title
+                )
             }
         }
     }
