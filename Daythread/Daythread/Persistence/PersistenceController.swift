@@ -4,6 +4,27 @@ import CloudKit
 struct PersistenceController {
     static let shared = PersistenceController()
 
+    /// The Core Data model, loaded exactly once and shared by every container.
+    ///
+    /// `NSPersistentCloudKitContainer(name:)` reloads the model from the bundle
+    /// each call. When several controllers exist at once (e.g. parallel tests),
+    /// each fresh model registers the same NSManagedObject subclass against a
+    /// different NSEntityDescription, so `+[Trip entity]` can't resolve uniquely
+    /// ("Failed to find a unique match…") and `Trip(context:)` intermittently
+    /// fails. Caching one model instance keeps entity resolution deterministic.
+    private static let managedObjectModel: NSManagedObjectModel = {
+        let bundle = Bundle(for: Trip.self)
+        if let url = bundle.url(forResource: "Daythread", withExtension: "momd"),
+           let model = NSManagedObjectModel(contentsOf: url) {
+            return model
+        }
+        if let url = bundle.url(forResource: "Daythread", withExtension: "mom"),
+           let model = NSManagedObjectModel(contentsOf: url) {
+            return model
+        }
+        fatalError("Failed to load Core Data model 'Daythread'")
+    }()
+
     let container: NSPersistentCloudKitContainer
 
     var viewContext: NSManagedObjectContext { container.viewContext }
@@ -12,7 +33,10 @@ struct PersistenceController {
     var cloudKitContainer: NSPersistentCloudKitContainer { container }
 
     init(inMemory: Bool = false) {
-        container = NSPersistentCloudKitContainer(name: "Daythread")
+        container = NSPersistentCloudKitContainer(
+            name: "Daythread",
+            managedObjectModel: Self.managedObjectModel
+        )
 
         guard let description = container.persistentStoreDescriptions.first else {
             fatalError("Missing persistent store description")
