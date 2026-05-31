@@ -41,13 +41,17 @@ struct RootTabView: View {
         }
         // Sync participants whenever the active shared trips change (e.g. a new
         // co-editor accepts) so avatar stacks update without opening GroupSync.
-        .onChange(of: activeTrips.map(\.id)) { _, _ in
+        // Use objectID (always non-nil) not .id (UUID, can be nil on a partially-
+        // synced CloudKit record) to avoid UUID bridging crashes during sync.
+        .onChange(of: activeTrips.map(\.objectID)) { _, _ in
             for trip in activeTrips where trip.cloudKitShareID != nil {
                 cloudKit.syncParticipants(for: trip, context: context)
             }
         }
         // FetchedResults<Trip> is not Equatable so we compare IDs to detect changes.
-        .onChange(of: activeTrips.map(\.id)) { _, _ in
+        // compactMap with value(forKey:) so partially-synced CloudKit records
+        // (whose @NSManaged id UUID may still be nil) don't crash the bridge.
+        .onChange(of: activeTrips.compactMap { $0.value(forKey: "id") as? UUID }) { _, _ in
             let trips = Array(activeTrips)
             // A freshly accepted shared trip may have just synced in — switch to
             // it before the generic fallback logic picks an arbitrary first trip.

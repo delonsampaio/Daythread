@@ -94,6 +94,11 @@ final class CloudKitService {
 
     func stopSharing(_ trip: Trip, modelContext: NSManagedObjectContext) {
         trip.cloudKitShareID = nil
+        // Remove all real co-editor members — virtual (expense-only) members
+        // are unrelated to CloudKit sharing and must be preserved.
+        for member in trip.membersArray where !member.appleUserID.isEmpty {
+            modelContext.delete(member)
+        }
         try? modelContext.save()
         isSharing = false
     }
