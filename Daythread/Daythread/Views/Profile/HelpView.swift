@@ -242,6 +242,11 @@ struct HelpView: View {
                 isPro: true
             )
             FAQRow(
+                question: "What happens to co-editors when I stop sharing?",
+                answer: "When you stop sharing, the trip is removed from all co-editors' devices immediately — the same way stopping a shared Apple Note works. Co-editors lose access to the trip and its events, documents, and expenses. Before stopping, let them know so they can take note of anything they need.",
+                isPro: true
+            )
+            FAQRow(
                 question: "How do I stop sharing a trip?",
                 answer: "Open Group Sync, tap 'Trip is shared — Manage people & permissions', then choose 'Stop Sharing' in the system sheet. Co-editors will no longer see updates.",
                 isPro: true
