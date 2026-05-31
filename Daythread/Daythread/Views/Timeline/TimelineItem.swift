@@ -55,24 +55,25 @@ struct TimelineItem<Content: View>: View {
             // Time label — amber when violated or out of order
             if let time = event.startTime {
                 Text(TimezoneEngine.displayTime(date: time, in: .current))
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .font(.system(size: 13, weight: .medium, design: .monospaced))
                     .foregroundStyle(
                         isTimeViolated || isOutOfOrder
                         ? ThemeTokens.warningAmber
                         : ThemeTokens.textSecondary
                     )
                     .lineLimit(1)
-                    .minimumScaleFactor(0.80)   // shrink before truncating
-                    .frame(width: columnWidth, alignment: .trailing)
+                    .minimumScaleFactor(0.80)
+                    .multilineTextAlignment(.center)
+                    .frame(width: columnWidth, alignment: .center)
             } else {
-                Spacer().frame(width: columnWidth, height: 14)
+                Spacer().frame(width: columnWidth, height: 16)
             }
 
             // Category icon circle — amber ring when violated
             ZStack {
                 Circle()
                     .fill(event.category.accentColor.opacity(isTimeViolated ? 0.08 : 0.15))
-                    .frame(width: 30, height: 30)
+                    .frame(width: 36, height: 36)
                     .overlay {
                         if isTimeViolated {
                             Circle()
@@ -80,22 +81,22 @@ struct TimelineItem<Content: View>: View {
                         }
                     }
                 Image(systemName: event.category.systemImage)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(event.category.accentColor)
             }
-            .frame(width: 30, height: 30)
+            .frame(width: 36, height: 36)
             // Badge: SF Symbol renders crisply at any size; positioned at
             // bottom-trailing so it doesn't compete with the time label above.
             .overlay(alignment: .bottomTrailing) {
                 if isTimeViolated {
                     Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(ThemeTokens.warningAmber)
                         .background(
                             Circle().fill(Color(uiColor: .systemBackground))
-                                .padding(-1)   // 1 pt halo so amber doesn't bleed into the icon
+                                .padding(-1)
                         )
-                        .offset(x: 7, y: 7)
+                        .offset(x: 8, y: 8)
                 }
             }
 
