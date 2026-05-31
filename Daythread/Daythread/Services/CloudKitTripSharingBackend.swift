@@ -28,4 +28,10 @@ struct CloudKitTripSharingBackend: TripSharingBackend {
         share[CKShare.SystemFieldKey.title] = trip.name as CKRecordValue
         return share
     }
+
+    func existingShare(for trip: Trip) throws -> CKShare? {
+        // fetchShares reads the share metadata Core Data already holds for the
+        // trip's object graph — no network round-trip required.
+        try persistentContainer.fetchShares(matching: [trip.objectID])[trip.objectID]
+    }
 }

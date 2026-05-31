@@ -20,6 +20,9 @@ struct CloudSharingControllerView: UIViewControllerRepresentable {
     let container: CKContainer
     /// Title shown in the system share sheet (the trip name).
     let title: String
+    /// Called when the user stops sharing from inside the system sheet, so the
+    /// app can clear the trip's cloudKitShareID and stay in sync.
+    var onStopSharing: () -> Void = {}
 
     func makeUIViewController(context: Context) -> UICloudSharingController {
         let controller = UICloudSharingController(share: share, container: container)
@@ -30,11 +33,16 @@ struct CloudSharingControllerView: UIViewControllerRepresentable {
 
     func updateUIViewController(_ uiViewController: UICloudSharingController, context: Context) {}
 
-    func makeCoordinator() -> Coordinator { Coordinator(title: title) }
+    func makeCoordinator() -> Coordinator { Coordinator(title: title, onStopSharing: onStopSharing) }
 
     final class Coordinator: NSObject, UICloudSharingControllerDelegate {
         let title: String
-        init(title: String) { self.title = title }
+        let onStopSharing: () -> Void
+
+        init(title: String, onStopSharing: @escaping () -> Void) {
+            self.title = title
+            self.onStopSharing = onStopSharing
+        }
 
         func itemTitle(for csc: UICloudSharingController) -> String? { title }
 
@@ -44,6 +52,10 @@ struct CloudSharingControllerView: UIViewControllerRepresentable {
         ) {
             // Surfaced via the controller's own error UI; logged for diagnostics.
             print("⚠️ UICloudSharingController failed to save share: \(error)")
+        }
+
+        func cloudSharingControllerDidStopSharing(_ csc: UICloudSharingController) {
+            onStopSharing()
         }
     }
 }

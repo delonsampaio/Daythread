@@ -16,8 +16,11 @@ import CoreData
 
 private final class StubSharingBackend: TripSharingBackend {
     var makeShareCallCount = 0
+    var existingShareCallCount = 0
     var shareToReturn: CKShare
+    var existingShareToReturn: CKShare?
     var errorToThrow: Error?
+    var existingShareError: Error?
     let container = CKContainer.default()
 
     init(share: CKShare) { self.shareToReturn = share }
@@ -26,6 +29,12 @@ private final class StubSharingBackend: TripSharingBackend {
         makeShareCallCount += 1
         if let error = errorToThrow { throw error }
         return shareToReturn
+    }
+
+    func existingShare(for trip: Trip) throws -> CKShare? {
+        existingShareCallCount += 1
+        if let existingShareError { throw existingShareError }
+        return existingShareToReturn
     }
 }
 
@@ -124,5 +133,43 @@ final class CloudKitServiceTests: XCTestCase {
         _ = await service.shareTrip(trip, modelContext: ctx)
 
         XCTAssertEqual(backend.makeShareCallCount, 1)
+    }
+
+    // MARK: — existingShare (manage participants on an already-shared trip)
+
+    func test_existingShare_unsharedTrip_returnsNilWithoutHittingBackend() {
+        let backend = StubSharingBackend(share: makeShare())
+        backend.existingShareToReturn = makeShare()
+        let service = CloudKitService(backend: backend)
+        let trip = makeTrip(shareID: nil)
+
+        XCTAssertNil(service.existingShare(for: trip))
+        XCTAssertEqual(backend.existingShareCallCount, 0)
+    }
+
+    func test_existingShare_sharedTrip_returnsBackendShare() {
+        let share = makeShare()
+        let backend = StubSharingBackend(share: makeShare())
+        backend.existingShareToReturn = share
+        let service = CloudKitService(backend: backend)
+        let trip = makeTrip(shareID: "existing-share-id")
+
+        let result = service.existingShare(for: trip)
+
+        XCTAssertEqual(result?.recordID.recordName, share.recordID.recordName)
+        XCTAssertEqual(backend.existingShareCallCount, 1)
+        XCTAssertNil(service.errorMessage)
+    }
+
+    func test_existingShare_backendThrows_setsErrorAndReturnsNil() {
+        let backend = StubSharingBackend(share: makeShare())
+        backend.existingShareError = StubError()
+        let service = CloudKitService(backend: backend)
+        let trip = makeTrip(shareID: "existing-share-id")
+
+        let result = service.existingShare(for: trip)
+
+        XCTAssertNil(result)
+        XCTAssertNotNil(service.errorMessage)
     }
 }

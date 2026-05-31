@@ -30,6 +30,10 @@ protocol TripSharingBackend {
 
     /// Creates (or returns) a CKShare for `trip`. Throws on any CloudKit failure.
     func makeShare(for trip: Trip) async throws -> CKShare
+
+    /// Returns the existing CKShare for an already-shared trip (for participant
+    /// management), or nil if the trip has no share. Throws on lookup failure.
+    func existingShare(for trip: Trip) throws -> CKShare?
 }
 
 // MARK: — Orchestration (testable)
@@ -70,6 +74,20 @@ final class CloudKitService {
             return share
         } catch {
             errorMessage = "Could not create share: \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    /// Fetches the existing CKShare for an already-shared trip so the UI can
+    /// present UICloudSharingController for participant management (add people,
+    /// change permissions, stop sharing). Returns nil when the trip isn't shared
+    /// or the lookup fails (setting `errorMessage` in the failure case).
+    func existingShare(for trip: Trip) -> CKShare? {
+        guard trip.cloudKitShareID != nil else { return nil }
+        do {
+            return try backend.existingShare(for: trip)
+        } catch {
+            errorMessage = "Could not load sharing details: \(error.localizedDescription)"
             return nil
         }
     }

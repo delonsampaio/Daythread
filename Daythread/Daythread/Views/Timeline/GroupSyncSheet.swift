@@ -27,18 +27,33 @@ struct GroupSyncSheet: View {
                 // Share status
                 Section("Co-editing") {
                     if trip.cloudKitShareID != nil {
-                        HStack {
-                            Image(systemName: "person.2.fill")
-                                .foregroundStyle(ThemeTokens.accent)
-                            Text("Trip is shared")
-                                .foregroundStyle(ThemeTokens.textPrimary)
-                            Spacer()
-                            Button("Stop Sharing") {
-                                cloudKit.stopSharing(trip, modelContext: context)
+                        // Tapping opens the system sharing sheet for the EXISTING
+                        // share — add/remove people, change permissions, or stop
+                        // sharing — without having to stop sharing first.
+                        Button {
+                            manageSharing()
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "person.2.fill")
+                                    .foregroundStyle(ThemeTokens.accent)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Trip is shared")
+                                        .foregroundStyle(ThemeTokens.textPrimary)
+                                    Text("Manage people & permissions")
+                                        .font(.caption)
+                                        .foregroundStyle(ThemeTokens.textSecondary)
+                                }
+                                Spacer()
+                                if isPreparingShare {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(ThemeTokens.textMuted)
+                                }
                             }
-                            .foregroundStyle(.red)
-                            .font(.caption)
                         }
+                        .disabled(isPreparingShare)
                     } else {
                         Button {
                             inviteePeople()
@@ -99,7 +114,8 @@ struct GroupSyncSheet: View {
                     CloudSharingControllerView(
                         share: share,
                         container: cloudKit.container,
-                        title: trip.name
+                        title: trip.name,
+                        onStopSharing: { cloudKit.stopSharing(trip, modelContext: context) }
                     )
                     .ignoresSafeArea()
                 }
@@ -119,6 +135,18 @@ struct GroupSyncSheet: View {
                 pendingShare = share
                 showShareSheet = true
             }
+        }
+    }
+
+    /// Opens the system sharing sheet for the trip's EXISTING share so the user
+    /// can manage participants and permissions without stopping sharing first.
+    private func manageSharing() {
+        isPreparingShare = true
+        let share = cloudKit.existingShare(for: trip)
+        isPreparingShare = false
+        if let share {
+            pendingShare = share
+            showShareSheet = true
         }
     }
 }
