@@ -31,6 +31,9 @@ struct AddEditEventSheet: View {
     @State private var pendingTransitDetails: TransitDetails?
     @State private var showConflictAlert: Bool = false
     @State private var pendingConflicts: [TripEvent] = []
+    /// True once the user has explicitly touched the end-time picker. Before
+    /// that, end tracks start automatically (1-hour gap). After, it's theirs.
+    @State private var userEditedEndTime: Bool = false
 
     private var tripDays: [TripDay] {
         trip?.daysArray ?? []
@@ -85,7 +88,10 @@ struct AddEditEventSheet: View {
                         HStack {
                             Text("End")
                             Spacer()
-                            MinuteIntervalTimePicker(label: "End", selection: $endTime)
+                            MinuteIntervalTimePicker(label: "End", selection: Binding(
+                                get: { endTime },
+                                set: { userEditedEndTime = true; endTime = $0 }
+                            ))
                         }
                     }
 
@@ -115,10 +121,12 @@ struct AddEditEventSheet: View {
                         isTimeLocked = true
                     }
                 }
-                // When start changes, keep the current gap (e.g. 10am→2pm stays 4h
-                // when start moves to 11am → end becomes 3pm). If the existing gap
-                // is invalid (end ≤ start), default to 1 hour.
+                // When start changes, shift end by the same delta — but only if
+                // the user hasn't manually set an end time. Once they touch the
+                // end picker (userEditedEndTime = true) we stop auto-following so
+                // their chosen end time is preserved.
                 .onChange(of: startTime) { oldStart, newStart in
+                    guard !userEditedEndTime else { return }
                     let gap = endTime.timeIntervalSince(oldStart)
                     endTime = newStart.addingTimeInterval(gap > 0 ? gap : 3600)
                 }
@@ -241,7 +249,7 @@ struct AddEditEventSheet: View {
         notes = event.notes
         isTimeLocked = event.isTimeLocked
         if let st = event.startTime { startTime = st; hasStartTime = true }
-        if let et = event.endTime { endTime = et }
+        if let et = event.endTime { endTime = et; userEditedEndTime = true }
         transitDetails = event.transitDetails
     }
 
