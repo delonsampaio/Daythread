@@ -14,7 +14,9 @@ enum DaythreadTab {
 
 struct RootTabView: View {
     @Environment(TripStore.self) private var store
+    @Environment(\.managedObjectContext) private var context
     @FetchRequest(sortDescriptors: [], predicate: NSPredicate(format: "isArchived == NO")) private var activeTrips: FetchedResults<Trip>
+    @State private var cloudKit = CloudKitService()
 
     @State private var selectedTab: DaythreadTab = .timeline
 
@@ -35,10 +37,14 @@ struct RootTabView: View {
         }
         .onAppear {
             selectedTab = .timeline
-            // Restore the last-used trip (or fall back to the first). Must go
-            // through selectInitialTripIfNeeded — assigning activeTrip directly
-            // here would clobber the persisted last-used ID before it's read.
             store.selectInitialTripIfNeeded(from: Array(activeTrips))
+        }
+        // Sync participants whenever the active shared trips change (e.g. a new
+        // co-editor accepts) so avatar stacks update without opening GroupSync.
+        .onChange(of: activeTrips.map(\.id)) { _, _ in
+            for trip in activeTrips where trip.cloudKitShareID != nil {
+                cloudKit.syncParticipants(for: trip, context: context)
+            }
         }
         // FetchedResults<Trip> is not Equatable so we compare IDs to detect changes.
         .onChange(of: activeTrips.map(\.id)) { _, _ in
