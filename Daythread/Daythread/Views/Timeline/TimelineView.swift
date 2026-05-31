@@ -329,11 +329,11 @@ private struct DayTimelineSection: View {
                 }
             }
 
-            // Explicit end-of-day drop zone — isolated from the per-event drop
-            // targets above to avoid SwiftUI hit-testing ambiguity.
-            // contentShape(Rectangle()) is required: Color.clear has no hit area
-            // by default, so drops on empty days would silently fail without it.
-            Color.clear.frame(maxWidth: .infinity, minHeight: 60)
+            // End-of-day drop zone. Height is generous on empty days (gives a
+            // comfortable drag target); compact when events exist so the gap to
+            // the next day header stays tight (~24pt total).
+            Color.clear
+                .frame(maxWidth: .infinity, minHeight: events.isEmpty ? 60 : 16)
                 .contentShape(Rectangle())
                 .dropDestination(for: String.self) { items, _ in
                     guard let draggedID = items.first else { return false }
@@ -352,7 +352,8 @@ private struct DayTimelineSection: View {
                 }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.top, 8)
+        // No bottom padding — the drop zone above provides the inter-day gap.
     }
 }
 
