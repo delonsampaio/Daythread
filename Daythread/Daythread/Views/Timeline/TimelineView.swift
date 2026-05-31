@@ -333,7 +333,7 @@ private struct DayTimelineSection: View {
             // comfortable drag target); compact when events exist so the gap to
             // the next day header stays tight (~24pt total).
             Color.clear
-                .frame(maxWidth: .infinity, minHeight: 16)
+                .frame(maxWidth: .infinity, minHeight: 8)
                 .contentShape(Rectangle())
                 .dropDestination(for: String.self) { items, _ in
                     guard let draggedID = items.first else { return false }
@@ -352,8 +352,7 @@ private struct DayTimelineSection: View {
                 }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 8)
-        // No bottom padding — the drop zone above provides the inter-day gap.
+        .padding(.top, 4)
     }
 }
 

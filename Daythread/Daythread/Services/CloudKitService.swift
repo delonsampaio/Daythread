@@ -148,7 +148,36 @@ final class CloudKitService {
                 in: trip, appleUserID: uid, displayName: name, role: role, context: context
             )
         }
+        deduplicateMembers(for: trip, context: context)
         try? context.save()
+    }
+
+    /// Removes duplicate TripMember records that can arise from a race where
+    /// two devices independently register the same person before each other's
+    /// record syncs in. Keeps the record with the highest role (admin > editor >
+    /// viewer); on a tie, keeps the one with the earlier joinedAt.
+    private func deduplicateMembers(for trip: Trip, context: NSManagedObjectContext) {
+        let members = trip.membersArray.filter { !$0.appleUserID.isEmpty }
+        var best: [String: TripMember] = [:]
+        for member in members {
+            let uid = member.appleUserID
+            if let existing = best[uid] {
+                let keepNew = rolePriority(member.role) > rolePriority(existing.role)
+                    || (member.role == existing.role && member.joinedAt < existing.joinedAt)
+                if keepNew {
+                    context.delete(existing)
+                    best[uid] = member
+                } else {
+                    context.delete(member)
+                }
+            } else {
+                best[uid] = member
+            }
+        }
+    }
+
+    private func rolePriority(_ role: MemberRole) -> Int {
+        switch role { case .admin: return 2; case .editor: return 1; case .viewer: return 0 }
     }
 
     /// Registers the current iCloud user as a real member of a shared trip
