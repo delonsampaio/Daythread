@@ -123,6 +123,10 @@ struct GroupSyncSheet: View {
                 }
             }
             .task {
+                // Sync all accepted share participants first so the owner
+                // sees co-editors immediately (not just after they open the
+                // app themselves). Then register the current user's own entry.
+                cloudKit.syncParticipants(for: trip, context: context)
                 await registerMyMembership()
             }
         }

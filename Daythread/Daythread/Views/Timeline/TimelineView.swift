@@ -100,7 +100,12 @@ struct TimelineView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 if let trip = store.activeTrip {
                     Button {
-                        guard store.isPro else { showPaywall = true; return }
+                        // Pro gate only applies to initiating a share. If the
+                        // trip is already shared the user was invited by someone
+                        // else — they should reach Group Sync without a paywall.
+                        guard store.isPro || trip.cloudKitShareID != nil else {
+                            showPaywall = true; return
+                        }
                         showGroupSync = true
                     } label: {
                         Image(systemName: trip.cloudKitShareID != nil ? "person.2.fill" : "person.2")

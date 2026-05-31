@@ -118,6 +118,39 @@ final class CloudKitService {
         return share.currentUserParticipant?.role == .owner
     }
 
+    /// Syncs all accepted CKShare participants into TripMember records so the
+    /// owner sees co-editors immediately after they accept — without waiting for
+    /// each person to open GroupSyncSheet themselves. Called when GroupSyncSheet
+    /// appears; device-only and best-effort.
+    func syncParticipants(for trip: Trip, context: NSManagedObjectContext) {
+        guard let share = try? backend.existingShare(for: trip) else { return }
+        let formatter = PersonNameComponentsFormatter()
+        for participant in share.participants
+        where participant.acceptanceStatus == .accepted {
+            guard let uid = participant.userIdentity.userRecordID?.recordName else { continue }
+            let role: MemberRole = participant.role == .owner ? .admin :
+                (participant.permission == .readOnly ? .viewer : .editor)
+            // Prefer the name the participant set themselves (stored in their
+            // TripMember.displayName). Fall back to iCloud nameComponents, then
+            // a placeholder so the slot is never blank.
+            let existing = trip.membersArray.first {
+                !$0.appleUserID.isEmpty && $0.appleUserID == uid
+            }
+            let name: String = {
+                if let e = existing, !e.displayName.isEmpty { return e.displayName }
+                if let nc = participant.userIdentity.nameComponents,
+                   !formatter.string(from: nc).isEmpty {
+                    return formatter.string(from: nc)
+                }
+                return "Traveler"
+            }()
+            TripMemberRegistry.upsertCurrentUser(
+                in: trip, appleUserID: uid, displayName: name, role: role, context: context
+            )
+        }
+        try? context.save()
+    }
+
     /// Registers the current iCloud user as a real member of a shared trip
     /// (owner → admin, joiner → editor) so co-editors see real names + roles.
     /// Device-only and best-effort: no-op when the trip isn't shared or identity
