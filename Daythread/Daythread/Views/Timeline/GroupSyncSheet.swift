@@ -10,7 +10,7 @@ import CoreData
 import CloudKit
 
 struct GroupSyncSheet: View {
-    let trip: Trip
+    @ObservedObject var trip: Trip
 
     @Environment(TripStore.self) private var store
     @Environment(\.managedObjectContext) private var context

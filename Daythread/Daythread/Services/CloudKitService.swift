@@ -152,26 +152,46 @@ final class CloudKitService {
         try? context.save()
     }
 
-    /// Removes duplicate TripMember records that can arise from a race where
-    /// two devices independently register the same person before each other's
-    /// record syncs in. Keeps the record with the highest role (admin > editor >
-    /// viewer); on a tie, keeps the one with the earlier joinedAt.
+    /// Removes duplicate TripMember records that arise when two devices
+    /// independently register the same person before each other's record syncs.
+    /// Matches first by appleUserID, then falls back to displayName for the case
+    /// where syncParticipants and registerMyMembership produce different ID
+    /// formats for the same real person. Keeps the highest-role record.
     private func deduplicateMembers(for trip: Trip, context: NSManagedObjectContext) {
-        let members = trip.membersArray.filter { !$0.appleUserID.isEmpty }
-        var best: [String: TripMember] = [:]
-        for member in members {
-            let uid = member.appleUserID
-            if let existing = best[uid] {
-                let keepNew = rolePriority(member.role) > rolePriority(existing.role)
-                    || (member.role == existing.role && member.joinedAt < existing.joinedAt)
-                if keepNew {
-                    context.delete(existing)
-                    best[uid] = member
-                } else {
-                    context.delete(member)
-                }
+        // Use a fresh fetch so we see ALL members in the store, not just those
+        // already loaded into the relationship cache.
+        let request = TripMember.fetchRequest()
+        request.predicate = NSPredicate(format: "trip == %@", trip)
+        guard let allMembers = try? context.fetch(request) else { return }
+
+        let real = allMembers.filter { !$0.appleUserID.isEmpty }
+        var byUID: [String: TripMember] = [:]
+        for m in real {
+            let uid = m.appleUserID
+            if let existing = byUID[uid] {
+                let keepNew = rolePriority(m.role) > rolePriority(existing.role)
+                    || (m.role == existing.role && m.joinedAt < existing.joinedAt)
+                context.delete(keepNew ? existing : m)
+                if keepNew { byUID[uid] = m }
             } else {
-                best[uid] = member
+                byUID[uid] = m
+            }
+        }
+
+        // Secondary pass: dedup by name for cases where two code paths produced
+        // different appleUserID formats for the same real person.
+        let remaining = allMembers.filter { !$0.isDeleted && !$0.appleUserID.isEmpty }
+        var byName: [String: TripMember] = [:]
+        for m in remaining {
+            let name = m.displayName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !name.isEmpty else { continue }
+            if let existing = byName[name] {
+                let keepNew = rolePriority(m.role) > rolePriority(existing.role)
+                    || (m.role == existing.role && m.joinedAt < existing.joinedAt)
+                context.delete(keepNew ? existing : m)
+                if keepNew { byName[name] = m }
+            } else {
+                byName[name] = m
             }
         }
     }

@@ -45,6 +45,7 @@ struct DayHeaderView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .glassEffect()
+        .padding(.horizontal, 16)
         .padding(.top, 8)
     }
 }
