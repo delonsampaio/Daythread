@@ -7,10 +7,12 @@
 
 import SwiftUI
 import CoreData
+import CloudKit
 
 struct TimelineView: View {
     @Environment(TripStore.self) private var store
     @Environment(\.managedObjectContext) private var context
+    @AppStorage("daythread.userDisplayName") private var myName = ""
 
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \Trip.startDate, ascending: true)],
@@ -36,6 +38,13 @@ struct TimelineView: View {
     /// Shared across all SwipeRevealCard instances so at most one is open.
     @State private var swipeOpenEventID: UUID?
 
+    // Sharing: unshared trips invite straight from the toolbar (no Group Sync
+    // screen); shared trips open Group Sync for the roster + management.
+    @State private var cloudKit = CloudKitService()
+    @State private var pendingShare: CKShare?
+    @State private var showSystemShareSheet = false
+    @State private var isPreparingShare = false
+
     var body: some View {
         NavigationStack {
         Group {
@@ -56,6 +65,11 @@ struct TimelineView: View {
                 emptyState
             }
         }
+        // The timeline uses a custom ScrollView (not a List), so it doesn't get
+        // the grouped gray page background automatically. Without this, light
+        // mode renders white cards on a white system background with no contrast.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(ThemeTokens.backgroundPrimary)
         .safeAreaInset(edge: .top, spacing: 0) {
             if let activeLodging = vm.activeLodging {
                 LodgingBannerView(lodging: activeLodging)
@@ -86,6 +100,17 @@ struct TimelineView: View {
         .sheet(isPresented: $showPaywall) {
             ProPaywallView()
         }
+        .sheet(isPresented: $showSystemShareSheet) {
+            if let share = pendingShare, let trip = store.activeTrip {
+                CloudSharingControllerView(
+                    share: share,
+                    container: cloudKit.container,
+                    title: trip.name,
+                    onStopSharing: { cloudKit.stopSharing(trip, modelContext: context) }
+                )
+                .ignoresSafeArea()
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -95,13 +120,22 @@ struct TimelineView: View {
                 if let trip = store.activeTrip {
                     Button {
                         guard store.isPro else { showPaywall = true; return }
-                        showGroupSync = true
+                        if trip.cloudKitShareID == nil {
+                            startSharing(trip)      // unshared → straight to invite
+                        } else {
+                            showGroupSync = true    // shared → roster + manage
+                        }
                     } label: {
-                        Image(systemName: trip.cloudKitShareID != nil ? "person.2.fill" : "person.2")
-                            .foregroundStyle(trip.cloudKitShareID != nil
-                                             ? ThemeTokens.accent
-                                             : ThemeTokens.textSecondary)
+                        if isPreparingShare {
+                            ProgressView()
+                        } else {
+                            Image(systemName: trip.cloudKitShareID != nil ? "person.2.fill" : "person.2")
+                                .foregroundStyle(trip.cloudKitShareID != nil
+                                                 ? ThemeTokens.accent
+                                                 : ThemeTokens.textSecondary)
+                        }
                     }
+                    .disabled(isPreparingShare)
                 }
             }
             #if DEBUG
@@ -162,6 +196,25 @@ struct TimelineView: View {
         let start = trip.startDate.formatted(.dateTime.month(.abbreviated).day())
         let end   = trip.endDate.formatted(.dateTime.month(.abbreviated).day())
         return "\(start) – \(end)"
+    }
+
+    /// Creates a CKShare for an unshared trip and presents the system invite
+    /// sheet directly — no intermediate Group Sync screen. The trip name is shown
+    /// by the system sheet (set as the share title), and the owner is registered
+    /// in the named roster.
+    private func startSharing(_ trip: Trip) {
+        isPreparingShare = true
+        Task {
+            let share = await cloudKit.shareTrip(trip, modelContext: context)
+            isPreparingShare = false
+            if let share {
+                pendingShare = share
+                showSystemShareSheet = true
+                await cloudKit.registerCurrentUserMembership(
+                    in: trip, displayName: myName, context: context
+                )
+            }
+        }
     }
 
     // MARK: — FAB

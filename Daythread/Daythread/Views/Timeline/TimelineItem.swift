@@ -102,7 +102,7 @@ struct TimelineItem<Content: View>: View {
             // Connector — amber-tinted when violated
             if !isLast {
                 Rectangle()
-                    .fill(isTimeViolated ? ThemeTokens.warningAmber.opacity(0.35) : Color.quaternaryLabel)
+                    .fill(isTimeViolated ? ThemeTokens.warningAmber.opacity(0.35) : Color.connectorLine)
                     .frame(width: 2)
                     .frame(maxHeight: .infinity)
             }
@@ -127,5 +127,7 @@ private struct ShakeEffect: GeometryEffect {
 }
 
 private extension Color {
-    static let quaternaryLabel = Color(uiColor: .quaternaryLabel)
+    /// Connector thread colour. tertiaryLabel (not quaternary) so the line
+    /// stays visible on the light grouped background, while remaining subtle.
+    static let connectorLine = Color(uiColor: .tertiaryLabel)
 }
