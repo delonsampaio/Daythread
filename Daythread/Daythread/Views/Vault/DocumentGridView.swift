@@ -16,13 +16,19 @@ struct DocumentGridView: View {
     @Environment(\.managedObjectContext) private var context
     @Environment(TripStore.self) private var store
 
-    /// True when the current device's user is the admin/owner of a shared trip,
-    /// or when the trip isn't shared. Admins see all documents; participants see
-    /// only documents the owner has marked as shared.
-    private var currentUserIsOwner: Bool {
-        guard trip.cloudKitShareID != nil,
-              let myID = store.currentUserCloudKitID else { return true }
-        return trip.membersArray.first { $0.appleUserID == myID }?.role == .admin
+    /// The current device's CloudKit user ID, if known.
+    private var myID: String? { store.currentUserCloudKitID }
+
+    /// Whether this document is visible to the current user:
+    /// - Trip not shared → always visible
+    /// - They added it → always visible (their own private doc)
+    /// - isShared = true → visible to everyone on the trip
+    /// - Falls back to visible when myID is unknown (first launch before
+    ///   GroupSync opens to set currentUserCloudKitID)
+    private func isVisible(_ doc: TripDocument) -> Bool {
+        guard trip.cloudKitShareID != nil else { return true }
+        guard let id = myID else { return true }
+        return doc.isShared || doc.addedByAppleUserID == id
     }
 
     @State private var showAdd = false
@@ -38,7 +44,7 @@ struct DocumentGridView: View {
     private var sortedDocuments: [TripDocument] {
         trip.documentsArray
             .filter { $0.objectID != pendingUndoDelete?.id }
-            .filter { currentUserIsOwner || $0.isShared }
+            .filter { isVisible($0) }
             .sorted { a, b in
             switch (a.expiryDate, b.expiryDate) {
             case (let ea?, let eb?): return ea < eb

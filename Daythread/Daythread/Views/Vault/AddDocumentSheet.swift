@@ -115,7 +115,9 @@ struct AddDocumentSheet: View {
     private func save() {
         guard let data = selectedData else { return }
         vm.addDocument(title: title, data: data, mimeType: mimeType,
-                       isShared: isShared, to: trip, isPro: store.isPro, context: context)
+                       isShared: isShared,
+                       addedByAppleUserID: store.currentUserCloudKitID ?? "",
+                       to: trip, isPro: store.isPro, context: context)
         HapticManager.shared.sheetConfirm()
         dismiss()
     }

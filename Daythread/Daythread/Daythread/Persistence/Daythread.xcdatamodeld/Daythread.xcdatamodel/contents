@@ -84,6 +84,7 @@
         <attribute name="documentData" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES" syncable="YES"/>
         <attribute name="expiryDate" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="YES"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="addedByAppleUserID" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
         <attribute name="isShared" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES" syncable="YES"/>
         <attribute name="mimeType" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
         <attribute name="title" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>

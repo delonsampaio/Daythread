@@ -30,11 +30,19 @@ final class DocumentSharingTests: XCTestCase {
         return t
     }
 
-    private func addDoc(to trip: Trip, title: String, isShared: Bool) -> TripDocument {
+    private func addDoc(to trip: Trip, title: String, isShared: Bool, addedBy: String = "") -> TripDocument {
         let d = TripDocument(context: ctx)
         d.id = UUID(); d.title = title; d.mimeType = "application/pdf"
-        d.addedAt = Date(); d.isShared = isShared; d.trip = trip
+        d.addedAt = Date(); d.isShared = isShared
+        d.addedByAppleUserID = addedBy; d.trip = trip
         return d
+    }
+
+    // Mirrors DocumentGridView.isVisible
+    private func isVisible(_ doc: TripDocument, myID: String?, tripShared: Bool) -> Bool {
+        guard tripShared else { return true }
+        guard let id = myID else { return true }
+        return doc.isShared || doc.addedByAppleUserID == id
     }
 
     // MARK: — isShared defaults
@@ -56,38 +64,43 @@ final class DocumentSharingTests: XCTestCase {
         XCTAssertEqual(trip.documentsArray.first?.isShared, true)
     }
 
-    // MARK: — Visibility filtering (simulates DocumentGridView logic)
+    // MARK: — Visibility filtering (mirrors DocumentGridView.isVisible)
 
-    func test_participant_seesOnlySharedDocs() throws {
+    func test_participant_seesOwnPrivateDoc() throws {
         let trip = makeTrip(shared: true)
-        let passport  = addDoc(to: trip, title: "Passport",  isShared: false)
-        let itinerary = addDoc(to: trip, title: "Itinerary", isShared: true)
+        let myPassport = addDoc(to: trip, title: "My Passport", isShared: false, addedBy: "uid-me")
         try ctx.save()
-
-        let visible = trip.documentsArray.filter { $0.isShared }
-        XCTAssertFalse(visible.contains(where: { $0.objectID == passport.objectID }))
-        XCTAssertTrue(visible.contains(where:  { $0.objectID == itinerary.objectID }))
+        // Participant can always see docs they added themselves.
+        XCTAssertTrue(isVisible(myPassport, myID: "uid-me", tripShared: true))
     }
 
-    func test_owner_seesAllDocs() throws {
+    func test_participant_cannotSeeOtherPrivateDoc() throws {
         let trip = makeTrip(shared: true)
-        let passport  = addDoc(to: trip, title: "Passport",  isShared: false)
-        let itinerary = addDoc(to: trip, title: "Itinerary", isShared: true)
+        let ownerPassport = addDoc(to: trip, title: "Owner Passport", isShared: false, addedBy: "uid-owner")
         try ctx.save()
-
-        // Owner (currentUserIsOwner == true) — no filter applied.
-        let visible = trip.documentsArray
-        XCTAssertTrue(visible.contains(where: { $0.objectID == passport.objectID }))
-        XCTAssertTrue(visible.contains(where: { $0.objectID == itinerary.objectID }))
+        XCTAssertFalse(isVisible(ownerPassport, myID: "uid-participant", tripShared: true))
     }
 
-    func test_soloTrip_allDocsVisible_noFilterNeeded() throws {
+    func test_sharedDoc_visibleToEveryone() throws {
+        let trip = makeTrip(shared: true)
+        let itinerary = addDoc(to: trip, title: "Itinerary", isShared: true, addedBy: "uid-owner")
+        try ctx.save()
+        XCTAssertTrue(isVisible(itinerary, myID: "uid-owner",       tripShared: true))
+        XCTAssertTrue(isVisible(itinerary, myID: "uid-participant",  tripShared: true))
+    }
+
+    func test_soloTrip_allDocsVisible() throws {
         let trip = makeTrip(shared: false)
-        let passport = addDoc(to: trip, title: "Passport", isShared: false)
+        let passport = addDoc(to: trip, title: "Passport", isShared: false, addedBy: "uid-me")
         try ctx.save()
+        XCTAssertTrue(isVisible(passport, myID: "uid-me", tripShared: false))
+    }
 
-        // Unshared trip — filter is not applied (currentUserIsOwner always true).
-        let visible = trip.documentsArray
-        XCTAssertTrue(visible.contains(where: { $0.objectID == passport.objectID }))
+    func test_unknownMyID_showsEverything() throws {
+        let trip = makeTrip(shared: true)
+        let doc = addDoc(to: trip, title: "Private", isShared: false, addedBy: "uid-other")
+        try ctx.save()
+        // myID nil = haven't opened GroupSync yet → show all (safe default).
+        XCTAssertTrue(isVisible(doc, myID: nil, tripShared: true))
     }
 }
