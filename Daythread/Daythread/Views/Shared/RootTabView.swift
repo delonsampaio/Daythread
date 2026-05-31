@@ -35,10 +35,10 @@ struct RootTabView: View {
         }
         .onAppear {
             selectedTab = .timeline
-            // Set activeTrip to the first non-archived trip on launch
-            if store.activeTrip == nil {
-                store.activeTrip = activeTrips.first
-            }
+            // Restore the last-used trip (or fall back to the first). Must go
+            // through selectInitialTripIfNeeded — assigning activeTrip directly
+            // here would clobber the persisted last-used ID before it's read.
+            store.selectInitialTripIfNeeded(from: Array(activeTrips))
         }
         // FetchedResults<Trip> is not Equatable so we compare IDs to detect changes.
         .onChange(of: activeTrips.map(\.id)) { _, _ in
@@ -51,7 +51,8 @@ struct RootTabView: View {
                 // Covers two cases:
                 // 1. Reinstall — CloudKit syncs data after onAppear fired with empty results
                 // 2. Race where @FetchRequest hasn't returned data yet when onAppear ran
-                store.activeTrip = trips.first
+                // Restore the last-used trip if it has now synced in.
+                store.selectInitialTripIfNeeded(from: trips)
             } else if let active = store.activeTrip,
                       // Guard first: accessing @NSManaged id on a deleted object whose
                       // context was set to nil causes NSObjectInaccessibleException.

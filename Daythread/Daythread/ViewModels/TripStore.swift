@@ -30,10 +30,28 @@ final class TripStore {
         }
     }
 
-    /// The UUID stored at last launch — used by TimelineView to restore context on cold launch.
+    /// The UUID stored at last launch — used to restore context on cold launch.
     var storedActiveTripID: UUID? {
         UserDefaults.standard.string(forKey: "daythread.activeTripID")
             .flatMap { UUID(uuidString: $0) }
+    }
+
+    /// Picks the active trip on cold launch: the last-used trip (by persisted
+    /// UUID) if it's still present, otherwise the first trip. No-op when a trip
+    /// is already active, so it never clobbers an in-session selection.
+    ///
+    /// This must be the single entry point for launch selection. Setting
+    /// `activeTrip = trips.first` directly would fire `didSet` and overwrite the
+    /// persisted last-used ID before it could be read — destroying the user's
+    /// remembered choice (the cause of the "wrong trip on launch" bug).
+    func selectInitialTripIfNeeded(from trips: [Trip]) {
+        guard activeTrip == nil else { return }
+        if let id = storedActiveTripID,
+           let match = trips.first(where: { $0.id == id }) {
+            activeTrip = match
+        } else {
+            activeTrip = trips.first
+        }
     }
 
     // MARK: — Pending share join

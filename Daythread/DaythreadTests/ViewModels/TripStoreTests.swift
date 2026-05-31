@@ -30,12 +30,17 @@ private func applyActiveTripSelection(store: TripStore, trips: [Trip]) -> Trip? 
 final class TripStoreTests: XCTestCase {
 
     private var ctx: NSManagedObjectContext!
+    private let activeTripIDKey = "daythread.activeTripID"
 
     override func setUp() async throws {
         ctx = PersistenceController(inMemory: true).viewContext
+        // UserDefaults is process-global; clear the persisted active-trip ID so
+        // restore tests don't leak into one another.
+        UserDefaults.standard.removeObject(forKey: activeTripIDKey)
     }
 
     override func tearDown() async throws {
+        UserDefaults.standard.removeObject(forKey: activeTripIDKey)
         ctx = nil
     }
 
@@ -133,6 +138,53 @@ final class TripStoreTests: XCTestCase {
         applyActiveTripSelection(store: store, trips: [tripA, tripB])
 
         XCTAssertEqual(store.activeTrip?.id, tripB.id)
+    }
+
+    // MARK: — Cold-launch initial trip selection (restore last-used)
+
+    func testSelectInitialTrip_restoresStoredTrip() throws {
+        let store = TripStore()
+        let paris = makeTrip(name: "Paris")
+        let tokyo = makeTrip(name: "Tokyo")
+        try ctx.save()
+        UserDefaults.standard.set(tokyo.id.uuidString, forKey: activeTripIDKey)
+
+        store.selectInitialTripIfNeeded(from: [paris, tokyo])
+
+        XCTAssertEqual(store.activeTrip?.id, tokyo.id)
+    }
+
+    func testSelectInitialTrip_fallsBackToFirstWhenNoStoredMatch() throws {
+        let store = TripStore()
+        let paris = makeTrip(name: "Paris")
+        let tokyo = makeTrip(name: "Tokyo")
+        try ctx.save()
+        // Stored ID points at a trip that no longer exists.
+        UserDefaults.standard.set(UUID().uuidString, forKey: activeTripIDKey)
+
+        store.selectInitialTripIfNeeded(from: [paris, tokyo])
+
+        XCTAssertEqual(store.activeTrip?.id, paris.id)
+    }
+
+    func testSelectInitialTrip_noOpWhenAlreadyActive() throws {
+        let store = TripStore()
+        let paris = makeTrip(name: "Paris")
+        let tokyo = makeTrip(name: "Tokyo")
+        try ctx.save()
+        store.activeTrip = paris
+        // Even with a different stored ID, an already-active trip must not change.
+        UserDefaults.standard.set(tokyo.id.uuidString, forKey: activeTripIDKey)
+
+        store.selectInitialTripIfNeeded(from: [paris, tokyo])
+
+        XCTAssertEqual(store.activeTrip?.id, paris.id)
+    }
+
+    func testSelectInitialTrip_emptyTripsLeavesNil() {
+        let store = TripStore()
+        store.selectInitialTripIfNeeded(from: [])
+        XCTAssertNil(store.activeTrip)
     }
 
     // MARK: — Pending share join resolution
