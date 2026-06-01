@@ -46,10 +46,10 @@ struct TripCardView: View {
                 HStack(alignment: .bottom) {
                     Text(durationLabel)
                         .font(.caption.bold())
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Capsule().fill(.black.opacity(0.45)))
+                        .glassEffect(.regular, in: Capsule())
                     Spacer()
                     let coEditors = trip.membersArray.filter { !$0.isVirtual }
                     if !coEditors.isEmpty {

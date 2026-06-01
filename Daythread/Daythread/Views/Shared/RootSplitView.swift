@@ -21,6 +21,7 @@ struct RootSplitView: View {
                 Label("Vault",    systemImage: ThemeTokens.tabVault).tag(DaythreadTab.vault)
                 Label("Profile",  systemImage: ThemeTokens.tabProfile).tag(DaythreadTab.profile)
             }
+            .listStyle(.sidebar)
             .navigationTitle("Daythread")
             // Keep listSelection and selectedTab in sync bidirectionally so that
             // a size-class flip (Stage Manager resize) preserves the active section.
