@@ -43,7 +43,13 @@ enum TripMemberRegistry {
             return m
         }()
         member.displayName = displayName
-        member.role = role
+        // Never downgrade a role. syncParticipants may correctly assign .admin
+        // and then registerMyMembership may overwrite with .editor when
+        // fetchShares temporarily returns nil (e.g. during initial sync).
+        // Highest privilege always wins.
+        if role.privilege > member.role.privilege {
+            member.role = role
+        }
         return member
     }
 }

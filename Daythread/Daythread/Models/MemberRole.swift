@@ -10,6 +10,11 @@ enum MemberRole: String, Codable, CaseIterable {
 
     nonisolated var canEdit: Bool { self != .viewer }
     nonisolated var isAdmin: Bool { self == .admin }
+    /// Higher = more privileged. Used to ensure roles are never downgraded
+    /// by a stale ownership check (admin=2 > editor=1 > viewer=0).
+    nonisolated var privilege: Int {
+        switch self { case .admin: return 2; case .editor: return 1; case .viewer: return 0 }
+    }
 
     nonisolated var displayName: String {
         switch self {

@@ -16,7 +16,7 @@ import SwiftUI
 import CoreData
 
 struct SplitExpensesSheet: View {
-    let trip: Trip
+    @ObservedObject var trip: Trip
     let vm: VaultViewModel
 
     @Environment(\.managedObjectContext) private var context
@@ -43,6 +43,7 @@ struct SplitExpensesSheet: View {
     }
 
     var body: some View {
+        LiveContent(isDead: !trip.isAlive) {
         NavigationStack {
             List {
                 membersSection
@@ -87,6 +88,7 @@ struct SplitExpensesSheet: View {
                 AssignPayersSheet(untrackedExpenses: untrackedExpenses, members: members,
                                   hasPriorSettlements: hasPriorSettlements)
             }
+        }
         }
     }
 
