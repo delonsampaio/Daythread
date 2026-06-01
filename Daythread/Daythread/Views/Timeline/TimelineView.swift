@@ -233,6 +233,8 @@ private struct TripTimelineList: View {
     @Binding var swipeOpenEventID: UUID?
     @Binding var editingEvent: TripEvent?
 
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     var body: some View {
         // When the trip is deleted (locally or via CloudKit sync), its
         // objectWillChange fires and this view re-renders for one pass before the
@@ -255,7 +257,9 @@ private struct TripTimelineList: View {
                     )
                 }
             }
-            .padding(.bottom, 140)
+            // iPhone: clears FAB (56pt) + tab bar + home indicator.
+            // iPad: no tab bar, so use a smaller clearance for the FAB only.
+            .padding(.bottom, horizontalSizeClass == .regular ? 80 : 140)
         }
         }
     }
