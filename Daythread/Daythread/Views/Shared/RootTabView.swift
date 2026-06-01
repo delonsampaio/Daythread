@@ -73,6 +73,13 @@ struct RootTabView: View {
                 if let active = store.activeTrip, active.managedObjectContext == nil {
                     store.activeTrip = Array(activeTrips).first(where: { $0.managedObjectContext != nil })
                 }
+                // Sync participants after every CloudKit import. The
+                // onChange(of: objectIDs) trigger misses participant-acceptance
+                // events because accepting a CKShare invite doesn't change the
+                // trip's objectID — only the CKShare's participant list in CloudKit.
+                for trip in activeTrips where trip.cloudKitShareID != nil && trip.isAlive {
+                    cloudKit.syncParticipants(for: trip, context: context)
+                }
             }
         }
         // FetchedResults<Trip> is not Equatable so we compare IDs to detect changes.
