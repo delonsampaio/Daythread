@@ -254,6 +254,7 @@ struct AddExpenseSheet: View {
                 }
             }
         }
+        .presentationSizing(.page)
     }
 
     // MARK: — Helpers

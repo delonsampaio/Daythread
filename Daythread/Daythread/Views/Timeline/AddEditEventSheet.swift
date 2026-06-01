@@ -182,6 +182,7 @@ struct AddEditEventSheet: View {
         } message: {
             Text(conflictAlertMessage)
         }
+        .presentationSizing(.page)
     }
 
     // MARK: — Conflict-aware save

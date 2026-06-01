@@ -144,6 +144,7 @@ struct GroupSyncSheet: View {
             }
         }
         }
+        .presentationSizing(.page)
     }
 
     /// Creates the CKShare (device-only) and presents the system invite sheet.

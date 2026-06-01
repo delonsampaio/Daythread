@@ -108,6 +108,7 @@ struct EditTripSheet: View {
                 Text("\(lostEventCount) event\(lostEventCount == 1 ? "" : "s") will be permanently deleted because \(lostEventCount == 1 ? "it falls" : "they fall") outside the new date range.")
             }
         }
+        .presentationSizing(.page)
     }
 
     // MARK: — Actions

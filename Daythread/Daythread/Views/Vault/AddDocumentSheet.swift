@@ -110,6 +110,7 @@ struct AddDocumentSheet: View {
                 }
             }
         }
+        .presentationSizing(.page)
     }
 
     private func save() {

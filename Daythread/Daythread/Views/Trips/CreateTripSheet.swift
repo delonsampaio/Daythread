@@ -78,6 +78,9 @@ struct CreateTripSheet: View {
                 }
             }
         }
+        // Full-page on iPad (a small floating card looks awkward for a form);
+        // a normal sheet on iPhone.
+        .presentationSizing(.page)
     }
 
     private func createTrip() {
