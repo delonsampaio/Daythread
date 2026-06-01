@@ -37,6 +37,14 @@ struct DebugSyncMenuButton: ToolbarContent {
                         PersistenceController.shared.initializeCloudKitSchemaIfNeeded()
                     }
                 }
+                Section("Members") {
+                    Button("Add Test Members (×4)") {
+                        addTestMembers()
+                    }
+                    Button("Remove Test Members", role: .destructive) {
+                        removeTestMembers()
+                    }
+                }
                 Section("Pro") {
                     if store.isPro {
                         Button("Reset Pro (lock + re-test purchase)", role: .destructive) {
@@ -87,6 +95,37 @@ struct DebugSyncMenuButton: ToolbarContent {
         } else {
             print("🔵 DEBUG: Cannot delete day — only one day remains")
         }
+    }
+
+    // MARK: — Members: add / remove test co-editors
+
+    private static let testNames = ["Alice Baker", "Carlos Dean", "Eva Foster", "Greg Hughes"]
+
+    private func addTestMembers() {
+        guard let trip = store.activeTrip else {
+            print("🔵 DEBUG: No active trip — select a trip first")
+            return
+        }
+        for (index, name) in Self.testNames.enumerated() {
+            let member = TripMember(context: context)
+            member.id = UUID()
+            member.appleUserID = "debug-member-\(index + 1)"
+            member.displayName = name
+            member.roleRaw = "editor"
+            member.joinedAt = Date()
+            member.trip = trip
+        }
+        try? context.save()
+        print("🔵 DEBUG: Added \(Self.testNames.count) test members to '\(trip.name)'")
+    }
+
+    private func removeTestMembers() {
+        let request = TripMember.fetchRequest()
+        request.predicate = NSPredicate(format: "appleUserID BEGINSWITH 'debug-member-'")
+        let members = (try? context.fetch(request)) ?? []
+        members.forEach { context.delete($0) }
+        try? context.save()
+        print("🔵 DEBUG: Removed \(members.count) test member(s)")
     }
 
     // MARK: — Scenario 3: LodgingInfo.checkIn updated
