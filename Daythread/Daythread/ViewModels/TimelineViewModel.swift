@@ -19,6 +19,9 @@ final class TimelineViewModel {
     /// IDs of locked events currently shaking because a drop violated their constraint.
     /// Populated for ~600 ms after a refused drop, then cleared automatically.
     var shakingEventIDs: Set<UUID> = []
+    /// In-flight event deletion driving the screen-level undo toast. Lives here
+    /// (not in a day section) so the toast pins to the screen, not the deleted row.
+    var pendingEventDelete: PendingDelete?
 
     // MARK: — Refresh (called from .onChange in the view)
 

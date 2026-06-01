@@ -74,6 +74,13 @@ struct TimelineView: View {
                     .padding(.bottom, 24)
             }
         }
+        // Screen-level undo toast: pinned to the bottom of the timeline rather
+        // than to the day row the event was deleted from.
+        .undoDelete(pending: Bindable(vm).pendingEventDelete) { id in
+            if let event = try? context.existingObject(with: id) as? TripEvent {
+                vm.deleteEvent(event, context: context)
+            }
+        }
         .onChange(of: lodging) { _, newLodging in
             vm.refresh(days: days, lodging: newLodging)
         }
@@ -268,7 +275,6 @@ private struct DayTimelineSection: View {
     @Binding var editingEvent: TripEvent?
 
     @Environment(\.managedObjectContext) private var context
-    @State private var pendingDelete: PendingDelete?
 
     var body: some View {
         if !day.isAlive {
@@ -276,11 +282,6 @@ private struct DayTimelineSection: View {
         } else {
         Section {
             dayContent
-                .undoDelete(pending: $pendingDelete) { id in
-                    if let event = try? context.existingObject(with: id) as? TripEvent {
-                        vm.deleteEvent(event, context: context)
-                    }
-                }
         } header: {
             let events = day.eventsArray
             let hasOutOfOrder = !vm.outOfOrderEventIDs(in: events).isEmpty
@@ -299,7 +300,7 @@ private struct DayTimelineSection: View {
     private var dayContent: some View {
         // Soft-filter the pending deletion so it vanishes immediately while
         // the undo toast counts down. Actual context.delete fires on commit.
-        let events = day.eventsArray.filter { $0.objectID != pendingDelete?.id }
+        let events = day.eventsArray.filter { $0.objectID != vm.pendingEventDelete?.id }
         let violated = vm.violatedLockIDs(in: events)
         let outOfOrder = vm.outOfOrderEventIDs(in: events)
         VStack(spacing: 12) {
@@ -321,7 +322,7 @@ private struct DayTimelineSection: View {
                             HapticManager.shared.lockToggle()
                         },
                         deleteAction: {
-                            pendingDelete = PendingDelete(
+                            vm.pendingEventDelete = PendingDelete(
                                 id: event.objectID,
                                 label: event.title.isEmpty ? "Event" : event.title
                             )

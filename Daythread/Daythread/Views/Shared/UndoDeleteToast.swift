@@ -28,6 +28,8 @@ private struct UndoDeleteModifier: ViewModifier {
     let onCommit: (NSManagedObjectID) -> Void
 
     @State private var workItem: DispatchWorkItem?
+    /// Drains 1 → 0 over `duration` to show remaining undo time.
+    @State private var barProgress: CGFloat = 1
 
     func body(content: Content) -> some View {
         content
@@ -43,6 +45,9 @@ private struct UndoDeleteModifier: ViewModifier {
             .onChange(of: pending) { _, newPending in
                 workItem?.cancel()
                 guard let p = newPending else { return }
+                // Restart the countdown bar: snap full, then drain over `duration`.
+                barProgress = 1
+                withAnimation(.linear(duration: duration)) { barProgress = 0 }
                 let item = DispatchWorkItem {
                     onCommit(p.id)
                     pending = nil
@@ -53,25 +58,32 @@ private struct UndoDeleteModifier: ViewModifier {
     }
 
     private func toast(for p: PendingDelete) -> some View {
-        HStack(spacing: 12) {
-            Text("Deleted \u{201C}\(p.label)\u{201D}")
-                .font(.subheadline)
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                Text("Deleted \u{201C}\(p.label)\u{201D}")
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                Spacer()
+                Button("Undo") {
+                    workItem?.cancel()
+                    workItem = nil
+                    pending = nil
+                }
+                .font(.subheadline.bold())
                 .foregroundStyle(.white)
-                .lineLimit(1)
-            Spacer()
-            Button("Undo") {
-                workItem?.cancel()
-                workItem = nil
-                pending = nil
             }
-            .font(.subheadline.bold())
-            .foregroundStyle(.white)
+            // Countdown bar draining left-to-right over the undo window.
+            Capsule()
+                .fill(.white.opacity(0.55))
+                .frame(height: 3)
+                .scaleEffect(x: barProgress, anchor: .leading)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(
-            Capsule()
-                .fill(Color(.darkText).opacity(0.88))
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.darkText).opacity(0.9))
         )
     }
 }

@@ -18,6 +18,7 @@ struct TripsListView: View {
     @State private var cloudKit = CloudKitService()
     @State private var showCreate = false
     @State private var editingTrip: Trip?
+    @State private var tripPendingDelete: Trip?
     // Single snapshot per render — prevents repeated Date() calls from causing
     // trips to flip between sections mid-scroll if the clock ticks.
     @State private var now = Date()
@@ -59,6 +60,23 @@ struct TripsListView: View {
             }
             .sheet(item: $editingTrip) { trip in
                 EditTripSheet(trip: trip, vm: vm)
+            }
+            .alert("Delete Trip?", isPresented: Binding(
+                get: { tripPendingDelete != nil },
+                set: { if !$0 { tripPendingDelete = nil } }
+            ), presenting: tripPendingDelete) { trip in
+                Button("Delete", role: .destructive) {
+                    // Clear the active trip first so the Timeline tab stops
+                    // observing the about-to-be-deleted graph (see use-after-delete fix).
+                    if store.activeTrip?.objectID == trip.objectID {
+                        store.activeTrip = nil
+                    }
+                    vm.deleteTrip(trip, context: context)
+                    tripPendingDelete = nil
+                }
+                Button("Cancel", role: .cancel) { tripPendingDelete = nil }
+            } message: { trip in
+                Text("This permanently deletes \u{201C}\(trip.name)\u{201D} and all its days, events, documents, and expenses. This can't be undone.")
             }
             .onAppear {
                 now = Date()
@@ -103,13 +121,7 @@ struct TripsListView: View {
                             }
                         }
                         Button("Delete", systemImage: "trash", role: .destructive) {
-                            // Clear the active trip first so the Timeline tab stops
-                            // observing the about-to-be-deleted graph and swaps to its
-                            // empty state, rather than rendering deleted objects.
-                            if store.activeTrip?.objectID == trip.objectID {
-                                store.activeTrip = nil
-                            }
-                            vm.deleteTrip(trip, context: context)
+                            tripPendingDelete = trip
                         }
                     }
                 }
