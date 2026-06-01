@@ -31,6 +31,10 @@
 	<key>UILaunchScreen</key>
 	<dict/>
 
+	<!-- ── EventKit: Apple Calendar sync ── -->
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Daythread adds your trip events to Apple Calendar so your itinerary appears alongside other appointments.</string>
+
 	<!-- ── CloudKit: background push (reason this file exists) ── -->
 	<key>UIBackgroundModes</key>
 	<array>

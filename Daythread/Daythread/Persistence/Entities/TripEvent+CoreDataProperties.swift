@@ -17,6 +17,9 @@ extension TripEvent {
     @NSManaged public var isTimeLocked: Bool
     @NSManaged public var sortOrder: Int
     @NSManaged public var notes: String
+    /// Device-local EKEvent identifier — not synced to CloudKit (syncable="NO").
+    /// Each device manages its own Apple Calendar entries independently.
+    @NSManaged public var ekEventIdentifier: String
     @NSManaged public var day: TripDay?
     @NSManaged public var transitDetails: TransitDetails?
 }

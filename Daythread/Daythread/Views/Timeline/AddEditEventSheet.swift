@@ -295,6 +295,7 @@ struct AddEditEventSheet: View {
 
     private func save() {
         let targetDay = selectedDay ?? tripDays.first
+        let savedEvent: TripEvent
         if let event = editingEvent {
             event.title = title
             event.category = category
@@ -314,6 +315,7 @@ struct AddEditEventSheet: View {
                 event.sortOrder = nextOrder
                 event.day = targetDay
             }
+            savedEvent = event
         } else {
             let nextOrder = ((targetDay?.eventsArray ?? []).map(\.sortOrder).max() ?? 0) + 1024
             let event = TripEvent(context: context)
@@ -331,8 +333,18 @@ struct AddEditEventSheet: View {
             event.day = targetDay
             if let td = transitDetails { event.transitDetails = td }
             pendingTransitDetails = nil  // committed — don't delete on dismiss
+            savedEvent = event
         }
         try? context.save()
+
+        // Calendar sync — fire-and-forget so it doesn't delay dismiss.
+        let tripName = trip?.name ?? ""
+        let ctx = context
+        Task {
+            await CalendarService.shared.ensureAuthorized()
+            CalendarService.shared.sync(savedEvent, tripName: tripName, context: ctx)
+        }
+
         HapticManager.shared.sheetConfirm()
         dismiss()
     }

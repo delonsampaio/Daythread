@@ -255,8 +255,12 @@ final class TimelineViewModel {
     }
 
     func deleteEvent(_ event: TripEvent, context: NSManagedObjectContext) {
+        let ekID = event.ekEventIdentifier
         context.delete(event)
         try? context.save()
+        if !ekID.isEmpty {
+            Task { CalendarService.shared.remove(identifier: ekID) }
+        }
     }
 
     func lockEvent(_ event: TripEvent, context: NSManagedObjectContext) {
