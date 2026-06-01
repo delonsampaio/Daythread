@@ -10,6 +10,7 @@ import CoreData
 
 struct TripsListView: View {
     @Environment(\.managedObjectContext) private var context
+    @Environment(TripStore.self) private var store
 
     @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \Trip.startDate, ascending: true)])
     private var allTrips: FetchedResults<Trip>
@@ -102,6 +103,12 @@ struct TripsListView: View {
                             }
                         }
                         Button("Delete", systemImage: "trash", role: .destructive) {
+                            // Clear the active trip first so the Timeline tab stops
+                            // observing the about-to-be-deleted graph and swaps to its
+                            // empty state, rather than rendering deleted objects.
+                            if store.activeTrip?.objectID == trip.objectID {
+                                store.activeTrip = nil
+                            }
                             vm.deleteTrip(trip, context: context)
                         }
                     }

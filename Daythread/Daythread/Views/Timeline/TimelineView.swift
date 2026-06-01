@@ -40,7 +40,7 @@ struct TimelineView: View {
     var body: some View {
         NavigationStack {
         Group {
-            if let trip = store.activeTrip {
+            if let trip = store.activeTrip, !trip.isDeleted {
                 // TripTimelineList observes `trip` so adding/removing whole days
                 // repaints the list; each day section observes its TripDay so
                 // event add/edit/delete/reorder repaints live (the @Query→
@@ -227,6 +227,13 @@ private struct TripTimelineList: View {
     @Binding var editingEvent: TripEvent?
 
     var body: some View {
+        // When the trip is deleted (locally or via CloudKit sync), its
+        // objectWillChange fires and this view re-renders for one pass before the
+        // parent swaps to the empty state. Reading the deleted graph would trap, so
+        // bail out early.
+        if trip.isDeleted {
+            Color.clear
+        } else {
         ScrollView {
             LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
                 ForEach(Array(trip.daysArray.enumerated()), id: \.element.id) { index, day in
@@ -242,6 +249,7 @@ private struct TripTimelineList: View {
                 }
             }
             .padding(.bottom, 140)
+        }
         }
     }
 }
@@ -263,6 +271,9 @@ private struct DayTimelineSection: View {
     @State private var pendingDelete: PendingDelete?
 
     var body: some View {
+        if day.isDeleted {
+            Color.clear
+        } else {
         Section {
             dayContent
                 .undoDelete(pending: $pendingDelete) { id in
@@ -280,6 +291,7 @@ private struct DayTimelineSection: View {
                     ? { vm.sortDayByTime(day, context: context) }
                     : nil
             )
+        }
         }
     }
 
