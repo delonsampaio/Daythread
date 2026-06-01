@@ -70,7 +70,7 @@ struct HelpView: View {
         Section("Getting Started") {
             FAQRow(
                 question: "How do I create my first trip?",
-                answer: "Tap the Trips tab, then tap the + button. The wizard walks you through naming your trip, setting the destination and dates, and optionally adding a cover photo. Once saved, the app switches to your new trip in the Timeline."
+                answer: "Tap the Trips tab, then tap the + button. A single form lets you name your trip, set the destination and dates, and optionally add a cover photo. Once saved, the app switches to your new trip in the Timeline."
             )
             FAQRow(
                 question: "How do I switch between trips?",
@@ -148,7 +148,7 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "Can I add a cover photo to a trip?",
-                answer: "Yes. During trip creation, step 3 lets you pick a cover photo from your photo library. You can also change or remove it later — long-press the trip card and tap Edit, then use the Cover Photo section."
+                answer: "Yes. The trip creation form has a Cover Photo section where you can pick one from your photo library. You can also change or remove it later — long-press the trip card and tap Edit, then use the Cover Photo section."
             )
         }
     }
@@ -286,7 +286,7 @@ struct HelpView: View {
     // MARK: — Search index
 
     private static let allFAQs: [FAQItem] = [
-        .init(section: "Getting Started", question: "How do I create my first trip?", answer: "Tap the Trips tab, then tap the + button. The wizard walks you through naming your trip, setting the destination and dates, and optionally adding a cover photo. Once saved, the app switches to your new trip in the Timeline."),
+        .init(section: "Getting Started", question: "How do I create my first trip?", answer: "Tap the Trips tab, then tap the + button. A single form lets you name your trip, set the destination and dates, and optionally add a cover photo. Once saved, the app switches to your new trip in the Timeline."),
         .init(section: "Getting Started", question: "How do I switch between trips?", answer: "Tap the trip name in the centre of the Timeline navigation bar — it shows a dropdown of all your active trips. The current trip's date range appears just below the name so you always know which trip you're viewing."),
         .init(section: "Getting Started", question: "How do I add an event to my itinerary?", answer: "In the Timeline, tap the blue + button in the bottom-right corner to open the Add Event sheet. Choose a category (Flight, Hotel, Restaurant, Museum, Activity, etc.), fill in the details, and save."),
         .init(section: "Getting Started", question: "What categories of events can I add?", answer: "Daythread supports: Flight, Train, Bus, Ferry (transit), Hotel, Rental Property, Restaurant, Café, Bar, Museum, Attraction, Tour, Show, Activity, Sport, Hike, Shopping, and Other. Transit categories open an extended form for carrier, flight/train number, booking code, and seat."),
@@ -302,7 +302,7 @@ struct HelpView: View {
         .init(section: "Trips", question: "How do I archive a trip?", answer: "Long-press any trip card in the Trips list and tap Archive. Archived trips are hidden from the Timeline trip picker and the Vault, but remain accessible in the Archived section of the Trips tab."),
         .init(section: "Trips", question: "How do I delete a trip?", answer: "Long-press any trip card in the Trips list and tap Delete. This permanently removes the trip and all its days, events, documents, and expenses."),
         .init(section: "Trips", question: "What are Pre-Trip Tasks?", answer: "Pre-Trip Tasks are a checklist you can attach to any trip for things to do before you leave — booking insurance, printing documents, packing specific items, etc."),
-        .init(section: "Trips", question: "Can I add a cover photo to a trip?", answer: "Yes. During trip creation, step 3 lets you pick a cover photo from your photo library. You can also change or remove it later via the Edit option in the trip card's long-press menu."),
+        .init(section: "Trips", question: "Can I add a cover photo to a trip?", answer: "Yes. The trip creation form has a Cover Photo section where you can pick one from your photo library. You can also change or remove it later via the Edit option in the trip card's long-press menu."),
         .init(section: "Vault (Documents & Expenses)", question: "What can I store in the Vault?", answer: "The Vault holds Documents (passports, visas, insurance cards, boarding passes — as PDFs or images) and Expenses (a running log of what you've spent per trip)."),
         .init(section: "Vault (Documents & Expenses)", question: "How do I add a document?", answer: "Go to Vault → Documents tab and tap +. Import from Files, take a photo, or pick from your library. Give it a title and an optional expiry date."),
         .init(section: "Vault (Documents & Expenses)", question: "Can I edit a document after adding it?", answer: "Yes. Long-press the document tile and tap Edit Details to change the title or expiry date. To replace the file, delete the document and re-add it."),
