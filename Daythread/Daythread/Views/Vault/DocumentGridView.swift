@@ -10,7 +10,7 @@ import CoreData
 import QuickLook
 
 struct DocumentGridView: View {
-    let trip: Trip
+    @ObservedObject var trip: Trip
     let vm: VaultViewModel
 
     @Environment(\.managedObjectContext) private var context
@@ -56,6 +56,7 @@ struct DocumentGridView: View {
     }
 
     var body: some View {
+        LiveContent(isDead: !trip.isAlive) {
         Group {
             if sortedDocuments.isEmpty {
                 ContentUnavailableView("No documents yet",
@@ -90,6 +91,7 @@ struct DocumentGridView: View {
             if let doc = try? context.existingObject(with: id) as? TripDocument {
                 vm.deleteDocument(doc, context: context)
             }
+        }
         }
     }
 

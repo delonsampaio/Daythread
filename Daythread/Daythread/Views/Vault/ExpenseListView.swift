@@ -9,7 +9,7 @@ import SwiftUI
 import CoreData
 
 struct ExpenseListView: View {
-    let trip: Trip
+    @ObservedObject var trip: Trip
     let vm: VaultViewModel
 
     @Environment(\.managedObjectContext) private var context
@@ -60,6 +60,7 @@ struct ExpenseListView: View {
     }
 
     var body: some View {
+        LiveContent(isDead: !trip.isAlive) {
         List {
             // Totals header
             if !expenses.isEmpty {
@@ -213,6 +214,7 @@ struct ExpenseListView: View {
             if let expense = try? context.existingObject(with: id) as? TripExpense {
                 vm.deleteExpense(expense, context: context)
             }
+        }
         }
     }
 }
