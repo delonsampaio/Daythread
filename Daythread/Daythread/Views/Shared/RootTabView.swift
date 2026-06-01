@@ -100,5 +100,12 @@ struct RootTabView: View {
                 store.activeTrip = trips.first
             }
         }
+        // CloudKit syncs attributes piecemeal: a new shared trip's `id` may arrive
+        // before its `cloudKitShareID`, causing the onChange(of: ids) above to fire
+        // before resolvePendingJoin can find a match. Watch cloudKitShareID too so
+        // we retry the moment the matching attribute arrives.
+        .onChange(of: activeTrips.compactMap(\.cloudKitShareID)) { _, _ in
+            store.resolvePendingJoin(in: Array(activeTrips))
+        }
     }
 }
