@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct EventCardView: View {
     // @ObservedObject so edits to the event's fields (title, time, location…)
@@ -13,6 +14,7 @@ struct EventCardView: View {
     @ObservedObject var event: TripEvent
 
     var body: some View {
+        LiveContent(isDeleted: event.isDeleted) {
         HStack(spacing: 0) {
             // Left-edge color bar
             Rectangle()
@@ -65,5 +67,6 @@ struct EventCardView: View {
         .clipShape(RoundedRectangle(cornerRadius: ThemeTokens.cardCornerRadius, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: ThemeTokens.cardCornerRadius))
         .cardShadow()
+        }
     }
 }

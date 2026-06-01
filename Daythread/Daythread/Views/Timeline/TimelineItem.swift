@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 /// Wraps every card in the timeline with a left-column time + icon + connector line.
 ///
@@ -31,6 +32,7 @@ struct TimelineItem<Content: View>: View {
     @State private var shakeAmount: CGFloat = 0
 
     var body: some View {
+        LiveContent(isDeleted: event.isDeleted) {
         HStack(alignment: .top, spacing: 12) {
             leftColumn
             content
@@ -41,6 +43,7 @@ struct TimelineItem<Content: View>: View {
             withAnimation(.easeInOut(duration: 0.5)) {
                 shakeAmount += 1
             }
+        }
         }
     }
 

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct TripCardView: View {
     @ObservedObject var trip: Trip
@@ -23,6 +24,7 @@ struct TripCardView: View {
     }
 
     var body: some View {
+        LiveContent(isDeleted: trip.isDeleted) {
         VStack(alignment: .leading, spacing: 0) {
             // Cover image
             ZStack(alignment: .bottomLeading) {
@@ -82,6 +84,7 @@ struct TripCardView: View {
             ))
         }
         .cardShadow()
+        }
     }
 
     private func gradientColors(for seed: Int) -> [Color] {

@@ -28,6 +28,7 @@ struct GroupSyncSheet: View {
     @State private var isOwnerBeforeSheetOpen = false
 
     var body: some View {
+        LiveContent(isDeleted: trip.isDeleted) {
         NavigationStack {
             List {
                 // Share status
@@ -141,6 +142,7 @@ struct GroupSyncSheet: View {
                 cloudKit.syncParticipants(for: trip, context: context)
                 await registerMyMembership()
             }
+        }
         }
     }
 

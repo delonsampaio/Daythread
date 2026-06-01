@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct TransitCardView: View {
     // @ObservedObject so live edits to the event or its transit details
@@ -26,6 +27,7 @@ struct TransitCardView: View {
     }
 
     var body: some View {
+        LiveContent(isDeleted: event.isDeleted || details.isDeleted) {
         VStack(alignment: .leading, spacing: 10) {
             // Carrier + flight number
             HStack {
@@ -129,6 +131,7 @@ struct TransitCardView: View {
         .clipShape(RoundedRectangle(cornerRadius: ThemeTokens.cardCornerRadius, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: ThemeTokens.cardCornerRadius))
         .cardShadow()
+        }
     }
 
     @ViewBuilder
