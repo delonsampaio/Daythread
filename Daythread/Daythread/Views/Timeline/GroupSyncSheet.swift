@@ -85,9 +85,7 @@ struct GroupSyncSheet: View {
                     Section("Members (\(members.count))") {
                         ForEach(members) { member in
                             HStack(spacing: 12) {
-                                Image(systemName: "person.circle.fill")
-                                    .font(.system(size: 28))
-                                    .foregroundStyle(ThemeTokens.textMuted)
+                                memberAvatar(member)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(member.displayName)
                                         .font(.system(size: 14, weight: .semibold))
@@ -145,6 +143,43 @@ struct GroupSyncSheet: View {
         }
         }
         .presentationSizing(.page)
+    }
+
+    // MARK: — Member avatar
+
+    @ViewBuilder
+    private func memberAvatar(_ member: TripMember) -> some View {
+        ZStack {
+            if let data = member.avatarData, let img = UIImage(data: data) {
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFill()
+                    .clipShape(Circle())
+            } else {
+                Circle()
+                    .fill(avatarColor(for: member))
+                    .overlay(
+                        Text(initials(for: member))
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white)
+                    )
+            }
+        }
+        .frame(width: 36, height: 36)
+    }
+
+    private func initials(for member: TripMember) -> String {
+        let parts = member.displayName.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: " ")
+        switch parts.count {
+        case 0:  return "?"
+        case 1:  return String(parts[0].prefix(2)).uppercased()
+        default: return "\(parts[0].prefix(1))\(parts[1].prefix(1))".uppercased()
+        }
+    }
+
+    private func avatarColor(for member: TripMember) -> Color {
+        let colors: [Color] = [.blue, .purple, .teal, .orange, .pink, .indigo, .green]
+        return colors[abs(member.displayName.hashValue) % colors.count]
     }
 
     /// Creates the CKShare (device-only) and presents the system invite sheet.
