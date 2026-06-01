@@ -82,7 +82,12 @@ struct PersistenceController {
                       savedCtx !== viewContext,
                       savedCtx.persistentStoreCoordinator === viewContext.persistentStoreCoordinator
                 else { return }
-                viewContext.perform { viewContext.mergeChanges(fromContextDidSave: notification) }
+                // Delivered on `.main` (queue: .main) and viewContext is the
+                // main-queue context, so we're already on the correct queue —
+                // merge directly. Wrapping in viewContext.perform would push the
+                // non-Sendable `notification` into a @Sendable closure (Swift 6
+                // capture error) for no benefit.
+                viewContext.mergeChanges(fromContextDidSave: notification)
             }
         }
     }

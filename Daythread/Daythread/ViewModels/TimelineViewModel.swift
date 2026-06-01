@@ -196,11 +196,12 @@ final class TimelineViewModel {
         var violated = Set<UUID>()
         for (i, event) in events.enumerated() {
             guard event.isTimeLocked, let lockedTime = event.startTime else { continue }
+            guard let id = event.id else { continue }
             if events[..<i].compactMap(\.startTime).contains(where: { $0 > lockedTime }) {
-                event.id.map { violated.insert($0) }
+                violated.insert(id)
             }
             if events[(i + 1)...].compactMap(\.startTime).contains(where: { $0 < lockedTime }) {
-                event.id.map { violated.insert($0) }
+                violated.insert(id)
             }
         }
         return violated
@@ -218,14 +219,14 @@ final class TimelineViewModel {
     func outOfOrderEventIDs(in events: [TripEvent]) -> Set<UUID> {
         var outOfOrder = Set<UUID>()
         for (i, event) in events.enumerated() {
-            guard !event.isTimeLocked, let eventTime = event.startTime else { continue }
+            guard !event.isTimeLocked, let eventTime = event.startTime, let id = event.id else { continue }
             // Flagged if any earlier-positioned event has a later startTime.
             if events[..<i].compactMap(\.startTime).contains(where: { $0 > eventTime }) {
-                event.id.map { outOfOrder.insert($0) }
+                outOfOrder.insert(id)
             }
             // Flagged if any later-positioned event has an earlier startTime.
             if events[(i + 1)...].compactMap(\.startTime).contains(where: { $0 < eventTime }) {
-                event.id.map { outOfOrder.insert($0) }
+                outOfOrder.insert(id)
             }
         }
         return outOfOrder
