@@ -86,6 +86,8 @@
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
         <attribute name="addedByAppleUserID" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
         <attribute name="isShared" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES" syncable="YES"/>
+        <attribute name="isLocked" optional="YES" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES" syncable="YES"/>
+        <attribute name="notes" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
         <attribute name="mimeType" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
         <attribute name="title" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
         <relationship name="trip" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Trip" inverseName="documents" inverseEntity="Trip" syncable="YES"/>

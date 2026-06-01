@@ -21,7 +21,9 @@ final class VaultViewModel {
         title: String,
         data: Data,
         mimeType: String,
+        notes: String = "",
         isShared: Bool = false,
+        isLocked: Bool = true,
         addedByAppleUserID: String = "",
         to trip: Trip,
         isPro: Bool,
@@ -36,7 +38,9 @@ final class VaultViewModel {
         doc.title = title
         doc.documentData = data
         doc.mimeType = mimeType
+        doc.notes = notes
         doc.isShared = isShared
+        doc.isLocked = isLocked
         doc.addedByAppleUserID = addedByAppleUserID
         doc.addedAt = Date()
         doc.trip = trip

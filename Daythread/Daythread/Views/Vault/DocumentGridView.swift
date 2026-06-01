@@ -9,6 +9,21 @@ import SwiftUI
 import CoreData
 import QuickLook
 
+// MARK: — Sort + view-mode types
+
+private enum DocumentSortOrder: String, CaseIterable {
+    case expiryAsc   = "Expiry (soonest first)"
+    case nameAsc     = "Name (A–Z)"
+    case addedNewest = "Date added (newest)"
+    case addedOldest = "Date added (oldest)"
+}
+
+private enum DocumentViewMode: String {
+    case grid, list
+}
+
+// MARK: — DocumentGridView
+
 struct DocumentGridView: View {
     @ObservedObject var trip: Trip
     let vm: VaultViewModel
@@ -16,18 +31,31 @@ struct DocumentGridView: View {
     @Environment(\.managedObjectContext) private var context
     @Environment(TripStore.self) private var store
 
+    /// Persisted so the choice survives navigation and app restarts.
+    @AppStorage("daythread.documentViewMode") private var viewModeRaw: String = DocumentViewMode.grid.rawValue
+    @State private var sortOrder: DocumentSortOrder = .expiryAsc
+
+    private var viewMode: DocumentViewMode { DocumentViewMode(rawValue: viewModeRaw) ?? .grid }
+
     /// The current device's CloudKit user ID, if known.
     private var myID: String? { store.currentUserCloudKitID }
 
-    /// Whether this document is visible to the current user:
-    /// - Trip not shared → always visible
-    /// - They added it → always visible (their own private doc)
-    /// - isShared = true → visible to everyone on the trip
-    /// - Falls back to visible when myID is unknown (first launch before
-    ///   GroupSync opens to set currentUserCloudKitID)
+    /// True when the trip lives in the owner's private store (not shared.sqlite).
+    private var isOwnerDevice: Bool {
+        trip.objectID.persistentStore?.url?.lastPathComponent != "shared.sqlite"
+    }
+
+    /// True when the current user is the originator of this document.
+    private func isOriginator(_ doc: TripDocument) -> Bool {
+        if doc.addedByAppleUserID.isEmpty { return isOwnerDevice }
+        let id = myID ?? ""
+        return !id.isEmpty && doc.addedByAppleUserID == id
+    }
+
     private func isVisible(_ doc: TripDocument) -> Bool {
         guard trip.cloudKitShareID != nil else { return true }
         guard let id = myID else { return true }
+        if doc.addedByAppleUserID.isEmpty { return isOwnerDevice || doc.isShared }
         return doc.isShared || doc.addedByAppleUserID == id
     }
 
@@ -36,23 +64,29 @@ struct DocumentGridView: View {
     @State private var editingDocument: TripDocument?
     @State private var pendingUndoDelete: PendingDelete?
 
-    private let columns = [GridItem(.adaptive(minimum: 100))]
+    private let gridColumns = [GridItem(.adaptive(minimum: 100))]
 
-    /// Documents sorted with the most urgent expiry dates first (ascending),
-    /// then documents without expiry ordered by creation date. Keeps the grid
-    /// stable across navigations — NSSet ordering is undefined.
     private var sortedDocuments: [TripDocument] {
         trip.documentsArray
             .filter { $0.objectID != pendingUndoDelete?.id }
             .filter { isVisible($0) }
             .sorted { a, b in
-            switch (a.expiryDate, b.expiryDate) {
-            case (let ea?, let eb?): return ea < eb
-            case (.some, nil):       return true   // expiring docs float to top
-            case (nil, .some):       return false
-            case (nil, nil):         return a.addedAt < b.addedAt
+                switch sortOrder {
+                case .expiryAsc:
+                    switch (a.expiryDate, b.expiryDate) {
+                    case (let ea?, let eb?): return ea < eb
+                    case (.some, nil):       return true
+                    case (nil, .some):       return false
+                    case (nil, nil):         return a.addedAt < b.addedAt
+                    }
+                case .nameAsc:
+                    return a.title.localizedCompare(b.title) == .orderedAscending
+                case .addedNewest:
+                    return a.addedAt > b.addedAt
+                case .addedOldest:
+                    return a.addedAt < b.addedAt
+                }
             }
-        }
     }
 
     var body: some View {
@@ -62,19 +96,51 @@ struct DocumentGridView: View {
                 ContentUnavailableView("No documents yet",
                                        systemImage: "doc.fill",
                                        description: Text("Add passports, visas, and boarding passes."))
-            } else {
+            } else if viewMode == .grid {
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 12) {
+                    LazyVGrid(columns: gridColumns, spacing: 12) {
                         ForEach(sortedDocuments) { doc in
                             documentTile(doc)
                         }
                     }
                     .padding()
                 }
+            } else {
+                List {
+                    ForEach(sortedDocuments) { doc in
+                        documentRow(doc)
+                            .listRowBackground(ThemeTokens.backgroundCard)
+                    }
+                }
+                .listStyle(.insetGrouped)
             }
         }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                // Sort menu
+                Menu {
+                    ForEach(DocumentSortOrder.allCases, id: \.self) { order in
+                        Button {
+                            sortOrder = order
+                        } label: {
+                            Label(
+                                order.rawValue,
+                                systemImage: sortOrder == order ? "checkmark" : ""
+                            )
+                        }
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
+                }
+
+                // Grid / list toggle
+                Button {
+                    viewModeRaw = (viewMode == .grid) ? DocumentViewMode.list.rawValue
+                                                      : DocumentViewMode.grid.rawValue
+                } label: {
+                    Image(systemName: viewMode == .grid ? "list.bullet" : "square.grid.2x2")
+                }
+
                 Button { showAdd = true } label: { Image(systemName: "plus") }
             }
         }
@@ -95,6 +161,8 @@ struct DocumentGridView: View {
         }
     }
 
+    // MARK: — Grid tile
+
     @ViewBuilder
     private func documentTile(_ doc: TripDocument) -> some View {
         Button {
@@ -106,7 +174,6 @@ struct DocumentGridView: View {
                         .fill(ThemeTokens.backgroundCard)
                         .frame(height: 90)
 
-                    // Thumbnail for images, icon for PDFs
                     if doc.mimeType != "application/pdf",
                        let data = doc.documentData,
                        let uiImage = UIImage(data: data) {
@@ -121,7 +188,6 @@ struct DocumentGridView: View {
                             .foregroundStyle(ThemeTokens.accent)
                     }
 
-                    // Expiry badge
                     if let expiry = doc.expiryDate {
                         VStack {
                             HStack {
@@ -142,7 +208,71 @@ struct DocumentGridView: View {
         }
         .buttonStyle(.plain)
         .contentShape(RoundedRectangle(cornerRadius: 10))
-        .contextMenu {
+        .contextMenu { contextMenuItems(doc) }
+    }
+
+    // MARK: — List row
+
+    @ViewBuilder
+    private func documentRow(_ doc: TripDocument) -> some View {
+        Button {
+            viewingDocument = doc
+        } label: {
+            HStack(spacing: 12) {
+                // Thumbnail
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(ThemeTokens.backgroundPrimary)
+                        .frame(width: 56, height: 56)
+
+                    if doc.mimeType != "application/pdf",
+                       let data = doc.documentData,
+                       let uiImage = UIImage(data: data) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 56, height: 56)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    } else {
+                        Image(systemName: doc.mimeType == "application/pdf" ? "doc.fill" : "photo.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(ThemeTokens.accent)
+                    }
+                }
+
+                // Text info
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(doc.title.isEmpty ? "Untitled" : doc.title)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(ThemeTokens.textPrimary)
+                        .lineLimit(1)
+
+                    if !doc.notes.isEmpty {
+                        Text(doc.notes)
+                            .font(.caption)
+                            .foregroundStyle(ThemeTokens.textSecondary)
+                            .lineLimit(2)
+                    }
+
+                    if let expiry = doc.expiryDate {
+                        expiryLabel(expiry)
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(.plain)
+        .contextMenu { contextMenuItems(doc) }
+    }
+
+    // MARK: — Shared context menu
+
+    @ViewBuilder
+    private func contextMenuItems(_ doc: TripDocument) -> some View {
+        // Locked documents: only the originator can edit or delete.
+        if !doc.isLocked || isOriginator(doc) {
             Button("Edit Details", systemImage: "pencil") {
                 editingDocument = doc
             }
@@ -156,10 +286,8 @@ struct DocumentGridView: View {
         }
     }
 
-    /// Expiry badge thresholds:
-    ///   Expired / < 30 days  → red   (actionable danger)
-    ///   30 – 89 days         → amber (advance warning — passport 6-month entry rules)
-    ///   90+ days             → hidden
+    // MARK: — Expiry indicators
+
     @ViewBuilder
     private func expiryBadge(_ date: Date) -> some View {
         let daysUntil = Calendar.current.dateComponents([.day], from: .now, to: date).day ?? 0
@@ -176,13 +304,28 @@ struct DocumentGridView: View {
                 .background(Capsule().fill(color))
         }
     }
+
+    @ViewBuilder
+    private func expiryLabel(_ date: Date) -> some View {
+        let daysUntil = Calendar.current.dateComponents([.day], from: .now, to: date).day ?? 0
+        let color: Color = daysUntil < 0 ? .red
+                         : daysUntil < 30 ? .red
+                         : daysUntil < 90 ? ThemeTokens.warningAmber
+                         : ThemeTokens.textMuted
+        HStack(spacing: 3) {
+            Image(systemName: "calendar")
+                .font(.caption2)
+            Text(daysUntil < 0 ? "Expired"
+                 : daysUntil == 0 ? "Expires today"
+                 : "Expires \(date.formatted(.dateTime.day().month(.abbreviated).year()))")
+                .font(.caption2)
+        }
+        .foregroundStyle(color)
+    }
 }
 
 // MARK: — Document viewer
 
-/// Writes document data to a UUID-named temp file in .task (not in init or
-/// the render cycle) and explicitly removes it on .onDisappear to prevent
-/// orphaned file accumulation in the temporary directory.
 private struct DocumentViewerSheet: View {
     let document: TripDocument
     @Environment(\.dismiss) private var dismiss
@@ -215,8 +358,21 @@ private struct DocumentViewerSheet: View {
                     }
                 }
             }
-            // Write to a UUID-named temp file so parallel viewers don't collide
-            // and the safe title sanitisation code is unnecessary.
+            .safeAreaInset(edge: .bottom) {
+                if !document.notes.isEmpty {
+                    HStack {
+                        Image(systemName: "note.text")
+                            .foregroundStyle(ThemeTokens.textSecondary)
+                        Text(document.notes)
+                            .font(.subheadline)
+                            .foregroundStyle(ThemeTokens.textSecondary)
+                            .lineLimit(3)
+                        Spacer()
+                    }
+                    .padding()
+                    .background(.regularMaterial)
+                }
+            }
             .task {
                 guard let data = document.documentData else { return }
                 let ext = document.mimeType == "application/pdf" ? "pdf" : "jpg"
@@ -226,8 +382,6 @@ private struct DocumentViewerSheet: View {
                 try? data.write(to: url)
                 tempURL = url
             }
-            // Explicit cleanup — iOS clears the tmp dir eventually but only under
-            // disk pressure. Removing eagerly keeps the app's footprint clean.
             .onDisappear {
                 if let url = tempURL {
                     try? FileManager.default.removeItem(at: url)
@@ -239,8 +393,6 @@ private struct DocumentViewerSheet: View {
 
 // MARK: — QuickLook wrapper
 
-/// Takes a pre-written URL rather than raw Data so the file lifecycle
-/// (write + delete) is owned by the enclosing DocumentViewerSheet.
 private struct QuickLookPreviewView: UIViewControllerRepresentable {
     let url: URL
 

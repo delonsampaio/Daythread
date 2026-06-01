@@ -19,11 +19,13 @@ struct AddDocumentSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var title: String = ""
+    @State private var notes: String = ""
     @State private var selectedData: Data?
     @State private var mimeType: String = "application/pdf"
     @State private var expiryDate: Date = Date()
     @State private var hasExpiry: Bool = false
     @State private var isShared: Bool = false
+    @State private var isLocked: Bool = true
 
     @State private var showSourcePicker = false
     @State private var showFilePicker = false
@@ -36,6 +38,10 @@ struct AddDocumentSheet: View {
             Form {
                 Section {
                     TextField("Document title (e.g. Passport — Delon)", text: $title)
+                }
+                Section("Notes") {
+                    TextEditor(text: $notes)
+                        .frame(minHeight: 80)
                 }
                 Section("File") {
                     Button {
@@ -56,14 +62,23 @@ struct AddDocumentSheet: View {
                         DatePicker("Expiry", selection: $expiryDate, displayedComponents: .date)
                     }
                 }
-                if trip.cloudKitShareID != nil {
-                    Section {
-                        Toggle("Share with trip members", isOn: $isShared)
-                    } footer: {
+                Section {
+                    Toggle("Share with trip members", isOn: $isShared)
+                } footer: {
+                    if trip.cloudKitShareID != nil {
                         Text(isShared
                             ? "Co-editors can view this document."
                             : "Only you can see this document. Toggle on to share it.")
+                    } else {
+                        Text("If you share this trip later, co-editors will be able to see this document.")
                     }
+                }
+                Section {
+                    Toggle("Lock document", isOn: $isLocked)
+                } footer: {
+                    Text(isLocked
+                        ? "Only you can edit this document's title and expiry date."
+                        : "Anyone on the trip can edit this document's details.")
                 }
             }
             .navigationTitle("Add Document")
@@ -116,7 +131,9 @@ struct AddDocumentSheet: View {
     private func save() {
         guard let data = selectedData else { return }
         vm.addDocument(title: title, data: data, mimeType: mimeType,
+                       notes: notes,
                        isShared: isShared,
+                       isLocked: isLocked,
                        addedByAppleUserID: store.currentUserCloudKitID ?? "",
                        to: trip, isPro: store.isPro, context: context)
         HapticManager.shared.sheetConfirm()
