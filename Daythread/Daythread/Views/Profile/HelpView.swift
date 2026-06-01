@@ -70,7 +70,7 @@ struct HelpView: View {
         Section("Getting Started") {
             FAQRow(
                 question: "How do I create my first trip?",
-                answer: "Tap the Trips tab, then tap the + button. A single form lets you name your trip, set the destination and dates, and optionally add a cover photo. Once saved, the app switches to your new trip in the Timeline."
+                answer: "Tap the Trips tab, then tap the + button. Fill in the trip name, destination, start and end dates, and an optional cover photo — all on one screen. Tap Save and the app switches to your new trip in the Timeline."
             )
             FAQRow(
                 question: "How do I switch between trips?",
@@ -161,11 +161,28 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "How do I add a document?",
-                answer: "Go to Vault → Documents tab and tap +. You can import from your Files app (PDF or image), take a photo with your camera, or pick from your photo library. Give it a title and an optional expiry date."
+                answer: "Go to Vault → Documents tab and tap +. Import from Files, take a photo, or pick from your library. Give it a title, an optional note (e.g. visa requirements, booking reference), and an optional expiry date."
             )
             FAQRow(
                 question: "Can I edit a document after adding it?",
-                answer: "Yes. Long-press any document tile and tap Edit Details to change the title or expiry date. The file itself cannot be replaced — delete the document and re-add it if you need to swap the file."
+                answer: "Yes — if you are the originator or the document is unlocked. Long-press any document tile and tap Edit Details to change the title, notes, or expiry date. Documents are locked by default so only you can edit them; unlock from the same sheet to let others edit. The file itself cannot be replaced — delete and re-add it to swap the file."
+            )
+            FAQRow(
+                question: "Can I switch between a grid and a list view for documents?",
+                answer: "Yes. Tap the grid/list toggle icon in the top-right toolbar of the Documents tab. The list view shows each document's thumbnail, title, notes, and expiry date at a glance. Your choice is remembered across sessions."
+            )
+            FAQRow(
+                question: "How do I sort documents?",
+                answer: "Tap the sort icon (↑↓ arrows) in the Documents toolbar to choose a sort order: Expiry soonest first (default), Name A–Z, Date added newest, or Date added oldest."
+            )
+            FAQRow(
+                question: "Can I prevent others from editing my documents?",
+                answer: "Yes. Every document has a Lock toggle (on by default). When locked, only the person who added the document can change its title or expiry date — the Edit Details option is hidden for everyone else. As the originator you can unlock it at any time from Edit Details. The lock only controls editing; it does not affect who can view the document."
+            )
+            FAQRow(
+                question: "Can I share specific documents with trip co-editors?",
+                answer: "Yes. When adding or editing a document, use the 'Share with trip members' toggle. When off (the default), only you can see the document. When on, all co-editors with access to the trip can view it. Only the originator of the document can change this setting.",
+                isPro: true
             )
             FAQRow(
                 question: "How do I share a document?",
@@ -286,7 +303,7 @@ struct HelpView: View {
     // MARK: — Search index
 
     private static let allFAQs: [FAQItem] = [
-        .init(section: "Getting Started", question: "How do I create my first trip?", answer: "Tap the Trips tab, then tap the + button. A single form lets you name your trip, set the destination and dates, and optionally add a cover photo. Once saved, the app switches to your new trip in the Timeline."),
+        .init(section: "Getting Started", question: "How do I create my first trip?", answer: "Tap the Trips tab, then tap the + button. Fill in the trip name, destination, start and end dates, and an optional cover photo — all on one screen. Tap Save and the app switches to your new trip in the Timeline."),
         .init(section: "Getting Started", question: "How do I switch between trips?", answer: "Tap the trip name in the centre of the Timeline navigation bar — it shows a dropdown of all your active trips. The current trip's date range appears just below the name so you always know which trip you're viewing."),
         .init(section: "Getting Started", question: "How do I add an event to my itinerary?", answer: "In the Timeline, tap the blue + button in the bottom-right corner to open the Add Event sheet. Choose a category (Flight, Hotel, Restaurant, Museum, Activity, etc.), fill in the details, and save."),
         .init(section: "Getting Started", question: "What categories of events can I add?", answer: "Daythread supports: Flight, Train, Bus, Ferry (transit), Hotel, Rental Property, Restaurant, Café, Bar, Museum, Attraction, Tour, Show, Activity, Sport, Hike, Shopping, and Other. Transit categories open an extended form for carrier, flight/train number, booking code, and seat."),
@@ -304,8 +321,12 @@ struct HelpView: View {
         .init(section: "Trips", question: "What are Pre-Trip Tasks?", answer: "Pre-Trip Tasks are a checklist you can attach to any trip for things to do before you leave — booking insurance, printing documents, packing specific items, etc."),
         .init(section: "Trips", question: "Can I add a cover photo to a trip?", answer: "Yes. The trip creation form has a Cover Photo section where you can pick one from your photo library. You can also change or remove it later via the Edit option in the trip card's long-press menu."),
         .init(section: "Vault (Documents & Expenses)", question: "What can I store in the Vault?", answer: "The Vault holds Documents (passports, visas, insurance cards, boarding passes — as PDFs or images) and Expenses (a running log of what you've spent per trip)."),
-        .init(section: "Vault (Documents & Expenses)", question: "How do I add a document?", answer: "Go to Vault → Documents tab and tap +. Import from Files, take a photo, or pick from your library. Give it a title and an optional expiry date."),
-        .init(section: "Vault (Documents & Expenses)", question: "Can I edit a document after adding it?", answer: "Yes. Long-press the document tile and tap Edit Details to change the title or expiry date. To replace the file, delete the document and re-add it."),
+        .init(section: "Vault (Documents & Expenses)", question: "How do I add a document?", answer: "Go to Vault → Documents tab and tap +. Import from Files, take a photo, or pick from your library. Give it a title, an optional note, and an optional expiry date."),
+        .init(section: "Vault (Documents & Expenses)", question: "Can I edit a document after adding it?", answer: "Yes — if you are the originator or the document is unlocked. Long-press the tile and tap Edit Details to change the title, notes, or expiry date. Documents are locked by default so only you can edit them; unlock from the same sheet to let others edit. To replace the file, delete the document and re-add it."),
+        .init(section: "Vault (Documents & Expenses)", question: "Can I switch between a grid and a list view for documents?", answer: "Yes. Tap the grid/list toggle icon in the top-right toolbar. The list view shows each document's thumbnail, title, notes, and expiry date at a glance."),
+        .init(section: "Vault (Documents & Expenses)", question: "How do I sort documents?", answer: "Tap the sort icon (↑↓ arrows) in the Documents toolbar to choose: Expiry soonest first, Name A–Z, Date added newest, or Date added oldest."),
+        .init(section: "Vault (Documents & Expenses)", question: "Can I prevent others from editing my documents?", answer: "Yes. Every document has a Lock toggle (on by default). When locked, only the person who added the document can edit its title, notes, or expiry date. As the originator you can unlock it at any time from Edit Details."),
+        .init(section: "Vault (Documents & Expenses)", question: "Can I share specific documents with trip co-editors?", answer: "Yes. When adding or editing a document, use the 'Share with trip members' toggle. When off (the default), only you can see the document. When on, all co-editors can view it. Only the originator can change this setting.", isPro: true),
         .init(section: "Vault (Documents & Expenses)", question: "How do I share a document?", answer: "Tap the tile to open the viewer, then tap the share icon in the top-left to send via Messages, email, AirDrop, or any other app."),
         .init(section: "Vault (Documents & Expenses)", question: "What does the expiry badge on a document tile mean?", answer: "Red means expired or expiring within 30 days. Amber means expiring within 90 days — time to act before international entry requirements kick in."),
         .init(section: "Vault (Documents & Expenses)", question: "How many documents can I store for free?", answer: "Free users can store up to 5 documents per trip. Upgrade to Pro for unlimited document storage."),
