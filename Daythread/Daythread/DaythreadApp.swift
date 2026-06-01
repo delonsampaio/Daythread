@@ -19,7 +19,7 @@ struct DaythreadApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootTabView()
+            RootView()
                 .environment(\.managedObjectContext, persistence.viewContext)
                 .environment(store)
             // Co-editing: ShareSceneDelegate accepts the tapped CKShare invite
