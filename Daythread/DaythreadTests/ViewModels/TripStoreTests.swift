@@ -147,7 +147,7 @@ final class TripStoreTests: XCTestCase {
         let paris = makeTrip(name: "Paris")
         let tokyo = makeTrip(name: "Tokyo")
         try ctx.save()
-        UserDefaults.standard.set(tokyo.id.uuidString, forKey: activeTripIDKey)
+        UserDefaults.standard.set(tokyo.id!.uuidString, forKey: activeTripIDKey)
 
         store.selectInitialTripIfNeeded(from: [paris, tokyo])
 
@@ -174,7 +174,7 @@ final class TripStoreTests: XCTestCase {
         try ctx.save()
         store.activeTrip = paris
         // Even with a different stored ID, an already-active trip must not change.
-        UserDefaults.standard.set(tokyo.id.uuidString, forKey: activeTripIDKey)
+        UserDefaults.standard.set(tokyo.id!.uuidString, forKey: activeTripIDKey)
 
         store.selectInitialTripIfNeeded(from: [paris, tokyo])
 

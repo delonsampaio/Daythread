@@ -71,7 +71,7 @@ final class ChronologicalOrderTests: XCTestCase {
 
         let result = TimelineViewModel().outOfOrderEventIDs(in: events)
 
-        XCTAssertEqual(result, [events[0].id, events[1].id])
+        XCTAssertEqual(result, [events[0].id!, events[1].id!])
     }
 
     /// Breakfast(7:35) before Walk(8:37) — correct chronological order → empty set.
@@ -96,9 +96,9 @@ final class ChronologicalOrderTests: XCTestCase {
 
         let result = TimelineViewModel().outOfOrderEventIDs(in: events)
 
-        XCTAssertFalse(result.contains(events[0].id), "Untimed event must not be flagged")
-        XCTAssertTrue(result.contains(events[1].id),  "Walk(8:37) placed above Breakfast(7:35) must be flagged")
-        XCTAssertTrue(result.contains(events[2].id),  "Breakfast(7:35) placed below Walk(8:37) must be flagged")
+        XCTAssertFalse(result.contains(events[0].id!), "Untimed event must not be flagged")
+        XCTAssertTrue(result.contains(events[1].id!),  "Walk(8:37) placed above Breakfast(7:35) must be flagged")
+        XCTAssertTrue(result.contains(events[2].id!),  "Breakfast(7:35) placed below Walk(8:37) must be flagged")
     }
 
     /// Locked events already have their own amber indicator — skip them here.
@@ -111,9 +111,9 @@ final class ChronologicalOrderTests: XCTestCase {
 
         let result = TimelineViewModel().outOfOrderEventIDs(in: events)
 
-        XCTAssertFalse(result.contains(events[0].id),
+        XCTAssertFalse(result.contains(events[0].id!),
                        "Locked event must be skipped — violatedLockIDs handles it")
-        XCTAssertTrue(result.contains(events[1].id),
+        XCTAssertTrue(result.contains(events[1].id!),
                       "Unlocked Breakfast(7:35) placed after locked Walk(8:37) must be flagged")
     }
 
@@ -144,7 +144,7 @@ final class ChronologicalOrderTests: XCTestCase {
 
         let result = TimelineViewModel().outOfOrderEventIDs(in: events)
 
-        XCTAssertEqual(result, [events[0].id, events[1].id, events[2].id])
+        XCTAssertEqual(result, [events[0].id!, events[1].id!, events[2].id!])
     }
 
     // MARK: — sortDayByTime

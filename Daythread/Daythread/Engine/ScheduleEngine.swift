@@ -10,6 +10,16 @@
 
 import Foundation
 
+private extension Date {
+    /// Drops seconds and sub-second components so interval math compares at the
+    /// minute granularity events are actually authored at.
+    var truncatedToMinute: Date {
+        Calendar.current.date(
+            from: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: self)
+        ) ?? self
+    }
+}
+
 struct ScheduleEngine {
     /// Returns all events in `candidates` whose time window strictly overlaps [startTime, endTime).
     ///
@@ -31,18 +41,25 @@ struct ScheduleEngine {
         among candidates: [TripEvent],
         excludingID: UUID? = nil
     ) -> [TripEvent] {
+        // Compare at whole-minute precision. Events are minute-granular (the
+        // time picker snaps to 5-minute marks), but legacy rows may carry stray
+        // seconds; without truncation two boundary-adjacent events (10–11pm and
+        // 11pm–12am) overlap by those seconds and falsely conflict.
+        let start = startTime.truncatedToMinute
+        let end   = endTime.truncatedToMinute
+
         // Degenerate window (inverted or zero-duration) → no conflicts possible.
-        guard startTime < endTime else { return [] }
+        guard start < end else { return [] }
 
         return candidates.filter { candidate in
             // Skip the event being edited.
             if let excludingID, candidate.id == excludingID { return false }
             // Both times required on the candidate — untimed events are skipped.
-            guard let cStart = candidate.startTime,
-                  let cEnd   = candidate.endTime else { return false }
+            guard let cStart = candidate.startTime?.truncatedToMinute,
+                  let cEnd   = candidate.endTime?.truncatedToMinute else { return false }
             // Strict overlap: [start, end) ∩ [cStart, cEnd) is non-empty iff:
             //   start < cEnd  AND  cStart < end
-            return startTime < cEnd && cStart < endTime
+            return start < cEnd && cStart < end
         }
     }
 }

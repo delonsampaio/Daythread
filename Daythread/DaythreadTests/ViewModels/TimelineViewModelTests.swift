@@ -63,7 +63,7 @@ final class TimelineViewModelTests: XCTestCase {
         let (day, events) = makeDay(eventTitles: ["A", "B", "C"], context: context)
         // events[2] = "C" (sortOrder 2), drop before events[0] = "A"
 
-        vm.reorderEvent(draggedID: events[2].id.uuidString,
+        vm.reorderEvent(draggedID: events[2].id!.uuidString,
                         before: events[0],
                         in: day,
                         context: context)
@@ -80,7 +80,7 @@ final class TimelineViewModelTests: XCTestCase {
         let (day, events) = makeDay(eventTitles: ["A", "B", "C"], context: context)
         // events[0] = "A", drop before events[2] = "C" → [B, A, C]
 
-        vm.reorderEvent(draggedID: events[0].id.uuidString,
+        vm.reorderEvent(draggedID: events[0].id!.uuidString,
                         before: events[2],
                         in: day,
                         context: context)
@@ -99,7 +99,7 @@ final class TimelineViewModelTests: XCTestCase {
 
         let (day, events) = makeDay(eventTitles: ["A", "B", "C"], context: context)
 
-        vm.reorderEvent(draggedID: events[2].id.uuidString,
+        vm.reorderEvent(draggedID: events[2].id!.uuidString,
                         before: events[0],
                         in: day,
                         context: context)
@@ -117,7 +117,7 @@ final class TimelineViewModelTests: XCTestCase {
         events[2].isTimeLocked = true
         try context.save()
 
-        vm.reorderEvent(draggedID: events[2].id.uuidString,
+        vm.reorderEvent(draggedID: events[2].id!.uuidString,
                         before: events[0],
                         in: day,
                         context: context)
@@ -152,7 +152,7 @@ final class TimelineViewModelTests: XCTestCase {
 
         let (day, events) = makeDay(eventTitles: ["A", "B", "C"], context: context)
 
-        vm.appendEvent(draggedID: events[0].id.uuidString, to: day, context: context)
+        vm.appendEvent(draggedID: events[0].id!.uuidString, to: day, context: context)
 
         let reordered = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(reordered.map(\.title), ["B", "C", "A"])
@@ -182,7 +182,7 @@ final class TimelineViewModelTests: XCTestCase {
 
         // Drag C(11am) before B(10am, locked) → [A, C(11am), B(10am, locked)]
         // B(locked,10am) would have C(11am) immediately before it → violation.
-        let moved = vm.reorderEvent(draggedID: events[2].id.uuidString,
+        let moved = vm.reorderEvent(draggedID: events[2].id!.uuidString,
                                     before: events[1], in: day, context: context)
 
         XCTAssertFalse(moved, "Drop must be refused: would put a 11am event before a locked 10am event")
@@ -204,7 +204,7 @@ final class TimelineViewModelTests: XCTestCase {
 
         // Drag C(11am) before B(10am) → [A(9am, locked), C(11am), B(10am)]
         // A stays first, and next event C(11am) > A(9am) → no violation.
-        let moved = vm.reorderEvent(draggedID: events[2].id.uuidString,
+        let moved = vm.reorderEvent(draggedID: events[2].id!.uuidString,
                                     before: events[1], in: day, context: context)
 
         XCTAssertTrue(moved, "Drop should be allowed: locked event A is still in correct time order")
@@ -225,7 +225,7 @@ final class TimelineViewModelTests: XCTestCase {
 
         // Drag C before A → [C, A, B(10am, locked)]
         // B has no timed neighbors → no violation, move allowed.
-        let moved = vm.reorderEvent(draggedID: events[2].id.uuidString,
+        let moved = vm.reorderEvent(draggedID: events[2].id!.uuidString,
                                     before: events[0], in: day, context: context)
 
         XCTAssertTrue(moved)
@@ -249,7 +249,7 @@ final class TimelineViewModelTests: XCTestCase {
 
         // Drag B(8:30pm) before C → proposed [B(8:30pm), C(no time), A(8pm, locked)]
         // Nearest timed predecessor of A = B(8:30pm) > A(8pm) → should be REFUSED
-        let moved = vm.reorderEvent(draggedID: events[2].id.uuidString,
+        let moved = vm.reorderEvent(draggedID: events[2].id!.uuidString,
                                     before: events[0], in: day, context: context)
 
         XCTAssertFalse(moved, "Drop must be refused: B(8:30pm) is the nearest timed predecessor of locked A(8pm)")
@@ -275,7 +275,7 @@ final class TimelineViewModelTests: XCTestCase {
         // Drag B(10pm) before Y(6pm) → proposed [B(10pm), Y(6pm), A(8pm, locked)]
         // Nearest timed pred of A = Y(6pm) ≤ 8pm → old code passes.
         // B(10pm) is also before A → 10pm > 8pm → must be REFUSED.
-        let moved = vm.reorderEvent(draggedID: events[2].id.uuidString,
+        let moved = vm.reorderEvent(draggedID: events[2].id!.uuidString,
                                     before: events[0], in: day, context: context)
 
         XCTAssertFalse(moved, "Drop must be refused: B(10pm) precedes locked A(8pm) even though nearest pred Y(6pm) is valid")
@@ -306,7 +306,7 @@ final class TimelineViewModelTests: XCTestCase {
         setTime(early, hour: 8, context: context)
         try context.save()
 
-        let moved = vm.appendEvent(draggedID: early.id.uuidString, to: day, context: context)
+        let moved = vm.appendEvent(draggedID: early.id!.uuidString, to: day, context: context)
         XCTAssertFalse(moved, "Appending Early(8am) after locked A(9am) must be refused")
 
         // Case 2: locked event at the end — appending an event before it in time.
@@ -318,7 +318,7 @@ final class TimelineViewModelTests: XCTestCase {
         setTime(events2[1], hour: 11, context: context); events2[1].isTimeLocked = true
         try context.save()
 
-        let moved2 = vm.appendEvent(draggedID: events2[0].id.uuidString, to: day2, context: context)
+        let moved2 = vm.appendEvent(draggedID: events2[0].id!.uuidString, to: day2, context: context)
         XCTAssertFalse(moved2, "Appending X(9am) after locked Y(11am) must be refused")
     }
 
@@ -338,11 +338,11 @@ final class TimelineViewModelTests: XCTestCase {
         try context.save()
 
         // Drag C(11am) before B(10am, locked) → [A, C(11am), B(10am, locked)] → violation
-        let moved = vm.reorderEvent(draggedID: events[2].id.uuidString,
+        let moved = vm.reorderEvent(draggedID: events[2].id!.uuidString,
                                     before: events[1], in: day, context: context)
 
         XCTAssertFalse(moved)
-        XCTAssertTrue(vm.shakingEventIDs.contains(events[1].id),
+        XCTAssertTrue(vm.shakingEventIDs.contains(events[1].id!),
                       "shakingEventIDs must contain the violated locked event B")
     }
 
@@ -358,10 +358,10 @@ final class TimelineViewModelTests: XCTestCase {
         setTime(events[1], hour: 11, context: context); events[1].isTimeLocked = true
         try context.save()
 
-        let moved = vm.appendEvent(draggedID: events[0].id.uuidString, to: day, context: context)
+        let moved = vm.appendEvent(draggedID: events[0].id!.uuidString, to: day, context: context)
 
         XCTAssertFalse(moved)
-        XCTAssertTrue(vm.shakingEventIDs.contains(events[1].id),
+        XCTAssertTrue(vm.shakingEventIDs.contains(events[1].id!),
                       "shakingEventIDs must contain the violated locked event Y")
     }
 
@@ -377,7 +377,7 @@ final class TimelineViewModelTests: XCTestCase {
         let (day2, events2) = makeDay(eventTitles: ["X", "Y"], context: context)
 
         // Move "A" from Day 1 to before "Y" in Day 2 → Day 2 should be [X, A, Y]
-        vm.reorderEvent(draggedID: events1[0].id.uuidString,
+        vm.reorderEvent(draggedID: events1[0].id!.uuidString,
                         before: events2[1],
                         in: day2,
                         context: context)
@@ -397,7 +397,7 @@ final class TimelineViewModelTests: XCTestCase {
         let (day2, events2) = makeDay(eventTitles: ["X"], context: context)
 
         // Move "B" (sortOrder 1) from Day 1 to Day 2
-        vm.reorderEvent(draggedID: events1[1].id.uuidString,
+        vm.reorderEvent(draggedID: events1[1].id!.uuidString,
                         before: events2[0],
                         in: day2,
                         context: context)
@@ -416,7 +416,7 @@ final class TimelineViewModelTests: XCTestCase {
         let (_, events1) = makeDay(eventTitles: ["A"], context: context)
         let (day2, events2) = makeDay(eventTitles: ["X"], context: context)
 
-        vm.reorderEvent(draggedID: events1[0].id.uuidString,
+        vm.reorderEvent(draggedID: events1[0].id!.uuidString,
                         before: events2[0],
                         in: day2,
                         context: context)
@@ -434,7 +434,7 @@ final class TimelineViewModelTests: XCTestCase {
         let (_, events1) = makeDay(eventTitles: ["A", "B"], context: context)
         let (day2, _)    = makeDay(eventTitles: ["X", "Y"], context: context)
 
-        vm.appendEvent(draggedID: events1[0].id.uuidString, to: day2, context: context)
+        vm.appendEvent(draggedID: events1[0].id!.uuidString, to: day2, context: context)
 
         let day2Order = day2.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(day2Order.map(\.title), ["X", "Y", "A"])
@@ -450,7 +450,7 @@ final class TimelineViewModelTests: XCTestCase {
         let (day1, events1) = makeDay(eventTitles: ["A", "B", "C"], context: context)
         let (day2, _)       = makeDay(eventTitles: ["X"], context: context)
 
-        vm.appendEvent(draggedID: events1[0].id.uuidString, to: day2, context: context)
+        vm.appendEvent(draggedID: events1[0].id!.uuidString, to: day2, context: context)
 
         let day1Order = day1.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         // "B"(1) and "C"(2) remain — source day is NOT renumbered (one CloudKit write)
@@ -467,7 +467,7 @@ final class TimelineViewModelTests: XCTestCase {
         events[0].isTimeLocked = true
         try context.save()
 
-        vm.appendEvent(draggedID: events[0].id.uuidString, to: day, context: context)
+        vm.appendEvent(draggedID: events[0].id!.uuidString, to: day, context: context)
 
         let reordered = day.eventsArray.sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(reordered.map(\.title), ["A", "B", "C"])

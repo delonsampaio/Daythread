@@ -60,7 +60,12 @@ struct MinuteIntervalTimePicker: UIViewRepresentable {
         init(_ parent: MinuteIntervalTimePicker) { self.parent = parent }
 
         @objc func dateChanged(_ sender: UIDatePicker) {
-            parent.selection = sender.date
+            // Snap to the interval so the bound value carries zero seconds.
+            // UIDatePicker enforces the minute interval visually but still
+            // reports the live seconds component, which would make two
+            // boundary-adjacent events (e.g. 10–11pm and 11pm–12am) appear to
+            // overlap by a few seconds in ScheduleEngine.
+            parent.selection = parent.snap(sender.date, to: parent.minuteInterval)
         }
     }
 
