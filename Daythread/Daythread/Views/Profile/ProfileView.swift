@@ -52,6 +52,7 @@ struct ProfileView: View {
 
                 Section("Account") {
                     NavigationLink("Settings") { SettingsView() }
+                    NavigationLink("Help & FAQ") { HelpView() }
                 }
 
                 Section {
