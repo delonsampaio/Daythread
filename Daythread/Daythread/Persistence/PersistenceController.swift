@@ -61,12 +61,15 @@ struct PersistenceController {
             if let error { fatalError("Core Data store failed: \(error)") }
         }
 
-        // Do NOT use automaticallyMergesChangesFromParent — it merges on whatever
-        // background thread CloudKit's private import context fires from, which
-        // triggers SwiftUI's "Publishing changes from background threads" warning
-        // for every @Observable/@ObservedObject watching that data. Instead we
-        // listen for context saves and explicitly dispatch the merge to the main
-        // thread so @Observable property changes are always announced correctly.
+        // automaticallyMergesChangesFromParent = false — merging on whatever
+        // background thread CloudKit's private import context fires from triggers
+        // SwiftUI's "Publishing changes from background threads" warning for every
+        // @ObservedObject watching that data. New managed objects (e.g. a freshly
+        // accepted shared trip) reach the viewContext via the NSManagedObjectContextDidSave
+        // observer below, which dispatches mergeChanges(fromContextDidSave:) to the
+        // main thread. Existing objects are refreshed by the NSPersistentStoreRemoteChange
+        // observer. Share-link resolution is handled by resolvePendingJoin in the
+        // eventChangedNotification handler, which fires after the import completes.
         container.viewContext.automaticallyMergesChangesFromParent = false
         container.viewContext.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
         container.viewContext.transactionAuthor = "DaythreadApp"
@@ -82,12 +85,34 @@ struct PersistenceController {
                       savedCtx !== viewContext,
                       savedCtx.persistentStoreCoordinator === viewContext.persistentStoreCoordinator
                 else { return }
-                // Delivered on `.main` (queue: .main) and viewContext is the
-                // main-queue context, so we're already on the correct queue —
-                // merge directly. Wrapping in viewContext.perform would push the
-                // non-Sendable `notification` into a @Sendable closure (Swift 6
-                // capture error) for no benefit.
+                // Delivered on `.main` queue — safe to merge directly.
+                // This fires for both local saves and CloudKit's internal import
+                // context saves, inserting new managed objects (e.g. a newly
+                // accepted shared trip) into the viewContext on the main thread
+                // without triggering background-publishing warnings.
                 viewContext.mergeChanges(fromContextDidSave: notification)
+            }
+
+            // CloudKit's remote import does NOT post NSManagedObjectContextDidSave
+            // on the viewContext — it writes into a private background context and
+            // posts NSPersistentStoreRemoteChange instead. Without this observer,
+            // edits made by co-editors only appear after the app restarts.
+            // NSPersistentStoreRemoteChangeNotificationPostOptionKey is already set
+            // on both stores (lines 53 and 115) so this fires whenever CloudKit
+            // finishes importing remote changes.
+            let coordinator = container.persistentStoreCoordinator
+            NotificationCenter.default.addObserver(
+                forName: .NSPersistentStoreRemoteChange,
+                object: coordinator,
+                queue: nil          // delivered on a background thread; dispatch explicitly
+            ) { _ in
+                // mergeChanges(fromContextDidSave:) requires the save notification,
+                // which we don't have here. Use refreshAllObjects so the viewContext
+                // re-faults every stale managed object from the store, picking up
+                // whatever CloudKit just imported. Must run on the viewContext's queue.
+                viewContext.perform {
+                    viewContext.refreshAllObjects()
+                }
             }
         }
     }

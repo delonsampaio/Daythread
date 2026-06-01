@@ -69,11 +69,17 @@ final class ShareSceneDelegate: NSObject, UIWindowSceneDelegate {
                 print("⚠️ Failed to accept CloudKit share: \(error)")
                 return
             }
-            NotificationCenter.default.post(
-                name: .daythreadDidAcceptShare,
-                object: nil,
-                userInfo: ["recordName": metadata.share.recordID.recordName]
-            )
+            // Post on main so DaythreadApp.onReceive sets pendingJoinShareRecordName
+            // before any onChange handlers run (those execute on main). Without this,
+            // the background-thread post can race with main-thread onChange calls that
+            // check pendingJoinShareRecordName before it's been written.
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: .daythreadDidAcceptShare,
+                    object: nil,
+                    userInfo: ["recordName": metadata.share.recordID.recordName]
+                )
+            }
         }
     }
 
