@@ -6,7 +6,7 @@ extension TripEvent {
         NSFetchRequest<TripEvent>(entityName: "TripEvent")
     }
 
-    @NSManaged public var id: UUID
+    @NSManaged public var id: UUID?
     @NSManaged public var title: String
     @NSManaged public var startTime: Date?
     @NSManaged public var endTime: Date?

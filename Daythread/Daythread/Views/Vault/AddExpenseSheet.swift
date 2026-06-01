@@ -47,7 +47,7 @@ struct AddExpenseSheet: View {
 
     /// The effective split set as UUIDs, resolving "implicit all" to an explicit set.
     private var currentSplitSet: Set<UUID> {
-        isSplitAmongAll ? Set(members.map(\.id)) : splitAmongIDs
+        isSplitAmongAll ? Set(members.compactMap(\.id)) : splitAmongIDs
     }
 
     /// True if the trip has any explicitly flagged settlement expenses.
@@ -128,7 +128,7 @@ struct AddExpenseSheet: View {
                             // "Untracked" is removed when participants exist —
                             // a payer is required to produce correct settlements.
                             ForEach(members) { member in
-                                Text(member.displayName).tag(UUID?.some(member.id))
+                                Text(member.displayName).tag(member.id)
                             }
                         }
                         .pickerStyle(.menu)
@@ -136,7 +136,7 @@ struct AddExpenseSheet: View {
 
                     Section {
                         ForEach(members) { member in
-                            Toggle(member.displayName, isOn: includedBinding(for: member.id))
+                            Toggle(member.displayName, isOn: includedBinding(for: member.id ?? UUID()))
                         }
                     } header: {
                         Text("Split among")
@@ -269,7 +269,7 @@ struct AddExpenseSheet: View {
             set: { included in
                 if isSplitAmongAll {
                     // Expand the implicit "all" into an explicit set, then remove.
-                    splitAmongIDs = Set(members.map(\.id))
+                    splitAmongIDs = Set(members.compactMap(\.id))
                 }
                 if included {
                     splitAmongIDs.insert(memberID)
@@ -289,7 +289,7 @@ struct AddExpenseSheet: View {
         // NEVER write an empty array — empty would retroactively include any
         // member who joins the trip later (the "Ghost Debtor" bug).
         let finalSplitAmongIDs: [UUID] = isSplitAmongAll
-            ? members.map(\.id)
+            ? members.compactMap(\.id)
             : Array(splitAmongIDs)
 
         if let expense = editingExpense {

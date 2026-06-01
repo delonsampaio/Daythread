@@ -22,6 +22,10 @@ struct GroupSyncSheet: View {
     @State private var pendingShare: CKShare?
     @State private var showShareSheet = false
     @State private var isPreparingShare = false
+    /// Captured before the system sheet opens while the CKShare still exists.
+    /// UICloudSharingController deletes the share BEFORE cloudSharingControllerDidStopSharing
+    /// fires, so checking isOwner inside that callback always returns false.
+    @State private var isOwnerBeforeSheetOpen = false
 
     var body: some View {
         NavigationStack {
@@ -117,7 +121,15 @@ struct GroupSyncSheet: View {
                         share: share,
                         container: cloudKit.container,
                         title: trip.name,
-                        onStopSharing: { cloudKit.stopSharing(trip, modelContext: context) }
+                        onStopSharing: {
+                        cloudKit.stopSharing(trip, modelContext: context)
+                        // Participants: navigate away before NSPersistentCloudKitContainer
+                        // purges the shared zone. Owners: trip stays in the private
+                        // store so keep it selected.
+                        if !isOwnerBeforeSheetOpen, store.activeTrip?.objectID == trip.objectID {
+                            store.activeTrip = nil
+                        }
+                    }
                     )
                     .ignoresSafeArea()
                 }
@@ -137,6 +149,8 @@ struct GroupSyncSheet: View {
     /// than presenting, since CloudKit is unavailable there.
     private func inviteePeople() {
         isPreparingShare = true
+        // Creator is always the owner when starting a new share.
+        isOwnerBeforeSheetOpen = true
         Task {
             let share = await cloudKit.shareTrip(trip, modelContext: context)
             isPreparingShare = false
@@ -161,6 +175,10 @@ struct GroupSyncSheet: View {
     private func manageSharing() {
         isPreparingShare = true
         let share = cloudKit.existingShare(for: trip)
+        // Capture owner status BEFORE showing the sheet — UICloudSharingController
+        // deletes the CKShare before cloudSharingControllerDidStopSharing fires,
+        // so checking inside the callback always returns false.
+        isOwnerBeforeSheetOpen = share?.currentUserParticipant?.role == .owner
         isPreparingShare = false
         if let share {
             pendingShare = share

@@ -6,7 +6,7 @@ extension TripDocument {
         NSFetchRequest<TripDocument>(entityName: "TripDocument")
     }
 
-    @NSManaged public var id: UUID
+    @NSManaged public var id: UUID?
     @NSManaged public var title: String
     @NSManaged public var documentData: Data?
     @NSManaged public var mimeType: String

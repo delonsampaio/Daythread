@@ -6,7 +6,7 @@ extension TripExpense {
         NSFetchRequest<TripExpense>(entityName: "TripExpense")
     }
 
-    @NSManaged public var id: UUID
+    @NSManaged public var id: UUID?
     @NSManaged public var title: String
     @NSManaged public var amount: Double
     @NSManaged public var currencyCode: String

@@ -6,7 +6,7 @@ extension TransitDetails {
         NSFetchRequest<TransitDetails>(entityName: "TransitDetails")
     }
 
-    @NSManaged public var id: UUID
+    @NSManaged public var id: UUID?
     @NSManaged public var carrier: String
     @NSManaged public var flightOrTrainNumber: String
     @NSManaged public var pnr: String

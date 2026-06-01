@@ -292,7 +292,7 @@ struct SplitExpensesSheet: View {
         // Engine returns the minimized debt set; map UUIDs → display names for the view.
         // Filter after rounding: sub-cent balances (e.g. 0.004) round to 0.00 and
         // must be dropped so settled debts don't linger as zero-amount rows.
-        return ExpenseSplitter.minimize(expenses: splitExpenses, members: members.map(\.id))
+        return ExpenseSplitter.minimize(expenses: splitExpenses, members: members.compactMap(\.id))
             .compactMap { debt -> Settlement? in
                 let rounded = (debt.amount * 100).rounded() / 100
                 guard rounded > 0 else { return nil }
@@ -342,7 +342,7 @@ private struct AssignPayersSheet: View {
                             )) {
                                 Text("Unassigned").tag(UUID?.none)
                                 ForEach(members) { member in
-                                    Text(member.displayName).tag(UUID?.some(member.id))
+                                    Text(member.displayName).tag(member.id)
                                 }
                             }
                             .pickerStyle(.menu)

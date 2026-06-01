@@ -61,9 +61,30 @@ struct PersistenceController {
             if let error { fatalError("Core Data store failed: \(error)") }
         }
 
-        container.viewContext.automaticallyMergesChangesFromParent = true
+        // Do NOT use automaticallyMergesChangesFromParent — it merges on whatever
+        // background thread CloudKit's private import context fires from, which
+        // triggers SwiftUI's "Publishing changes from background threads" warning
+        // for every @Observable/@ObservedObject watching that data. Instead we
+        // listen for context saves and explicitly dispatch the merge to the main
+        // thread so @Observable property changes are always announced correctly.
+        container.viewContext.automaticallyMergesChangesFromParent = false
         container.viewContext.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
         container.viewContext.transactionAuthor = "DaythreadApp"
+
+        if !inMemory {
+            let viewContext = container.viewContext
+            NotificationCenter.default.addObserver(
+                forName: .NSManagedObjectContextDidSave,
+                object: nil,
+                queue: .main
+            ) { notification in
+                guard let savedCtx = notification.object as? NSManagedObjectContext,
+                      savedCtx !== viewContext,
+                      savedCtx.persistentStoreCoordinator === viewContext.persistentStoreCoordinator
+                else { return }
+                viewContext.perform { viewContext.mergeChanges(fromContextDidSave: notification) }
+            }
+        }
     }
 
     /// Run ONCE on a real device to push the record types to CloudKit's Development

@@ -95,7 +95,7 @@ final class VaultViewModel {
         expense.category = .other
         expense.date = Date()
         expense.paidByMemberID = debtor.id
-        expense.splitAmongIDs = [creditor.id]
+        expense.splitAmongIDs = [creditor.id].compactMap { $0 }
         expense.isSettlement = true
         addExpense(expense, to: trip, context: context)
     }

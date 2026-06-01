@@ -27,9 +27,14 @@ enum TripMemberRegistry {
         role: MemberRole,
         context: NSManagedObjectContext
     ) -> TripMember {
-        let member = trip.membersArray.first {
-            !$0.appleUserID.isEmpty && $0.appleUserID == appleUserID
-        } ?? {
+        // Fetch by appleUserID alone (not `trip == %@`) to avoid the CoreData
+        // cross-store join error that arises when a TripMember synced from the
+        // CloudKit shared store and the Trip is in the private store. Filter to
+        // the right trip in memory afterwards.
+        let request = TripMember.fetchRequest()
+        request.predicate = NSPredicate(format: "appleUserID == %@", appleUserID)
+
+        let member = (try? context.fetch(request))?.first(where: { $0.trip?.objectID == trip.objectID }) ?? {
             let m = TripMember(context: context)
             m.id = UUID()
             m.appleUserID = appleUserID

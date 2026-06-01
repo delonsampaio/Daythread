@@ -294,14 +294,14 @@ private struct DayTimelineSection: View {
             ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
                 TimelineItem(event: event,
                              isLast: index == events.count - 1,
-                             isTimeViolated: violated.contains(event.id),
-                             isOutOfOrder: outOfOrder.contains(event.id),
-                             isShaking: vm.shakingEventIDs.contains(event.id)) {
+                             isTimeViolated: event.id.map { violated.contains($0) } ?? false,
+                             isOutOfOrder: event.id.map { outOfOrder.contains($0) } ?? false,
+                             isShaking: event.id.map { vm.shakingEventIDs.contains($0) } ?? false) {
                     // Swipe left to reveal Edit · Lock · Delete.
                     // Long-press is now exclusively for drag-to-reorder — no gesture conflict.
                     // openID: $swipeOpenEventID ensures at most one panel is open at a time.
                     SwipeRevealCard(
-                        id: event.id,
+                        id: event.id ?? UUID(),
                         isLocked: event.isTimeLocked,
                         editAction: { editingEvent = event },
                         lockAction: {
@@ -323,7 +323,7 @@ private struct DayTimelineSection: View {
                         }
                     }
                 }
-                .draggableWhen(!event.isTimeLocked, payload: event.id.uuidString)
+                .draggableWhen(!event.isTimeLocked, payload: event.id?.uuidString ?? "")
                 .dropDestination(for: String.self) { items, _ in
                     guard let draggedID = items.first else { return false }
                     let moved = vm.reorderEvent(draggedID: draggedID, before: event,

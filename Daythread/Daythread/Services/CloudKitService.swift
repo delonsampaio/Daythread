@@ -132,7 +132,13 @@ final class CloudKitService {
         let formatter = PersonNameComponentsFormatter()
         for participant in share.participants
         where participant.acceptanceStatus == .accepted {
-            guard let uid = participant.userIdentity.userRecordID?.recordName else { continue }
+            guard let uid = participant.userIdentity.userRecordID?.recordName,
+                  uid != "__defaultOwner__" else {
+                // "__defaultOwner__" is a CloudKit placeholder — not a stable real
+                // user ID. Skip it here; registerMyMembership uses
+                // container.userRecordID() which returns the true record name.
+                continue
+            }
             let role: MemberRole = participant.role == .owner ? .admin :
                 (participant.permission == .readOnly ? .viewer : .editor)
             // Prefer the name the participant set themselves (stored in their
@@ -162,14 +168,22 @@ final class CloudKitService {
     /// Matches first by appleUserID, then falls back to displayName for the case
     /// where syncParticipants and registerMyMembership produce different ID
     /// formats for the same real person. Keeps the highest-role record.
-    private func deduplicateMembers(for trip: Trip, context: NSManagedObjectContext) {
+    func deduplicateMembers(for trip: Trip, context: NSManagedObjectContext) {
         // Use a fresh fetch so we see ALL members in the store, not just those
         // already loaded into the relationship cache.
         let request = TripMember.fetchRequest()
         request.predicate = NSPredicate(format: "trip == %@", trip)
         guard let allMembers = try? context.fetch(request) else { return }
 
-        let real = allMembers.filter { !$0.appleUserID.isEmpty }
+        // Remove stale "__defaultOwner__" placeholder records — CloudKit uses this
+        // as a sentinel for the share owner but it is not a real user identity.
+        // registerMyMembership writes the true record name via container.userRecordID().
+        for m in allMembers where m.appleUserID == "__defaultOwner__" {
+            context.delete(m)
+        }
+        let live = allMembers.filter { !$0.isDeleted }
+
+        let real = live.filter { !$0.appleUserID.isEmpty }
         var byUID: [String: TripMember] = [:]
         for m in real {
             let uid = m.appleUserID
@@ -185,7 +199,7 @@ final class CloudKitService {
 
         // Secondary pass: dedup by name for cases where two code paths produced
         // different appleUserID formats for the same real person.
-        let remaining = allMembers.filter { !$0.isDeleted && !$0.appleUserID.isEmpty }
+        let remaining = live.filter { !$0.isDeleted && !$0.appleUserID.isEmpty }
         var byName: [String: TripMember] = [:]
         for m in remaining {
             let name = m.displayName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -199,6 +213,19 @@ final class CloudKitService {
                 byName[name] = m
             }
         }
+    }
+
+    /// Removes any real (non-virtual) TripMembers from a trip that is no longer
+    /// shared. Called reactively when a NSPersistentStoreRemoteChangeNotification
+    /// arrives for a trip whose cloudKitShareID is nil — handles the race where
+    /// a co-editor's self-registered record syncs in AFTER stop-sharing propagates.
+    func clearStaleRealMembers(for trip: Trip, context: NSManagedObjectContext) {
+        guard trip.cloudKitShareID == nil else { return }
+        let request = TripMember.fetchRequest()
+        request.predicate = NSPredicate(format: "trip == %@ AND appleUserID != ''", trip)
+        guard let stale = try? context.fetch(request), !stale.isEmpty else { return }
+        stale.forEach { context.delete($0) }
+        try? context.save()
     }
 
     private func rolePriority(_ role: MemberRole) -> Int {

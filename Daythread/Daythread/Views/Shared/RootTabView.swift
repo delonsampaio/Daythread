@@ -5,8 +5,9 @@
 //  Created by Delon Sampaio on 5/26/26.
 //
 
-import SwiftUI
+import Combine
 import CoreData
+import SwiftUI
 
 enum DaythreadTab {
     case timeline, trips, vault, profile
@@ -46,6 +47,32 @@ struct RootTabView: View {
         .onChange(of: activeTrips.map(\.objectID)) { _, _ in
             for trip in activeTrips where trip.cloudKitShareID != nil {
                 cloudKit.syncParticipants(for: trip, context: context)
+            }
+        }
+        // Safety net for passive share revocation: when the share owner removes a
+        // participant (or stops sharing) while that device is offline, there is no
+        // UICloudSharingController callback — the shared zone is purged silently
+        // during the next CloudKit import. Watching import events lets us redirect
+        // before any view touches the now-invalid NSManagedObject and crashes with
+        // NSObjectInaccessibleException. Read-only — no CoreData writes — so this
+        // cannot cause the NSPersistentStoreRemoteChangeNotification write loop.
+        .onReceive(
+            NotificationCenter.default
+                .publisher(for: NSPersistentCloudKitContainer.eventChangedNotification)
+        ) { notification in
+            guard let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
+                    as? NSPersistentCloudKitContainer.Event,
+                  event.type == .import,
+                  event.endDate != nil
+            else { return }
+            // Hop to MainActor explicitly — TripStore is @Observable (not @MainActor)
+            // and DispatchQueue.main is a different isolation domain in Swift 6 strict
+            // concurrency, so using receive(on: DispatchQueue.main) still triggers the
+            // "Publishing changes from background threads" warning.
+            Task { @MainActor in
+                if let active = store.activeTrip, active.managedObjectContext == nil {
+                    store.activeTrip = Array(activeTrips).first(where: { $0.managedObjectContext != nil })
+                }
             }
         }
         // FetchedResults<Trip> is not Equatable so we compare IDs to detect changes.

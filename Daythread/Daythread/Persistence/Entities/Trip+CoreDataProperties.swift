@@ -8,7 +8,7 @@ extension Trip {
 
     // Always-set / defaulted attributes are declared non-optional to match the
     // app's existing call sites. Genuinely-optional attributes stay Optional.
-    @NSManaged public var id: UUID
+    @NSManaged public var id: UUID?
     @NSManaged public var name: String
     @NSManaged public var destination: String
     @NSManaged public var startDate: Date

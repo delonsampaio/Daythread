@@ -24,7 +24,7 @@ final class TripStore {
     var activeTrip: Trip? {
         didSet {
             UserDefaults.standard.set(
-                activeTrip?.id.uuidString,
+                activeTrip?.id?.uuidString,
                 forKey: "daythread.activeTripID"
             )
         }

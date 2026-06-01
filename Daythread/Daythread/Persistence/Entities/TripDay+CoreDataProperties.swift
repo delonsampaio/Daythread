@@ -6,7 +6,7 @@ extension TripDay {
         NSFetchRequest<TripDay>(entityName: "TripDay")
     }
 
-    @NSManaged public var id: UUID
+    @NSManaged public var id: UUID?
     @NSManaged public var date: Date
     @NSManaged public var sortOrder: Int
     @NSManaged public var notes: String

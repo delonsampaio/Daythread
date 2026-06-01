@@ -6,7 +6,7 @@ extension TripMember {
         NSFetchRequest<TripMember>(entityName: "TripMember")
     }
 
-    @NSManaged public var id: UUID
+    @NSManaged public var id: UUID?
     @NSManaged public var appleUserID: String
     @NSManaged public var displayName: String
     @NSManaged public var roleRaw: String
