@@ -24,7 +24,7 @@ struct TripCardView: View {
     }
 
     var body: some View {
-        LiveContent(isDeleted: trip.isDeleted) {
+        LiveContent(isDead: !trip.isAlive) {
         VStack(alignment: .leading, spacing: 0) {
             // Cover image
             ZStack(alignment: .bottomLeading) {

@@ -28,7 +28,7 @@ struct GroupSyncSheet: View {
     @State private var isOwnerBeforeSheetOpen = false
 
     var body: some View {
-        LiveContent(isDeleted: trip.isDeleted) {
+        LiveContent(isDead: !trip.isAlive) {
         NavigationStack {
             List {
                 // Share status

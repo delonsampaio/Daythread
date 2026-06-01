@@ -22,13 +22,26 @@
 //
 
 import SwiftUI
+import CoreData
+
+extension NSManagedObject {
+    /// False once the object is dead: either deleted-but-not-yet-saved
+    /// (`isDeleted`) OR deleted-and-saved, which invalidates the object and
+    /// drops its `managedObjectContext` to nil while `isDeleted` flips back to
+    /// false. Reading a non-optional @NSManaged value type on a dead object
+    /// returns nil and traps in _unconditionallyBridgeFromObjectiveC, so views
+    /// observing managed objects must gate their body on this.
+    var isAlive: Bool {
+        !isDeleted && managedObjectContext != nil
+    }
+}
 
 struct LiveContent<Content: View>: View {
-    let isDeleted: Bool
+    let isDead: Bool
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        if isDeleted {
+        if isDead {
             // Nothing to show — the parent list/section is about to drop this row.
             Color.clear.frame(width: 0, height: 0)
         } else {

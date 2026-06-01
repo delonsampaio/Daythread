@@ -32,7 +32,7 @@ struct TimelineItem<Content: View>: View {
     @State private var shakeAmount: CGFloat = 0
 
     var body: some View {
-        LiveContent(isDeleted: event.isDeleted) {
+        LiveContent(isDead: !event.isAlive) {
         HStack(alignment: .top, spacing: 12) {
             leftColumn
             content

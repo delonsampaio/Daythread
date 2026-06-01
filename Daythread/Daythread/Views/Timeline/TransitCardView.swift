@@ -27,7 +27,7 @@ struct TransitCardView: View {
     }
 
     var body: some View {
-        LiveContent(isDeleted: event.isDeleted || details.isDeleted) {
+        LiveContent(isDead: !event.isAlive || !details.isAlive) {
         VStack(alignment: .leading, spacing: 10) {
             // Carrier + flight number
             HStack {

@@ -14,7 +14,7 @@ struct EventCardView: View {
     @ObservedObject var event: TripEvent
 
     var body: some View {
-        LiveContent(isDeleted: event.isDeleted) {
+        LiveContent(isDead: !event.isAlive) {
         HStack(spacing: 0) {
             // Left-edge color bar
             Rectangle()
