@@ -33,11 +33,14 @@ private struct UndoDeleteModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .overlay(alignment: .bottom) {
+            // safeAreaInset pins the toast just above the tab bar (or home
+            // indicator on edge-to-edge iPhones) without needing hard-coded
+            // padding. The spacing: 0 lets the toast control its own gap.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
                 if let p = pending {
                     toast(for: p)
-                        .padding(.bottom, 100)
                         .padding(.horizontal, 20)
+                        .padding(.bottom, 8)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
