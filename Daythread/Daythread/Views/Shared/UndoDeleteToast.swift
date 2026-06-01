@@ -45,8 +45,15 @@ private struct UndoDeleteModifier: ViewModifier {
                 }
             }
             .animation(.spring(duration: 0.3), value: pending)
-            .onChange(of: pending) { _, newPending in
+            .onChange(of: pending) { oldPending, newPending in
                 workItem?.cancel()
+                workItem = nil
+                // If a deletion was already in flight and a new one is starting,
+                // commit the old one immediately instead of dropping it. Without
+                // this, rapid successive deletes lose all but the last one.
+                if let old = oldPending, newPending != nil {
+                    onCommit(old.id)
+                }
                 guard let p = newPending else { return }
                 // Restart the countdown bar: snap full, then drain over `duration`.
                 barProgress = 1
