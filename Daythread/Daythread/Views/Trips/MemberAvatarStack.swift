@@ -38,7 +38,7 @@ struct MemberAvatarStack: View {
     @ViewBuilder
     private func avatar(for member: TripMember) -> some View {
         Circle()
-            .strokeBorder(.black.opacity(0.25), lineWidth: 1.5)
+            .strokeBorder(.white.opacity(0.6), lineWidth: 1.5)
             .background(
                 Group {
                     if let data = member.avatarData, let img = UIImage(data: data) {
@@ -60,15 +60,11 @@ struct MemberAvatarStack: View {
     }
 
     private var overflowBadge: some View {
-        Circle()
-            .fill(Color.black.opacity(0.4))
-            .strokeBorder(.black.opacity(0.25), lineWidth: 1.5)
-            .overlay(
-                Text("+\(overflow)")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white)
-            )
+        Text("+\(overflow)")
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(.primary)
             .frame(width: size, height: size)
+            .glassEffect(.regular, in: Circle())
     }
 
     private func initials(for member: TripMember) -> String {
