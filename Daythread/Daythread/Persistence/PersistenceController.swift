@@ -73,23 +73,13 @@ struct PersistenceController {
         let viewContext = container.viewContext
         let container = container
 
-        // When CloudKit finishes importing, execute fresh SQL fetches on the main
-        // queue. This registers any new SQLite rows into the viewContext as faults,
-        // which fires NSInsertedObjectsKey from the main thread — the signal
-        // @FetchRequest needs to add new objects to its results.
-        // refreshAllObjects() follows to re-fault cached data so existing objects
-        // also reflect the latest store state.
-        NotificationCenter.default.addObserver(
-            forName: .NSPersistentStoreRemoteChange,
-            object: nil,
-            queue: .main
-        ) { _ in
-            Self.reregisterAllObjects(in: viewContext)
-        }
-
-        // DIAGNOSTIC: log every CloudKit setup/import/export event with success/error.
-        // This tells us definitively whether exports leave device A and imports reach
-        // device B while the app is running, and surfaces any account/schema errors.
+        // The CRITICAL refresh trigger. CloudKit's eventChangedNotification fires on
+        // IMPORT *finished* — the only moment imported data is guaranteed committed to
+        // the store. (NSPersistentStoreRemoteChange fires earlier, before commit, so
+        // refreshing there finds nothing; and auto-merge inserts on a background thread,
+        // which SwiftUI's @FetchRequest silently drops.) Re-fetching here on queue:.main
+        // registers the new rows on the main thread, firing NSManagedObjectContextObjectsDidChange
+        // so @FetchRequest finally picks them up live.
         NotificationCenter.default.addObserver(
             forName: NSPersistentCloudKitContainer.eventChangedNotification,
             object: container,
@@ -97,18 +87,8 @@ struct PersistenceController {
         ) { notification in
             guard let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
                     as? NSPersistentCloudKitContainer.Event else { return }
-            let kind: String
-            switch event.type {
-            case .setup:  kind = "SETUP"
-            case .import: kind = "IMPORT"
-            case .export: kind = "EXPORT"
-            @unknown default: kind = "UNKNOWN"
-            }
-            let state = event.endDate == nil ? "started" : "finished"
-            if let error = event.error {
-                print("☁️ Daythread CloudKit \(kind) \(state) — ERROR: \(error)")
-            } else {
-                print("☁️ Daythread CloudKit \(kind) \(state)")
+            if event.type == .import, event.endDate != nil {
+                Self.reregisterAllObjects(in: viewContext)
             }
         }
     }
