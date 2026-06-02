@@ -71,6 +71,7 @@ struct PersistenceController {
 
     private func setupObservers() {
         let viewContext = container.viewContext
+        let container = container
 
         // When CloudKit finishes importing, execute fresh SQL fetches on the main
         // queue. This registers any new SQLite rows into the viewContext as faults,
@@ -84,6 +85,31 @@ struct PersistenceController {
             queue: .main
         ) { _ in
             Self.reregisterAllObjects(in: viewContext)
+        }
+
+        // DIAGNOSTIC: log every CloudKit setup/import/export event with success/error.
+        // This tells us definitively whether exports leave device A and imports reach
+        // device B while the app is running, and surfaces any account/schema errors.
+        NotificationCenter.default.addObserver(
+            forName: NSPersistentCloudKitContainer.eventChangedNotification,
+            object: container,
+            queue: .main
+        ) { notification in
+            guard let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
+                    as? NSPersistentCloudKitContainer.Event else { return }
+            let kind: String
+            switch event.type {
+            case .setup:  kind = "SETUP"
+            case .import: kind = "IMPORT"
+            case .export: kind = "EXPORT"
+            @unknown default: kind = "UNKNOWN"
+            }
+            let state = event.endDate == nil ? "started" : "finished"
+            if let error = event.error {
+                print("☁️ Daythread CloudKit \(kind) \(state) — ERROR: \(error)")
+            } else {
+                print("☁️ Daythread CloudKit \(kind) \(state)")
+            }
         }
     }
 
