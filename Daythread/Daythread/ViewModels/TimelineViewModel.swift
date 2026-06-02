@@ -45,6 +45,7 @@ final class TimelineViewModel {
         event.day = day
         event.sortOrder = newSortOrder
         try? context.save()
+        syncCalendar(event, context: context)
     }
 
     /// Inserts the dragged event immediately before `targetEvent` in `targetDay`.
@@ -93,6 +94,7 @@ final class TimelineViewModel {
         }
 
         try? context.save()
+        syncCalendar(dragged, context: context)
         return true
     }
 
@@ -124,6 +126,7 @@ final class TimelineViewModel {
         dragged.sortOrder = (predOrder ?? 0) + 1024
 
         try? context.save()
+        syncCalendar(dragged, context: context)
         return true
     }
 
@@ -252,6 +255,11 @@ final class TimelineViewModel {
         }
         try? context.save()
         HapticManager.shared.sheetConfirm()
+    }
+
+    private func syncCalendar(_ event: TripEvent, context: NSManagedObjectContext) {
+        let tripName = event.day?.trip?.name ?? ""
+        CalendarService.shared.sync(event, tripName: tripName, context: context)
     }
 
     func deleteEvent(_ event: TripEvent, context: NSManagedObjectContext) {

@@ -45,22 +45,33 @@ final class CalendarService {
         guard authorized else { return }
         guard let dayDate = event.day?.date else { return }
 
-        let isAllDay = event.startTime == nil
-        let startDate: Date
-        let endDate: Date
-        if let st = event.startTime {
-            startDate = st
-            endDate = event.endTime ?? Calendar.current.date(byAdding: .hour, value: 1, to: st)!
-        } else {
-            startDate = Calendar.current.startOfDay(for: dayDate)
-            endDate = Calendar.current.date(byAdding: .day, value: 1, to: startDate)!
-        }
-
+        // Timezone: transit events use their departure timezone; others use current.
         let startTZ: TimeZone
         if let td = event.transitDetails {
             startTZ = TimeZone(identifier: td.departureTZIdentifier) ?? .current
         } else {
             startTZ = .current
+        }
+
+        let isAllDay = event.startTime == nil
+        let startDate: Date
+        let endDate: Date
+        if let st = event.startTime {
+            // startTime stores only the TIME component — the date part reflects
+            // whenever the event was created, not the trip day. Combine dayDate
+            // (the correct calendar date) with the time from startTime.
+            startDate = combining(dayDate: dayDate, time: st, in: startTZ)
+            if let et = event.endTime {
+                let endOnDay = combining(dayDate: dayDate, time: et, in: startTZ)
+                // If end is before start the event crosses midnight — push to next day.
+                endDate = endOnDay >= startDate ? endOnDay
+                        : Calendar.current.date(byAdding: .day, value: 1, to: endOnDay)!
+            } else {
+                endDate = Calendar.current.date(byAdding: .hour, value: 1, to: startDate)!
+            }
+        } else {
+            startDate = Calendar.current.startOfDay(for: dayDate)
+            endDate = Calendar.current.date(byAdding: .day, value: 1, to: startDate)!
         }
 
         let ekEvent: EKEvent
@@ -95,6 +106,22 @@ final class CalendarService {
         guard authorized, !identifier.isEmpty else { return }
         guard let event = store.event(withIdentifier: identifier) else { return }
         try? store.remove(event, span: .thisEvent, commit: true)
+    }
+
+    // MARK: — Helpers
+
+    /// Returns a Date whose calendar date comes from `dayDate` and whose time
+    /// components come from `time`, both interpreted in `timezone`.
+    private func combining(dayDate: Date, time: Date, in timezone: TimeZone) -> Date {
+        var cal = Calendar.current
+        cal.timeZone = timezone
+        let d = cal.dateComponents([.year, .month, .day], from: dayDate)
+        let t = cal.dateComponents([.hour, .minute, .second], from: time)
+        var combined = DateComponents()
+        combined.year   = d.year;   combined.month  = d.month;  combined.day    = d.day
+        combined.hour   = t.hour;   combined.minute = t.minute; combined.second = t.second
+        combined.timeZone = timezone
+        return cal.date(from: combined) ?? time
     }
 
     // MARK: — Per-trip calendar
