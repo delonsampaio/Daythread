@@ -52,6 +52,20 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         print("❌ Daythread: APNs registration failed — CloudKit sync will be delayed: \(error.localizedDescription)")
     }
 
+    /// Receives CloudKit's silent (content-available) pushes. Without an implemented
+    /// handler, iOS can drop these — especially in the foreground — so the running app
+    /// never learns a co-editor changed something until its next launch. NSPersistentCloudKitContainer
+    /// observes the push internally; we only need to declare we handle it and report new data so
+    /// the system keeps delivering them and the container schedules its import promptly.
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        print("📨 Daythread: received remote notification (CloudKit push)")
+        completionHandler(.newData)
+    }
+
     func application(
         _ application: UIApplication,
         configurationForConnecting connectingSceneSession: UISceneSession,
