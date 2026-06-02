@@ -458,10 +458,11 @@ private extension View {
         if condition {
             self
                 .draggable(payload)
-                // .draggable() has no onBegan callback — a simultaneous long-press
-                // at the same threshold (~0.4 s) fires the lift haptic reliably.
+                // .draggable() has no onBegan callback. Fire the lift haptic at 0.3 s
+                // — slightly before SwiftUI's internal drag recognizer (~0.35 s) so the
+                // simultaneous gesture completes before the drag system can cancel it.
                 .simultaneousGesture(
-                    LongPressGesture(minimumDuration: 0.4)
+                    LongPressGesture(minimumDuration: 0.3)
                         .onEnded { _ in HapticManager.shared.dragLift() }
                 )
         } else {
