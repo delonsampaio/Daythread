@@ -60,11 +60,6 @@ struct PersistenceController {
             if let error { fatalError("Core Data store failed: \(error)") }
         }
 
-        // automaticallyMergesChangesFromParent = true: lets Core Data insert the
-        // newly imported CloudKit objects into the viewContext itself. (Persistent
-        // history fetch-after-token kept returning 0 transactions on live imports, so
-        // we no longer rely on it to discover changes.) The IMPORT-finished observer
-        // then forces a main-thread refresh + view re-render so @FetchRequest shows them.
         container.viewContext.automaticallyMergesChangesFromParent = true
         container.viewContext.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
         container.viewContext.transactionAuthor = "DaythreadApp"
@@ -90,8 +85,13 @@ struct PersistenceController {
         ) { notification in
             guard let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
                     as? NSPersistentCloudKitContainer.Event else { return }
+            // DIAGNOSTIC: log EVERY event (started + finished) so we can see what fires
+            // on A when it adds an event, and confirm whether B receives anything live.
+            let state = event.endDate == nil ? "started" : "finished"
             if let error = event.error {
-                print("☁️ Daythread CloudKit \(Self.kindString(event.type)) ERROR: \(error)")
+                print("☁️ Daythread CloudKit \(Self.kindString(event.type)) \(state) ERROR: \(error)")
+            } else {
+                print("☁️ Daythread CloudKit \(Self.kindString(event.type)) \(state)")
             }
             guard event.type == .import, event.endDate != nil else { return }
             MainActor.assumeIsolated {
