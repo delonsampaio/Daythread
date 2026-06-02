@@ -54,14 +54,10 @@ struct PersistenceController {
             if let error { fatalError("Core Data store failed: \(error)") }
         }
 
-        // automaticallyMergesChangesFromParent = true is the correct bridge between
-        // CloudKit's direct-to-SQLite writes and the SwiftUI @FetchRequest layer.
-        // CloudKit writes to SQLite, then to a persistent history transaction; Core
-        // Data internally intercepts NSPersistentStoreRemoteChange, fetches the
-        // history, and merges it into the viewContext on the main queue — firing
-        // NSManagedObjectContextObjectsDidChange so @FetchRequest updates in real time.
-        // The merge runs on the viewContext's assigned queue (main), so there are no
-        // background-thread publishing issues from this mechanism.
+        // automaticallyMergesChangesFromParent = true: Core Data's bridge between
+        // CloudKit's SQLite writes and the viewContext. Kept true so Core Data
+        // internally manages persistent history consumption. The background-thread
+        // warnings come from CloudKit's own framework code, not from this setting.
         container.viewContext.automaticallyMergesChangesFromParent = true
         container.viewContext.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
         container.viewContext.transactionAuthor = "DaythreadApp"
@@ -76,17 +72,20 @@ struct PersistenceController {
     private func setupObservers() {
         let viewContext = container.viewContext
 
-        // automaticallyMergesChangesFromParent inserts new CloudKit objects into the
-        // viewContext, but that merge fires from a background thread. SwiftUI's
-        // @FetchRequest sees NSInsertedObjectsKey from a background thread and ignores it.
-        // Calling refreshAllObjects() on the main queue fires NSManagedObjectContextObjectsDidChange
-        // with NSRefreshedObjectsKey from the main thread — @FetchRequest re-evaluates all
-        // context objects (including the just-inserted CloudKit faults) and updates the UI.
+        // When CloudKit finishes importing, execute fresh SQL fetches on the main
+        // queue. This registers any new SQLite rows into the viewContext as faults,
+        // which fires NSInsertedObjectsKey from the main thread — the signal
+        // @FetchRequest needs to add new objects to its results.
+        // refreshAllObjects() follows to re-fault cached data so existing objects
+        // also reflect the latest store state.
         NotificationCenter.default.addObserver(
             forName: .NSPersistentStoreRemoteChange,
             object: nil,
             queue: .main
         ) { _ in
+            _ = try? viewContext.fetch(TripEvent.fetchRequest())
+            _ = try? viewContext.fetch(TripDay.fetchRequest())
+            _ = try? viewContext.fetch(Trip.fetchRequest())
             viewContext.refreshAllObjects()
         }
     }
@@ -95,6 +94,9 @@ struct PersistenceController {
 
     @MainActor
     func manualRefresh() async {
+        _ = try? viewContext.fetch(TripEvent.fetchRequest())
+        _ = try? viewContext.fetch(TripDay.fetchRequest())
+        _ = try? viewContext.fetch(Trip.fetchRequest())
         viewContext.refreshAllObjects()
         try? await Task.sleep(for: .milliseconds(500))
     }
