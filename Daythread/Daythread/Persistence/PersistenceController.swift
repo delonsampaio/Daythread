@@ -33,15 +33,13 @@ struct PersistenceController {
 
     // MARK: — Persistent history token
 
-    @MainActor
-    private final class HistoryAnchor {
-        // v4 suffix forces a fresh start on all devices after the Phase 2
-        // Core Data model change (visibleToMemberIDs). Store migration can
-        // invalidate the v3 token, causing fetchHistory to silently return
-        // nothing. v4 clears UserDefaults and falls back to the 7-day window.
+    // @unchecked Sendable: always accessed from viewContext.perform{} / performAndWait{},
+    // which serialise on the main thread. UserDefaults reads/writes are thread-safe.
+    private final class HistoryAnchor: @unchecked Sendable {
+        // v4 suffix forces a fresh start after the Phase 2 Core Data model change.
         private static let key = "daythread.historyToken.v4"
 
-        var token: NSPersistentHistoryToken? = {
+        private(set) var token: NSPersistentHistoryToken? = {
             guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
             return try? NSKeyedUnarchiver.unarchivedObject(
                 ofClass: NSPersistentHistoryToken.self, from: data
@@ -95,8 +93,9 @@ struct PersistenceController {
         }
 
         // automaticallyMergesChangesFromParent = false: we merge manually via
-        // persistent history on the main thread so objectWillChange always fires
-        // on the correct thread (avoiding "Publishing from background threads" spam).
+        // persistent history inside viewContext.perform{} so all state updates
+        // are serialised on the context's queue (main thread). This eliminates
+        // "Publishing changes from background threads" warnings.
         container.viewContext.automaticallyMergesChangesFromParent = false
         container.viewContext.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
         container.viewContext.transactionAuthor = "DaythreadApp"
@@ -110,33 +109,43 @@ struct PersistenceController {
 
     private func setupObservers() {
         let viewContext = container.viewContext
+        let coordinator = container.persistentStoreCoordinator
         let container = container
         let historyAnchor = historyAnchor
 
-        // Catch ALL context saves — local background saves AND CloudKit's internal
-        // import contexts — and merge them on the main thread. The coordinator
-        // check (===) is intentionally omitted: NSPersistentCloudKitContainer uses
-        // internal import contexts whose coordinator reference may not match ours
-        // even though they write to the same stores. Object IDs that belong to
-        // foreign stores are silently ignored by mergeChanges, so this is safe.
-        // queue: .main ensures the block runs on the main thread without needing
-        // to capture and send the notification across concurrency domains.
+        // NSManagedObjectContextDidSave: merges our own local background context saves
+        // (drag-reorder, CalendarService, etc.) into the viewContext on main.
+        // CloudKit imports bypass this notification — they post NSPersistentStoreRemoteChange.
         NotificationCenter.default.addObserver(
             forName: .NSManagedObjectContextDidSave,
             object: nil,
             queue: .main
         ) { notification in
             guard let savedCtx = notification.object as? NSManagedObjectContext,
-                  savedCtx !== viewContext
+                  savedCtx !== viewContext,
+                  savedCtx.persistentStoreCoordinator === viewContext.persistentStoreCoordinator
             else { return }
             viewContext.mergeChanges(fromContextDidSave: notification)
-            NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
         }
 
-        // eventChangedNotification fires after a CloudKit import fully commits.
-        // Use it as a second-pass signal so the persistent history catch-up also
-        // runs, covering any edge case where the context save observer fires before
-        // all records are fully written.
+        // NSPersistentStoreRemoteChange: the authoritative signal for CloudKit imports.
+        // CloudKit bypasses NSManagedObjectContextDidSave, so persistent history is
+        // the only reliable way to INSERT new objects from co-editors into the viewContext.
+        // viewContext.perform{} serialises the merge on the context's queue (main thread),
+        // preventing "Publishing changes from background threads" warnings.
+        NotificationCenter.default.addObserver(
+            forName: .NSPersistentStoreRemoteChange,
+            object: coordinator,
+            queue: nil
+        ) { _ in
+            viewContext.perform {
+                Self.mergeRemoteHistory(into: viewContext, anchor: historyAnchor)
+            }
+        }
+
+        // eventChangedNotification fires after a CloudKit import fully commits to disk.
+        // NSPersistentStoreRemoteChange can fire before all records are written, so this
+        // provides a reliable second-pass merge for the tail of each import batch.
         NotificationCenter.default.addObserver(
             forName: NSPersistentCloudKitContainer.eventChangedNotification,
             object: container,
@@ -148,7 +157,7 @@ struct PersistenceController {
                 event.type == .import,
                 event.endDate != nil
             else { return }
-            Task { @MainActor in
+            viewContext.perform {
                 Self.mergeRemoteHistory(into: viewContext, anchor: historyAnchor)
             }
         }
@@ -156,14 +165,16 @@ struct PersistenceController {
 
     // MARK: — History merge
 
-    @MainActor
+    // Not @MainActor — always called from viewContext.perform{} or performAndWait{},
+    // which run on the context's own queue. For a main-queue context this IS the
+    // main thread; the @unchecked Sendable on HistoryAnchor documents that invariant.
     private static func mergeRemoteHistory(
         into context: NSManagedObjectContext,
         anchor: HistoryAnchor
     ) {
         // When token is nil (fresh start or after reset), fetch the last 7 days
-        // of history to avoid reprocessing all-time history while still catching
-        // any recently imported co-editor changes.
+        // of history so we catch any co-editor changes that arrived while the app
+        // was offline, without replaying all-time history.
         let request: NSPersistentHistoryChangeRequest
         if let token = anchor.token {
             request = NSPersistentHistoryChangeRequest.fetchHistory(after: token)
@@ -181,26 +192,22 @@ struct PersistenceController {
             }
 
             if transactions.isEmpty {
-                // No new history — the store may still have data the @FetchRequest
-                // hasn't seen (e.g. if CloudKit wrote directly without a context save).
-                // refreshAllObjects clears caches; the remoteChangeToken in views
-                // triggers a re-render which re-evaluates @FetchRequest live results.
+                // No new history. refreshAllObjects clears caches; remoteChangeToken
+                // in views forces a re-render so @FetchRequest re-evaluates its results.
                 context.refreshAllObjects()
                 NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
                 return
             }
 
             for transaction in transactions {
+                // objectIDNotification() returns object IDs, not instances —
+                // safe to merge across concurrency domains.
                 context.mergeChanges(fromContextDidSave: transaction.objectIDNotification())
             }
-            // Flush in-memory relationship caches (TripDay.events NSSet) so the
-            // next eventsArray / @FetchRequest access hits the store for fresh data.
             context.refreshAllObjects()
             anchor.save(transactions.last!.token)
 
         } catch {
-            // Stale or incompatible token — reset so the next call fetches from
-            // the 7-day window rather than silently returning nothing forever.
             print("⚠️ Daythread: persistent history fetch failed — resetting token. \(error)")
             anchor.reset()
             context.refreshAllObjects()
@@ -213,7 +220,10 @@ struct PersistenceController {
 
     @MainActor
     func manualRefresh() async {
-        Self.mergeRemoteHistory(into: viewContext, anchor: historyAnchor)
+        // performAndWait is re-entrant for main-queue contexts; safe to call from @MainActor.
+        viewContext.performAndWait {
+            Self.mergeRemoteHistory(into: viewContext, anchor: historyAnchor)
+        }
         try? await Task.sleep(for: .milliseconds(500))
     }
 
