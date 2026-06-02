@@ -136,8 +136,13 @@ struct PersistenceController {
         ) { notification in
             guard let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
                     as? NSPersistentCloudKitContainer.Event else { return }
+            // DIAGNOSTIC: log every event so we can see whether a live change on the
+            // other device triggers an IMPORT here while this app stays foregrounded.
+            let state = event.endDate == nil ? "started" : "finished"
             if let error = event.error {
-                print("☁️ Daythread CloudKit \(Self.kindString(event.type)) ERROR: \(error)")
+                print("☁️ Daythread CloudKit \(Self.kindString(event.type)) \(state) ERROR: \(error)")
+            } else {
+                print("☁️ Daythread CloudKit \(Self.kindString(event.type)) \(state)")
             }
             guard event.type == .import, event.endDate != nil else { return }
             MainActor.assumeIsolated {
