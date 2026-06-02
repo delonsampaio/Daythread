@@ -285,34 +285,14 @@ private struct DayTimelineSection: View {
     @Environment(\.managedObjectContext) private var context
     @Environment(TripStore.self) private var store
 
-    @FetchRequest private var fetchedEvents: FetchedResults<TripEvent>
-
-    /// Bumped on .dayThreadRemoteChangeDidApply to force this section's body to
-    /// re-evaluate after a CloudKit merge — @FetchRequest does not reliably re-run
-    /// from the merge notification alone.
-    @State private var remoteChangeToken = 0
-
-    init(
-        day: TripDay,
-        dayNumber: Int,
-        vm: TimelineViewModel,
-        dragTargetEventID: Binding<UUID?>,
-        endDropTargetDayID: Binding<UUID?>,
-        swipeOpenEventID: Binding<UUID?>,
-        editingEvent: Binding<TripEvent?>
-    ) {
-        self.day = day
-        self.dayNumber = dayNumber
-        self.vm = vm
-        _dragTargetEventID = dragTargetEventID
-        _endDropTargetDayID = endDropTargetDayID
-        _swipeOpenEventID = swipeOpenEventID
-        _editingEvent = editingEvent
-        _fetchedEvents = FetchRequest(
-            sortDescriptors: [NSSortDescriptor(keyPath: \TripEvent.sortOrder, ascending: true)],
-            predicate: NSPredicate(format: "day == %@", day)
-        )
-    }
+    /// Events for this day, fetched manually from the store rather than via
+    /// @FetchRequest. SwiftUI's @FetchRequest does not reliably incorporate
+    /// CloudKit-merged inserts (they arrive on a background thread and are dropped),
+    /// so co-editor changes only showed after a relaunch's fresh fetch. We replicate
+    /// that fresh-fetch behaviour here: reload() runs on appear, on every CloudKit
+    /// import (.dayThreadRemoteChangeDidApply), and on any local context change —
+    /// always reading current state straight from the store.
+    @State private var fetchedEvents: [TripEvent] = []
 
     var body: some View {
         if !day.isAlive {
@@ -331,19 +311,32 @@ private struct DayTimelineSection: View {
                     : nil
             )
         }
+        .onAppear { reload() }
+        // Remote CloudKit imports post this after merging into the viewContext.
         .onReceive(NotificationCenter.default.publisher(for: .dayThreadRemoteChangeDidApply)) { _ in
-            remoteChangeToken &+= 1
+            reload()
+        }
+        // Local edits (add/edit/delete/drag) mutate the viewContext on the main
+        // thread; re-fetch so this day stays in sync without @FetchRequest.
+        .onReceive(NotificationCenter.default.publisher(for: .NSManagedObjectContextObjectsDidChange, object: context)) { _ in
+            reload()
         }
         }
     }
 
+    /// Fresh fetch of this day's events, sorted by sortOrder — mirrors what a
+    /// relaunch does, which is the only thing that reliably reflected co-editor changes.
+    private func reload() {
+        let request = TripEvent.fetchRequest()
+        request.predicate = NSPredicate(format: "day == %@", day)
+        request.sortDescriptors = [NSSortDescriptor(keyPath: \TripEvent.sortOrder, ascending: true)]
+        fetchedEvents = (try? context.fetch(request)) ?? []
+    }
+
     @ViewBuilder
     private var dayContent: some View {
-        let _ = remoteChangeToken  // re-evaluate fetchedEvents after a remote merge
         // Soft-filter: exclude pending-delete and private events the current
-        // user isn't the originator of. fetchedEvents updates automatically
-        // whenever the managed object context changes (NSManagedObjectContextObjectsDidChange),
-        // so co-editor inserts appear as soon as mergeChanges runs on the viewContext.
+        // user isn't the originator of.
         let events = fetchedEvents
             .filter { $0.isAlive }
             .filter { $0.objectID != vm.pendingEventDelete?.id }
