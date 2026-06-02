@@ -128,7 +128,7 @@
     </details>
     <details>
       <summary>How do I reorder events in my day?</summary>
-      <p>Long-press and drag any event card to reorder it. You can also drag events between days — drop onto a different day's section and it moves there automatically. Time-Locked events cannot be dragged and will block any drop that would push them out of their time slot. If any timed events end up out of chronological order, their time label turns amber and a "Sort by Time" button appears in the day header — tap it to instantly restore chronological order.</p>
+      <p>Long-press and drag any event card to reorder it. You can also drag events between days — drop onto a different day's section and it moves there automatically. Two things can block a drag: (1) Time-Locked events cannot be dragged and block drops that would violate their time slot; (2) if the dragged event's time overlaps an existing timed event on the target day, the drop is blocked with a warning vibration — edit the time first or use the edit sheet. If timed events end up out of order, their time label turns amber and a "Sort by Time" button appears in the day header.</p>
     </details>
     <details>
       <summary>What happens if I add an event that overlaps another?</summary>
@@ -161,6 +161,38 @@
     <details>
       <summary>How do I add lodging to a trip?</summary>
       <p>From the Timeline, tap the + button and choose Hotel or Rental Property. Enter check-in and check-out dates, the property name, address, and confirmation number. Lodging covers the whole trip, not a single day.</p>
+    </details>
+  </section>
+
+  <section>
+    <h2>Calendar &amp; Notifications</h2>
+    <details>
+      <summary>Does Daythread sync my events to Apple Calendar?</summary>
+      <p>Yes. When you save an event Daythread adds it to a dedicated "Daythread: [trip name]" calendar in your Apple Calendar app. The first sync asks for calendar permission. Turn this off globally in Profile → Settings → Calendar, or exclude a single event via the "Add to Apple Calendar" toggle in the Add/Edit Event sheet.</p>
+    </details>
+    <details>
+      <summary>Why is there a "Daythread: [trip name]" calendar in Apple Calendar?</summary>
+      <p>Daythread creates one calendar per trip so your itinerary stays separate from personal events. If you stop using the app you can delete those calendars from the iOS Calendar app at any time.</p>
+    </details>
+    <details>
+      <summary>Can I exclude a specific event from Apple Calendar?</summary>
+      <p>Yes. Open the Add/Edit Event sheet for the event and turn off the "Add to Apple Calendar" toggle. The event stays in Daythread but is removed from (or never added to) Apple Calendar. This is device-local — co-editors on the same trip control their own calendars independently.</p>
+    </details>
+    <details>
+      <summary>Can I get reminders before my events?</summary>
+      <p>Yes. Enable event reminders in Profile → Settings → Notifications and choose your lead time: 15 minutes, 30 minutes, 1 hour, or 1 day before. Two reminders fire at the chosen time: a Daythread app notification and an Apple Calendar alarm. The lead time setting applies to both.</p>
+    </details>
+    <details>
+      <summary>What can I do from a reminder notification?</summary>
+      <p>Each reminder has two quick actions: <strong>Snooze 15 min</strong> (reschedules 15 minutes later without opening the app) and <strong>View Itinerary</strong> (opens Daythread to the trip timeline). Reminders group by trip on the lock screen so they stack neatly instead of flooding your notifications.</p>
+    </details>
+    <details>
+      <summary>Daythread notifications aren't coming through during Focus mode. Why?</summary>
+      <p>Daythread sends time-sensitive notifications designed to break through Focus modes. Go to iOS Settings → Focus → [your Focus] → Apps and add Daythread to the allowed list. If you still don't see them, check iOS Settings → Notifications → Daythread and ensure alerts and sounds are enabled.</p>
+    </details>
+    <details>
+      <summary>Does Daythread look different on iPad?</summary>
+      <p>Yes. On iPad in full-screen or wide Split View the four sections (Timeline, Trips, Vault, Profile) appear in a collapsible sidebar on the left with icons and labels. On iPhone and in narrow Stage Manager windows the standard bottom tab bar is used. Both layouts show exactly the same content.</p>
     </details>
   </section>
 

@@ -41,6 +41,7 @@ struct HelpView: View {
             if searchText.isEmpty {
                 gettingStartedSection
                 timelineSection
+                calendarNotificationsSection
                 tripsSection
                 vaultSection
                 coEditingSection
@@ -86,7 +87,7 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "How do I reorder events in my day?",
-                answer: "Long-press and drag any event card to reorder it. You can also drag events between days — drop onto a different day's section and it moves there automatically. Time-Locked events cannot be dragged and will block any drop that would push them out of their time slot. If any timed events end up out of chronological order, their time label turns amber and a \"Sort by Time\" button appears in the day header — tap it to instantly restore chronological order."
+                answer: "Long-press and drag any event card to reorder it. You can also drag events between days — drop onto a different day's section and it moves there automatically. Two things can block a drag: (1) Time-Locked events cannot be dragged and block drops that would push them out of their time slot; (2) if the event you're dragging has a time that overlaps an existing timed event on the target day, the drop is blocked with a warning vibration — edit the time first or use the edit sheet to override. If timed events end up out of chronological order, their time label turns amber and a \"Sort by Time\" button appears in the day header."
             )
             FAQRow(
                 question: "How do I edit or delete an event?",
@@ -120,6 +121,39 @@ struct HelpView: View {
             FAQRow(
                 question: "How do I add lodging to a trip?",
                 answer: "From the Timeline, tap the + button and choose Hotel or Rental Property. Alternatively, go to Trips, tap your trip, and use the Lodging section. Enter check-in and check-out dates and a confirmation number. Lodging covers the whole trip, not a single day."
+            )
+        }
+    }
+
+    private var calendarNotificationsSection: some View {
+        Section("Calendar & Notifications") {
+            FAQRow(
+                question: "Does Daythread sync my events to Apple Calendar?",
+                answer: "Yes. When you save an event Daythread adds it to a dedicated \"Daythread: [trip name]\" calendar in your Apple Calendar app. The first sync asks for calendar permission. You can turn this off globally in Profile → Settings → Calendar, or exclude a single event using the \"Add to Apple Calendar\" toggle in the Add/Edit Event sheet."
+            )
+            FAQRow(
+                question: "Why is there a \"Daythread: [trip name]\" calendar in Apple Calendar?",
+                answer: "Daythread creates one calendar per trip to keep your itinerary separate from your personal events. If you stop using the app you can delete those calendars from the iOS Calendar app."
+            )
+            FAQRow(
+                question: "Can I exclude a specific event from Apple Calendar?",
+                answer: "Yes. Open the Add/Edit Event sheet for the event and turn off the \"Add to Apple Calendar\" toggle. The event stays in Daythread but is removed from (or never added to) Apple Calendar. This is a per-device setting — other co-editors on the trip control their own calendars independently."
+            )
+            FAQRow(
+                question: "Can I get reminders before my events?",
+                answer: "Yes. Enable event reminders in Profile → Settings → Notifications and choose your lead time: 15 minutes, 30 minutes, 1 hour, or 1 day before. Two reminders fire: a Daythread app notification and an Apple Calendar alarm on the calendar event. The lead time applies to both."
+            )
+            FAQRow(
+                question: "What can I do from a reminder notification?",
+                answer: "Each event reminder has two quick actions: \"Snooze 15 min\" (fires another reminder 15 minutes later without opening the app) and \"View Itinerary\" (opens Daythread directly to the trip timeline). Reminders group by trip on your lock screen so they don't clutter it."
+            )
+            FAQRow(
+                question: "Daythread notifications are not coming through during Focus mode. Why?",
+                answer: "Daythread sends time-sensitive notifications, which are designed to break through Focus modes. Make sure you have allowed Daythread under your Focus settings (iOS Settings → Focus → [your Focus] → Apps → Allow). If you still don't see them, check that notifications are enabled in iOS Settings → Notifications → Daythread."
+            )
+            FAQRow(
+                question: "Does Daythread look different on iPad?",
+                answer: "Yes. On iPad in full-screen or wide Split View, the four sections (Timeline, Trips, Vault, Profile) appear in a collapsible sidebar on the left with icons and labels — the same sections as the iPhone bottom tab bar, just repositioned for the wider screen. On iPhone and in narrow Stage Manager windows the standard bottom tab bar is used."
             )
         }
     }
@@ -307,7 +341,14 @@ struct HelpView: View {
         .init(section: "Getting Started", question: "How do I switch between trips?", answer: "Tap the trip name in the centre of the Timeline navigation bar — it shows a dropdown of all your active trips. The current trip's date range appears just below the name so you always know which trip you're viewing."),
         .init(section: "Getting Started", question: "How do I add an event to my itinerary?", answer: "In the Timeline, tap the blue + button in the bottom-right corner to open the Add Event sheet. Choose a category (Flight, Hotel, Restaurant, Museum, Activity, etc.), fill in the details, and save."),
         .init(section: "Getting Started", question: "What categories of events can I add?", answer: "Daythread supports: Flight, Train, Bus, Ferry (transit), Hotel, Rental Property, Restaurant, Café, Bar, Museum, Attraction, Tour, Show, Activity, Sport, Hike, Shopping, and Other. Transit categories open an extended form for carrier, flight/train number, booking code, and seat."),
-        .init(section: "Getting Started", question: "How do I reorder events in my day?", answer: "Long-press and drag any event card to reorder it. You can also drag events between days — drop onto a different day's section and it moves there automatically. Time-Locked events cannot be dragged and will block any drop that would push them out of their time slot."),
+        .init(section: "Getting Started", question: "How do I reorder events in my day?", answer: "Long-press and drag any event card to reorder it. You can also drag events between days. Two things can block a drag: time-locked events, and time conflicts with existing timed events on the target day."),
+        .init(section: "Calendar & Notifications", question: "Does Daythread sync my events to Apple Calendar?", answer: "Yes. Events are added to a Daythread: [trip name] calendar in Apple Calendar. Toggle off globally in Settings → Calendar or per-event in the Add/Edit Event sheet."),
+        .init(section: "Calendar & Notifications", question: "Why is there a Daythread calendar in Apple Calendar?", answer: "Daythread creates one calendar per trip to keep your itinerary separate from personal events."),
+        .init(section: "Calendar & Notifications", question: "Can I exclude a specific event from Apple Calendar?", answer: "Yes. Turn off the 'Add to Apple Calendar' toggle in the Add/Edit Event sheet. Device-local — co-editors control their own calendars independently."),
+        .init(section: "Calendar & Notifications", question: "Can I get reminders before my events?", answer: "Yes. Enable in Settings → Notifications and choose 15 min, 30 min, 1 hour, or 1 day before. Fires as both a Daythread app notification and an Apple Calendar alarm."),
+        .init(section: "Calendar & Notifications", question: "What can I do from a reminder notification?", answer: "Snooze 15 min (background, no app launch) or View Itinerary (opens Daythread). Notifications group by trip on the lock screen."),
+        .init(section: "Calendar & Notifications", question: "Daythread notifications not coming through during Focus mode?", answer: "Daythread sends time-sensitive notifications designed to break through Focus. Check iOS Settings → Focus → your Focus → Apps → Allow Daythread."),
+        .init(section: "Calendar & Notifications", question: "Does Daythread look different on iPad?", answer: "Yes. On iPad the four sections appear in a collapsible sidebar. On iPhone and narrow windows the standard bottom tab bar is used."),
         .init(section: "Getting Started", question: "How do I edit or delete an event?", answer: "Swipe left on any event card to reveal three actions: Edit, Lock/Unlock, and Delete. Tap the action you want, or swipe right to dismiss. Time-Locked events show Unlock instead of Lock."),
         .init(section: "Timeline", question: "What is a Time-Locked event?", answer: "A Time-Locked event is anchored to its time slot. It cannot be dragged, and other events cannot be dragged past it — if you try, the card snaps back with a warning vibration. When you set a start time on a new event the lock is suggested automatically. A padlock icon (amber) appears on the card, and an amber warning badge appears if the event is currently out of order."),
         .init(section: "Timeline", question: "What does the lodging banner at the top show?", answer: "If you've added lodging that covers today's date, a banner appears at the top of the Timeline showing your current accommodation. It updates automatically as your check-in and check-out dates change."),
