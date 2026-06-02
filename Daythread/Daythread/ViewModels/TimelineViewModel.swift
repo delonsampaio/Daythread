@@ -39,10 +39,11 @@ final class TimelineViewModel {
         _ event: TripEvent,
         toDay day: TripDay,
         newSortOrder: Int,
-        context: NSManagedObjectContext
+        context: NSManagedObjectContext,
+        currentUserID: String? = nil
     ) {
         guard !event.isTimeLocked else { return }
-        let conflictIDs = conflictingIDs(event, in: day)
+        let conflictIDs = conflictingIDs(event, in: day, visibleTo: currentUserID)
         if !conflictIDs.isEmpty {
             shakeEvents(conflictIDs)
             HapticManager.shared.deleteAction()
@@ -63,7 +64,8 @@ final class TimelineViewModel {
         draggedID: String,
         before targetEvent: TripEvent,
         in targetDay: TripDay,
-        context: NSManagedObjectContext
+        context: NSManagedObjectContext,
+        currentUserID: String? = nil
     ) -> Bool {
         guard let uuid = UUID(uuidString: draggedID) else { return false }
         guard let dragged = fetchEvent(id: uuid, context: context) else { return false }
@@ -83,8 +85,9 @@ final class TimelineViewModel {
             return false
         }
 
-        // Reject if the dragged event's time overlaps with an existing event in the target day.
-        let timeConflictIDs = conflictingIDs(dragged, in: targetDay)
+        // Reject if the dragged event's time overlaps with an existing VISIBLE event in the target day.
+        // Hidden private events are excluded so co-editors can't infer their existence from a silent rejection.
+        let timeConflictIDs = conflictingIDs(dragged, in: targetDay, visibleTo: currentUserID)
         if !timeConflictIDs.isEmpty {
             shakeEvents(timeConflictIDs)
             HapticManager.shared.deleteAction()
@@ -116,7 +119,7 @@ final class TimelineViewModel {
     /// Returns `false` (and fires a warning haptic) if appending would violate a
     /// locked event's chronological position.
     @discardableResult
-    func appendEvent(draggedID: String, to targetDay: TripDay, context: NSManagedObjectContext) -> Bool {
+    func appendEvent(draggedID: String, to targetDay: TripDay, context: NSManagedObjectContext, currentUserID: String? = nil) -> Bool {
         guard let uuid = UUID(uuidString: draggedID) else { return false }
         guard let dragged = fetchEvent(id: uuid, context: context) else { return false }
         guard !dragged.isTimeLocked else { return false }
@@ -132,7 +135,7 @@ final class TimelineViewModel {
             return false
         }
 
-        let timeConflictIDs = conflictingIDs(dragged, in: targetDay)
+        let timeConflictIDs = conflictingIDs(dragged, in: targetDay, visibleTo: currentUserID)
         if !timeConflictIDs.isEmpty {
             shakeEvents(timeConflictIDs)
             HapticManager.shared.deleteAction()
@@ -168,12 +171,25 @@ final class TimelineViewModel {
     }
 
     /// Returns IDs of events in `day` whose time window conflicts with `event`.
-    private func conflictingIDs(_ event: TripEvent, in day: TripDay) -> Set<UUID> {
+    /// When `userID` is provided and the trip is shared, hidden private events are excluded
+    /// so co-editors cannot infer the existence of events they are not allowed to see.
+    private func conflictingIDs(_ event: TripEvent, in day: TripDay, visibleTo userID: String? = nil) -> Set<UUID> {
         guard let start = event.startTime, let end = event.endTime else { return [] }
+        let candidates: [TripEvent]
+        if let userID, !userID.isEmpty, day.trip?.cloudKitShareID != nil {
+            candidates = day.eventsArray.filter { e in
+                guard e.isPrivate else { return true }
+                if e.addedByAppleUserID == userID { return true }
+                guard !e.visibleToMemberIDs.isEmpty else { return false }
+                return e.visibleToMemberIDs.split(separator: ",").contains(userID[...])
+            }
+        } else {
+            candidates = day.eventsArray
+        }
         return Set(ScheduleEngine.findConflicts(
             startTime: start,
             endTime: end,
-            among: day.eventsArray,
+            among: candidates,
             excludingID: event.id
         ).compactMap(\.id))
     }

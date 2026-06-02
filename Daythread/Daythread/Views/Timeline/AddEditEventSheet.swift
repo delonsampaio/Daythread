@@ -32,6 +32,9 @@ struct AddEditEventSheet: View {
     @State private var pendingTransitDetails: TransitDetails?
     @State private var showConflictAlert: Bool = false
     @State private var pendingConflicts: [TripEvent] = []
+    /// Count of conflicting events that are private and not visible to the current
+    /// user — reported in the alert as "X other event(s)" without naming them.
+    @State private var pendingHiddenConflictCount: Int = 0
     /// True once the user has explicitly touched the end-time picker. Before
     /// that, end tracks start automatically (1-hour gap). After, it's theirs.
     @State private var userEditedEndTime: Bool = false
@@ -294,14 +297,18 @@ struct AddEditEventSheet: View {
         guard !conflicts.isEmpty else {
             save(); return
         }
-        // Sort chronologically so the alert always leads with the earliest conflict.
-        pendingConflicts = conflicts.sorted {
+        // Split into visible vs hidden so we don't leak private event titles/times
+        // to co-editors who aren't allowed to see those events.
+        let visible = conflicts.filter { isVisibleToCurrentUser($0) }
+        pendingConflicts = visible.sorted {
             ($0.startTime ?? .distantFuture) < ($1.startTime ?? .distantFuture)
         }
+        pendingHiddenConflictCount = conflicts.count - visible.count
         showConflictAlert = true
     }
 
-    /// Builds the alert body text, naming every conflicting event.
+    /// Builds the alert body text. Visible conflicts are named; hidden (private)
+    /// conflicts are counted as "X other event(s)" to avoid leaking their details.
     private var conflictAlertMessage: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
@@ -311,18 +318,40 @@ struct AddEditEventSheet: View {
             return "\(event.title) (\(formatter.string(from: s))–\(formatter.string(from: e)))"
         }
 
+        let hiddenSuffix: String = {
+            guard pendingHiddenConflictCount > 0 else { return "" }
+            let n = pendingHiddenConflictCount
+            return " and \(n) other event\(n == 1 ? "" : "s")"
+        }()
+
         switch pendingConflicts.count {
+        case 0 where pendingHiddenConflictCount > 0:
+            let n = pendingHiddenConflictCount
+            return "\(n) event\(n == 1 ? "" : "s") already \(n == 1 ? "occupies" : "occupy") this time on the same day."
         case 0:
             return ""
         case 1:
-            return "\(describe(pendingConflicts[0])) overlaps on the same day."
-        case 2:
+            return "\(describe(pendingConflicts[0]))\(hiddenSuffix) overlap\(hiddenSuffix.isEmpty ? "s" : "") on the same day."
+        case 2 where hiddenSuffix.isEmpty:
             return "\(describe(pendingConflicts[0])) and \(describe(pendingConflicts[1])) overlap on the same day."
         default:
             let first = describe(pendingConflicts[0])
             let rest  = pendingConflicts.count - 1
-            return "\(first) and \(rest) other\(rest == 1 ? "" : "s") overlap on the same day."
+            let restText = rest == 1 ? "1 other" : "\(rest) others"
+            return "\(first), \(restText)\(hiddenSuffix) overlap on the same day."
         }
+    }
+
+    /// Mirrors DayTimelineSection.isVisible — true if the current user can see
+    /// this event. Used to filter conflict alerts so private event titles/times
+    /// aren't leaked to co-editors who aren't supposed to see them.
+    private func isVisibleToCurrentUser(_ event: TripEvent) -> Bool {
+        guard trip?.cloudKitShareID != nil else { return true }
+        guard event.isPrivate else { return true }
+        let myID = store.currentUserCloudKitID ?? ""
+        if event.addedByAppleUserID == myID || myID.isEmpty { return true }
+        guard !event.visibleToMemberIDs.isEmpty else { return false }
+        return event.visibleToMemberIDs.split(separator: ",").contains(myID[...])
     }
 
     private func populateIfEditing() {

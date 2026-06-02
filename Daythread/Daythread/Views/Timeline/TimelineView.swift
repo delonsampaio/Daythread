@@ -389,7 +389,8 @@ private struct DayTimelineSection: View {
                 .dropDestination(for: String.self) { items, _ in
                     guard let draggedID = items.first else { return false }
                     let moved = vm.reorderEvent(draggedID: draggedID, before: event,
-                                                in: day, context: context)
+                                                in: day, context: context,
+                                                currentUserID: store.currentUserCloudKitID)
                     if moved { HapticManager.shared.dragDrop() }
                     return moved
                 } isTargeted: { targeted in
@@ -412,7 +413,8 @@ private struct DayTimelineSection: View {
                 .contentShape(Rectangle())
                 .dropDestination(for: String.self) { items, _ in
                     guard let draggedID = items.first else { return false }
-                    let moved = vm.appendEvent(draggedID: draggedID, to: day, context: context)
+                    let moved = vm.appendEvent(draggedID: draggedID, to: day, context: context,
+                                               currentUserID: store.currentUserCloudKitID)
                     if moved { HapticManager.shared.dragDrop() }
                     return moved
                 } isTargeted: { targeted in
