@@ -31,36 +31,6 @@ struct PersistenceController {
     /// Exposed for the sharing backend and share-acceptance flow.
     var cloudKitContainer: NSPersistentCloudKitContainer { container }
 
-    // MARK: — Persistent history token
-
-    @MainActor
-    private final class HistoryAnchor {
-        // v4 suffix forces a fresh start after the Phase 2 Core Data model change.
-        private static let key = "daythread.historyToken.v4"
-
-        var token: NSPersistentHistoryToken? = {
-            guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
-            return try? NSKeyedUnarchiver.unarchivedObject(
-                ofClass: NSPersistentHistoryToken.self, from: data
-            )
-        }()
-
-        func save(_ newToken: NSPersistentHistoryToken) {
-            token = newToken
-            if let data = try? NSKeyedArchiver.archivedData(
-                withRootObject: newToken, requiringSecureCoding: true
-            ) {
-                UserDefaults.standard.set(data, forKey: Self.key)
-            }
-        }
-
-        func reset() {
-            token = nil
-            UserDefaults.standard.removeObject(forKey: Self.key)
-        }
-    }
-    private let historyAnchor = HistoryAnchor()
-
     // MARK: — Init
 
     init(inMemory: Bool = false) {
@@ -91,10 +61,12 @@ struct PersistenceController {
             if let error { fatalError("Core Data store failed: \(error)") }
         }
 
-        // automaticallyMergesChangesFromParent = false: we merge manually via
-        // persistent history on the main actor so all state changes are serialised
-        // on the main thread. This prevents "Publishing from background threads" warnings.
-        container.viewContext.automaticallyMergesChangesFromParent = false
+        // automaticallyMergesChangesFromParent = true: CloudKit's internal import
+        // contexts share our coordinator and save via the normal context-save path.
+        // Auto-merge inserts their objects into the viewContext immediately on the
+        // main thread, so @FetchRequest sees new co-editor events without any
+        // persistent history timing dependency.
+        container.viewContext.automaticallyMergesChangesFromParent = true
         container.viewContext.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
         container.viewContext.transactionAuthor = "DaythreadApp"
 
@@ -108,42 +80,25 @@ struct PersistenceController {
     private func setupObservers() {
         let viewContext = container.viewContext
         let container = container
-        let historyAnchor = historyAnchor
 
-        // NSManagedObjectContextDidSave: merges our own local background context saves
-        // (drag-reorder, CalendarService, etc.) into the viewContext on the main queue.
-        // CloudKit imports bypass this notification — they fire NSPersistentStoreRemoteChange.
-        NotificationCenter.default.addObserver(
-            forName: .NSManagedObjectContextDidSave,
-            object: nil,
-            queue: .main
-        ) { notification in
-            guard let savedCtx = notification.object as? NSManagedObjectContext,
-                  savedCtx !== viewContext,
-                  savedCtx.persistentStoreCoordinator === viewContext.persistentStoreCoordinator
-            else { return }
-            viewContext.mergeChanges(fromContextDidSave: notification)
-        }
-
-        // NSPersistentStoreRemoteChange: the authoritative signal for CloudKit imports.
-        // object: nil (not coordinator) follows Apple's own sample code — using the
-        // coordinator reference as a filter has been observed to miss notifications
-        // in multi-store setups where the notification object may differ from the
-        // reference captured at setup time.
+        // NSPersistentStoreRemoteChange fires when CloudKit finishes an import batch.
+        // auto-merge has already inserted the new objects by this point; we just
+        // refresh all faulted objects and post the notification so views bump their
+        // remoteChangeToken and re-evaluate @FetchRequest results.
         NotificationCenter.default.addObserver(
             forName: .NSPersistentStoreRemoteChange,
             object: nil,
             queue: nil
         ) { _ in
-            print("🔄 Daythread: NSPersistentStoreRemoteChange received")
             Task { @MainActor in
-                Self.mergeRemoteHistory(into: viewContext, anchor: historyAnchor)
+                viewContext.refreshAllObjects()
+                NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
             }
         }
 
-        // eventChangedNotification fires after a CloudKit import fully commits to disk.
-        // NSPersistentStoreRemoteChange can fire before all records are written, so this
-        // provides a reliable second-pass merge for the tail of each import batch.
+        // eventChangedNotification: second-pass signal after the full import commits.
+        // Belt-and-suspenders alongside auto-merge in case a batch boundary splits
+        // the notification timing.
         NotificationCenter.default.addObserver(
             forName: NSPersistentCloudKitContainer.eventChangedNotification,
             object: container,
@@ -156,67 +111,18 @@ struct PersistenceController {
                 event.endDate != nil
             else { return }
             Task { @MainActor in
-                Self.mergeRemoteHistory(into: viewContext, anchor: historyAnchor)
-            }
-        }
-    }
-
-    // MARK: — History merge
-
-    @MainActor
-    private static func mergeRemoteHistory(
-        into context: NSManagedObjectContext,
-        anchor: HistoryAnchor
-    ) {
-        // When token is nil (fresh start or after reset), fetch the last 7 days
-        // of history so we catch any co-editor changes that arrived while the app
-        // was offline, without replaying all-time history.
-        let request: NSPersistentHistoryChangeRequest
-        if let token = anchor.token {
-            request = NSPersistentHistoryChangeRequest.fetchHistory(after: token)
-        } else {
-            let since = Date(timeIntervalSinceNow: -7 * 86400)
-            request = NSPersistentHistoryChangeRequest.fetchHistory(after: since)
-        }
-
-        do {
-            guard let result = try context.execute(request) as? NSPersistentHistoryResult,
-                  let transactions = result.result as? [NSPersistentHistoryTransaction] else {
-                print("🔄 Daythread: history result was nil or wrong type — refreshing objects only")
-                context.refreshAllObjects()
+                viewContext.refreshAllObjects()
                 NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
-                return
             }
-
-            print("🔄 Daythread: found \(transactions.count) history transaction(s)")
-
-            if transactions.isEmpty {
-                context.refreshAllObjects()
-                NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
-                return
-            }
-
-            for transaction in transactions {
-                context.mergeChanges(fromContextDidSave: transaction.objectIDNotification())
-            }
-            context.refreshAllObjects()
-            anchor.save(transactions.last!.token)
-            print("🔄 Daythread: merge complete, token updated")
-
-        } catch {
-            print("⚠️ Daythread: persistent history fetch failed — resetting token. \(error)")
-            anchor.reset()
-            context.refreshAllObjects()
         }
-
-        NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
     }
 
     // MARK: — Manual refresh
 
     @MainActor
     func manualRefresh() async {
-        Self.mergeRemoteHistory(into: viewContext, anchor: historyAnchor)
+        viewContext.refreshAllObjects()
+        NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
         try? await Task.sleep(for: .milliseconds(500))
     }
 
