@@ -42,6 +42,10 @@ final class TimelineViewModel {
         context: NSManagedObjectContext
     ) {
         guard !event.isTimeLocked else { return }
+        if hasTimeConflict(event, in: day) {
+            HapticManager.shared.deleteAction()
+            return
+        }
         event.day = day
         event.sortOrder = newSortOrder
         try? context.save()
@@ -73,6 +77,12 @@ final class TimelineViewModel {
         // Reject the move if it would push a locked event out of time sequence.
         if isLockOrderViolated(in: proposed) {
             shakeViolators(in: proposed)
+            HapticManager.shared.deleteAction()
+            return false
+        }
+
+        // Reject if the dragged event's time overlaps with an existing event in the target day.
+        if hasTimeConflict(dragged, in: targetDay) {
             HapticManager.shared.deleteAction()
             return false
         }
@@ -114,6 +124,11 @@ final class TimelineViewModel {
 
         if isLockOrderViolated(in: proposed) {
             shakeViolators(in: proposed)
+            HapticManager.shared.deleteAction()
+            return false
+        }
+
+        if hasTimeConflict(dragged, in: targetDay) {
             HapticManager.shared.deleteAction()
             return false
         }
@@ -255,6 +270,20 @@ final class TimelineViewModel {
         }
         try? context.save()
         HapticManager.shared.sheetConfirm()
+    }
+
+    /// Returns true if `event` has a timed window that overlaps any existing timed
+    /// event in `day` (excluding itself). Uses ScheduleEngine for consistent rules
+    /// with the sheet's conflict alert.
+    private func hasTimeConflict(_ event: TripEvent, in day: TripDay) -> Bool {
+        guard let start = event.startTime, let end = event.endTime else { return false }
+        let conflicts = ScheduleEngine.findConflicts(
+            startTime: start,
+            endTime: end,
+            among: day.eventsArray,
+            excludingID: event.id
+        )
+        return !conflicts.isEmpty
     }
 
     private func syncCalendar(_ event: TripEvent, context: NSManagedObjectContext) {
