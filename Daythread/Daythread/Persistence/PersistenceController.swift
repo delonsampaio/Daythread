@@ -110,42 +110,33 @@ struct PersistenceController {
 
     private func setupObservers() {
         let viewContext = container.viewContext
-        let coordinator = container.persistentStoreCoordinator
         let container = container
         let historyAnchor = historyAnchor
 
-        // NSManagedObjectContextDidSave: merges our own local background saves
-        // (drag-reorder, calendar writes, etc.) into the viewContext on main.
+        // Catch ALL context saves — local background saves AND CloudKit's internal
+        // import contexts — and merge them on the main thread. The coordinator
+        // check (===) is intentionally omitted: NSPersistentCloudKitContainer uses
+        // internal import contexts whose coordinator reference may not match ours
+        // even though they write to the same stores. Object IDs that belong to
+        // foreign stores are silently ignored by mergeChanges, so this is safe.
+        // queue: .main ensures the block runs on the main thread without needing
+        // to capture and send the notification across concurrency domains.
         NotificationCenter.default.addObserver(
             forName: .NSManagedObjectContextDidSave,
             object: nil,
             queue: .main
         ) { notification in
             guard let savedCtx = notification.object as? NSManagedObjectContext,
-                  savedCtx !== viewContext,
-                  savedCtx.persistentStoreCoordinator === viewContext.persistentStoreCoordinator
+                  savedCtx !== viewContext
             else { return }
             viewContext.mergeChanges(fromContextDidSave: notification)
-        }
-
-        // NSPersistentStoreRemoteChange: fires when CloudKit imports remote
-        // records. We use persistent history to properly INSERT new objects
-        // (e.g. a co-editor's new event) into the viewContext. A relationship
-        // cache read (day.eventsArray) would return stale data because Core Data
-        // doesn't update in-memory NSSet caches when inserting faults via merge.
-        NotificationCenter.default.addObserver(
-            forName: .NSPersistentStoreRemoteChange,
-            object: coordinator,
-            queue: nil
-        ) { _ in
-            Task { @MainActor in
-                Self.mergeRemoteHistory(into: viewContext, anchor: historyAnchor)
-            }
+            NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
         }
 
         // eventChangedNotification fires after a CloudKit import fully commits.
-        // NSPersistentStoreRemoteChange can fire slightly early (before all
-        // records are in the store), so this is the reliable second-chance merge.
+        // Use it as a second-pass signal so the persistent history catch-up also
+        // runs, covering any edge case where the context save observer fires before
+        // all records are fully written.
         NotificationCenter.default.addObserver(
             forName: NSPersistentCloudKitContainer.eventChangedNotification,
             object: container,
