@@ -33,13 +33,12 @@ struct PersistenceController {
 
     // MARK: — Persistent history token
 
-    // @unchecked Sendable: always accessed from viewContext.perform{} / performAndWait{},
-    // which serialise on the main thread. UserDefaults reads/writes are thread-safe.
-    private final class HistoryAnchor: @unchecked Sendable {
+    @MainActor
+    private final class HistoryAnchor {
         // v4 suffix forces a fresh start after the Phase 2 Core Data model change.
         private static let key = "daythread.historyToken.v4"
 
-        private(set) var token: NSPersistentHistoryToken? = {
+        var token: NSPersistentHistoryToken? = {
             guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
             return try? NSKeyedUnarchiver.unarchivedObject(
                 ofClass: NSPersistentHistoryToken.self, from: data
@@ -93,9 +92,8 @@ struct PersistenceController {
         }
 
         // automaticallyMergesChangesFromParent = false: we merge manually via
-        // persistent history inside viewContext.perform{} so all state updates
-        // are serialised on the context's queue (main thread). This eliminates
-        // "Publishing changes from background threads" warnings.
+        // persistent history on the main actor so all state changes are serialised
+        // on the main thread. This prevents "Publishing from background threads" warnings.
         container.viewContext.automaticallyMergesChangesFromParent = false
         container.viewContext.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
         container.viewContext.transactionAuthor = "DaythreadApp"
@@ -114,8 +112,8 @@ struct PersistenceController {
         let historyAnchor = historyAnchor
 
         // NSManagedObjectContextDidSave: merges our own local background context saves
-        // (drag-reorder, CalendarService, etc.) into the viewContext on main.
-        // CloudKit imports bypass this notification — they post NSPersistentStoreRemoteChange.
+        // (drag-reorder, CalendarService, etc.) into the viewContext on the main queue.
+        // CloudKit imports bypass this notification — they fire NSPersistentStoreRemoteChange.
         NotificationCenter.default.addObserver(
             forName: .NSManagedObjectContextDidSave,
             object: nil,
@@ -130,15 +128,16 @@ struct PersistenceController {
 
         // NSPersistentStoreRemoteChange: the authoritative signal for CloudKit imports.
         // CloudKit bypasses NSManagedObjectContextDidSave, so persistent history is
-        // the only reliable way to INSERT new objects from co-editors into the viewContext.
-        // viewContext.perform{} serialises the merge on the context's queue (main thread),
-        // preventing "Publishing changes from background threads" warnings.
+        // the only reliable path to INSERT new co-editor objects into the viewContext.
+        // Task{@MainActor in} schedules the merge on the main actor, which is the same
+        // thread as the viewContext's queue — equivalent to viewContext.perform{} without
+        // the @Sendable closure restrictions.
         NotificationCenter.default.addObserver(
             forName: .NSPersistentStoreRemoteChange,
             object: coordinator,
             queue: nil
         ) { _ in
-            viewContext.perform {
+            Task { @MainActor in
                 Self.mergeRemoteHistory(into: viewContext, anchor: historyAnchor)
             }
         }
@@ -157,7 +156,7 @@ struct PersistenceController {
                 event.type == .import,
                 event.endDate != nil
             else { return }
-            viewContext.perform {
+            Task { @MainActor in
                 Self.mergeRemoteHistory(into: viewContext, anchor: historyAnchor)
             }
         }
@@ -165,9 +164,7 @@ struct PersistenceController {
 
     // MARK: — History merge
 
-    // Not @MainActor — always called from viewContext.perform{} or performAndWait{},
-    // which run on the context's own queue. For a main-queue context this IS the
-    // main thread; the @unchecked Sendable on HistoryAnchor documents that invariant.
+    @MainActor
     private static func mergeRemoteHistory(
         into context: NSManagedObjectContext,
         anchor: HistoryAnchor
@@ -200,8 +197,8 @@ struct PersistenceController {
             }
 
             for transaction in transactions {
-                // objectIDNotification() returns object IDs, not instances —
-                // safe to merge across concurrency domains.
+                // objectIDNotification() passes object IDs, not instances —
+                // safe to merge across thread boundaries.
                 context.mergeChanges(fromContextDidSave: transaction.objectIDNotification())
             }
             context.refreshAllObjects()
@@ -220,10 +217,7 @@ struct PersistenceController {
 
     @MainActor
     func manualRefresh() async {
-        // performAndWait is re-entrant for main-queue contexts; safe to call from @MainActor.
-        viewContext.performAndWait {
-            Self.mergeRemoteHistory(into: viewContext, anchor: historyAnchor)
-        }
+        Self.mergeRemoteHistory(into: viewContext, anchor: historyAnchor)
         try? await Task.sleep(for: .milliseconds(500))
     }
 
