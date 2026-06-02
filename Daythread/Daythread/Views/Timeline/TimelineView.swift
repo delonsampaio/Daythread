@@ -287,13 +287,6 @@ private struct DayTimelineSection: View {
 
     @FetchRequest private var fetchedEvents: FetchedResults<TripEvent>
 
-    /// Bumped when dayThreadRemoteChangeDidApply fires. @FetchRequest auto-updates
-    /// when mergeChanges posts NSManagedObjectContextObjectsDidChange (the happy path),
-    /// but this token forces a re-render as a fallback when history returns empty and
-    /// refreshAllObjects() was called instead — ensuring the view at least re-evaluates
-    /// its @FetchRequest live results after every remote-change signal.
-    @State private var remoteChangeToken = 0
-
     init(
         day: TripDay,
         dayNumber: Int,
@@ -333,15 +326,11 @@ private struct DayTimelineSection: View {
                     : nil
             )
         }
-        .onReceive(NotificationCenter.default.publisher(for: .dayThreadRemoteChangeDidApply)) { _ in
-            remoteChangeToken &+= 1
-        }
         }
     }
 
     @ViewBuilder
     private var dayContent: some View {
-        let _ = remoteChangeToken  // token bump re-evaluates fetchedEvents live results
         // Soft-filter: exclude pending-delete and private events the current
         // user isn't the originator of. fetchedEvents updates automatically
         // whenever the managed object context changes (NSManagedObjectContextObjectsDidChange),
