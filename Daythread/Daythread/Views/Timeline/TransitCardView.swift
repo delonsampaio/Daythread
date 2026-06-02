@@ -38,6 +38,11 @@ struct TransitCardView: View {
                     .font(.system(size: 13, weight: .semibold, design: .monospaced))
                     .foregroundStyle(ThemeTokens.textSecondary)
                 Spacer()
+                if event.isPrivate && event.day?.trip?.cloudKitShareID != nil {
+                    Image(systemName: "eye.slash.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(ThemeTokens.textMuted)
+                }
                 if event.isTimeLocked {
                     Image(systemName: "lock.fill")
                         .font(.system(size: 11))

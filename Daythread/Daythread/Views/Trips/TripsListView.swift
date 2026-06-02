@@ -45,6 +45,7 @@ struct TripsListView: View {
                         }
                         .padding()
                     }
+                    .refreshable { await PersistenceController.shared.manualRefresh() }
                 }
             }
             .navigationTitle("Trips")

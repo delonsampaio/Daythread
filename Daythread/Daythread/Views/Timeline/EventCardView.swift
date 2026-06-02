@@ -28,11 +28,18 @@ struct EventCardView: View {
                 )
 
             VStack(alignment: .leading, spacing: 6) {
-                HStack {
+                HStack(spacing: 6) {
                     Text(event.title)
                         .font(.headline)
                         .foregroundStyle(ThemeTokens.textPrimary)
                     Spacer()
+                    // Private: only meaningful on a shared trip — signals this
+                    // event is hidden from co-editors.
+                    if event.isPrivate && event.day?.trip?.cloudKitShareID != nil {
+                        Image(systemName: "eye.slash.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(ThemeTokens.textMuted)
+                    }
                     if event.isTimeLocked {
                         Image(systemName: "lock.fill")
                             .font(.system(size: 11))

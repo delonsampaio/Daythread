@@ -1,6 +1,13 @@
 import CoreData
 import CloudKit
 
+extension Notification.Name {
+    /// Posted on the main thread after NSPersistentStoreRemoteChange applies
+    /// refreshAllObjects() — views observe this to force a re-render when
+    /// objectWillChange alone does not fire (e.g. faulted relationship caches).
+    static let dayThreadRemoteChangeDidApply = Notification.Name("dayThreadRemoteChangeDidApply")
+}
+
 struct PersistenceController {
     static let shared = PersistenceController()
 
@@ -112,9 +119,27 @@ struct PersistenceController {
                 // whatever CloudKit just imported. Must run on the viewContext's queue.
                 viewContext.perform {
                     viewContext.refreshAllObjects()
+                    // refreshAllObjects() re-faults objects but does not reliably
+                    // fire objectWillChange on every @ObservedObject (notably a
+                    // TripDay whose events relationship changed). Post an explicit
+                    // signal so views can force a re-render. Already on the
+                    // viewContext's main queue (viewContext is main-thread bound).
+                    NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
                 }
             }
         }
+    }
+
+    /// Manual pull-to-refresh action. NSPersistentCloudKitContainer syncs in the
+    /// background automatically, but re-faulting the viewContext surfaces anything
+    /// already imported into the store that hasn't yet re-rendered, and the posted
+    /// notification forces views to re-read their relationships. The brief delay
+    /// keeps the refresh spinner on screen long enough to read as deliberate.
+    @MainActor
+    func manualRefresh() async {
+        viewContext.refreshAllObjects()
+        NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
+        try? await Task.sleep(for: .milliseconds(500))
     }
 
     /// Run ONCE on a real device to push the record types to CloudKit's Development

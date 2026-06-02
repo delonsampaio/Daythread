@@ -261,6 +261,7 @@ private struct TripTimelineList: View {
             // iPad: no tab bar, so use a smaller clearance for the FAB only.
             .padding(.bottom, horizontalSizeClass == .regular ? 80 : 140)
         }
+        .refreshable { await PersistenceController.shared.manualRefresh() }
         }
     }
 }
@@ -281,6 +282,13 @@ private struct DayTimelineSection: View {
     @Environment(\.managedObjectContext) private var context
     @Environment(TripStore.self) private var store
 
+    /// Bumped on every CloudKit remote-change merge so the body re-evaluates and
+    /// re-reads `day.eventsArray`. refreshAllObjects() re-faults objects but does
+    /// not reliably fire objectWillChange on a TripDay whose events relationship
+    /// changed remotely (a co-editor adding/editing an event), so without this the
+    /// timeline only updates after the app is relaunched.
+    @State private var remoteChangeToken = 0
+
     var body: some View {
         if !day.isAlive {
             Color.clear
@@ -298,11 +306,17 @@ private struct DayTimelineSection: View {
                     : nil
             )
         }
+        .onReceive(NotificationCenter.default.publisher(for: .dayThreadRemoteChangeDidApply)) { _ in
+            remoteChangeToken &+= 1
+        }
         }
     }
 
     @ViewBuilder
     private var dayContent: some View {
+        // Reference the token so a remote-change bump forces this body to recompute
+        // and re-read the (now re-faulted) events relationship.
+        let _ = remoteChangeToken
         // Soft-filter: exclude pending-delete and private events the current
         // user isn't the originator of.
         let events = day.eventsArray

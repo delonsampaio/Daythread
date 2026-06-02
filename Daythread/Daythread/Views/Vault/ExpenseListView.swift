@@ -20,6 +20,8 @@ struct ExpenseListView: View {
     @State private var pendingDelete: TripExpense?      // settlements alert
     @State private var pendingUndoDelete: PendingDelete? // undo toast
     @State private var viewingReceiptData: Data?
+    /// Bumped on CloudKit remote-change merges so expensesArray is re-read.
+    @State private var remoteChangeToken = 0
 
     /// True if the trip has any settlement expenses.
     private var tripHasSettlements: Bool {
@@ -62,6 +64,7 @@ struct ExpenseListView: View {
     var body: some View {
         LiveContent(isDead: !trip.isAlive) {
         List {
+            let _ = remoteChangeToken
             // Totals header
             if !expenses.isEmpty {
                 Section {
@@ -159,6 +162,10 @@ struct ExpenseListView: View {
                 }
             }
 
+        }
+        .refreshable { await PersistenceController.shared.manualRefresh() }
+        .onReceive(NotificationCenter.default.publisher(for: .dayThreadRemoteChangeDidApply)) { _ in
+            remoteChangeToken &+= 1
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
