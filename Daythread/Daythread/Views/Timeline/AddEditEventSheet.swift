@@ -34,6 +34,7 @@ struct AddEditEventSheet: View {
     /// True once the user has explicitly touched the end-time picker. Before
     /// that, end tracks start automatically (1-hour gap). After, it's theirs.
     @State private var userEditedEndTime: Bool = false
+    @State private var showInCalendar: Bool = true
 
     private var tripDays: [TripDay] {
         trip?.daysArray ?? []
@@ -135,6 +136,10 @@ struct AddEditEventSheet: View {
                     TextField("Location", text: $location)
                     TextField("Notes", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
+                }
+
+                Section {
+                    Toggle("Add to Apple Calendar", isOn: $showInCalendar)
                 }
 
                 if category.requiresTransitDetails {
@@ -252,6 +257,7 @@ struct AddEditEventSheet: View {
         if let st = event.startTime { startTime = st; hasStartTime = true }
         if let et = event.endTime { endTime = et; userEditedEndTime = true }
         transitDetails = event.transitDetails
+        showInCalendar = event.showInCalendar
     }
 
     // MARK: — Category picker
@@ -305,6 +311,7 @@ struct AddEditEventSheet: View {
             event.startTime = hasStartTime ? startTime : nil
             event.endTime = hasStartTime ? endTime : nil
             if let td = transitDetails { event.transitDetails = td }
+            event.showInCalendar = showInCalendar
             // Apply a day change if the picker was changed (or the event was
             // dragged to a different day before opening edit).
             if event.day?.id != targetDay?.id {
@@ -328,6 +335,7 @@ struct AddEditEventSheet: View {
             event.isTimeLocked = isTimeLocked
             event.sortOrder = nextOrder
             event.notes = notes
+            event.showInCalendar = showInCalendar
             // Zone-hopping: link parent before save so CloudKit assigns the
             // record to the correct zone on first persist.
             event.day = targetDay

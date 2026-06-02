@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("daythread.userDisplayName") private var displayName = ""
+    @AppStorage("daythread.calendarSyncEnabled") private var calendarSyncEnabled = true
 
     var body: some View {
         List {
@@ -20,6 +21,14 @@ struct SettingsView: View {
                 Text("Your Profile")
             } footer: {
                 Text("Shown to people you share trips with, so they see who's who.")
+            }
+
+            Section {
+                Toggle("Sync events to Apple Calendar", isOn: $calendarSyncEnabled)
+            } header: {
+                Text("Calendar")
+            } footer: {
+                Text("When on, new and edited events are added to a Daythread calendar in your Apple Calendar app. Individual events can also be excluded from the event's edit screen.")
             }
             Section("Support") {
                 NavigationLink("Help & FAQ") {

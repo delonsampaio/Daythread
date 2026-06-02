@@ -20,6 +20,8 @@ extension TripEvent {
     /// Device-local EKEvent identifier — not synced to CloudKit (syncable="NO").
     /// Each device manages its own Apple Calendar entries independently.
     @NSManaged public var ekEventIdentifier: String
+    /// Whether this event should appear in the user's Apple Calendar (device-local, not synced to CloudKit).
+    @NSManaged public var showInCalendar: Bool
     @NSManaged public var day: TripDay?
     @NSManaged public var transitDetails: TransitDetails?
 }

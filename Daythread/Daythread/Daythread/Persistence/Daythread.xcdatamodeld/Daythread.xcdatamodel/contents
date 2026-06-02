@@ -29,6 +29,7 @@
     <entity name="TripEvent" representedClassName="TripEvent" syncable="YES">
         <attribute name="categoryRaw" optional="YES" attributeType="String" defaultValueString="activity" syncable="YES"/>
         <attribute name="ekEventIdentifier" optional="YES" attributeType="String" defaultValueString="" syncable="NO"/>
+        <attribute name="showInCalendar" optional="YES" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES" syncable="NO"/>
         <attribute name="endTime" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="YES"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
         <attribute name="isTimeLocked" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES" syncable="YES"/>

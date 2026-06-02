@@ -41,9 +41,26 @@ final class CalendarService {
 
     // MARK: — Sync (create or update)
 
+    /// Key for the global calendar sync toggle stored in UserDefaults / AppStorage.
+    static let globalToggleKey = "daythread.calendarSyncEnabled"
+
+    private var globalSyncEnabled: Bool {
+        UserDefaults.standard.object(forKey: Self.globalToggleKey) as? Bool ?? true
+    }
+
     func sync(_ event: TripEvent, tripName: String, context: NSManagedObjectContext) {
-        guard authorized else { return }
+        guard authorized, globalSyncEnabled else { return }
         guard let dayDate = event.day?.date else { return }
+
+        // Per-event opt-out: remove from calendar if previously synced, then stop.
+        if !event.showInCalendar {
+            if !event.ekEventIdentifier.isEmpty {
+                remove(identifier: event.ekEventIdentifier)
+                event.ekEventIdentifier = ""
+                try? context.save()
+            }
+            return
+        }
 
         // Timezone: transit events use their departure timezone; others use current.
         let startTZ: TimeZone
