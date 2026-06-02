@@ -178,7 +178,7 @@ struct PersistenceController {
         }
     }
 
-    private static func kindString(_ type: NSPersistentCloudKitContainer.EventType) -> String {
+    nonisolated private static func kindString(_ type: NSPersistentCloudKitContainer.EventType) -> String {
         switch type {
         case .setup:  return "SETUP"
         case .import: return "IMPORT"
