@@ -107,7 +107,6 @@ struct PersistenceController {
 
     private func setupObservers() {
         let viewContext = container.viewContext
-        let coordinator = container.persistentStoreCoordinator
         let container = container
         let historyAnchor = historyAnchor
 
@@ -127,16 +126,16 @@ struct PersistenceController {
         }
 
         // NSPersistentStoreRemoteChange: the authoritative signal for CloudKit imports.
-        // CloudKit bypasses NSManagedObjectContextDidSave, so persistent history is
-        // the only reliable path to INSERT new co-editor objects into the viewContext.
-        // Task{@MainActor in} schedules the merge on the main actor, which is the same
-        // thread as the viewContext's queue — equivalent to viewContext.perform{} without
-        // the @Sendable closure restrictions.
+        // object: nil (not coordinator) follows Apple's own sample code — using the
+        // coordinator reference as a filter has been observed to miss notifications
+        // in multi-store setups where the notification object may differ from the
+        // reference captured at setup time.
         NotificationCenter.default.addObserver(
             forName: .NSPersistentStoreRemoteChange,
-            object: coordinator,
+            object: nil,
             queue: nil
         ) { _ in
+            print("🔄 Daythread: NSPersistentStoreRemoteChange received")
             Task { @MainActor in
                 Self.mergeRemoteHistory(into: viewContext, anchor: historyAnchor)
             }
@@ -183,26 +182,26 @@ struct PersistenceController {
         do {
             guard let result = try context.execute(request) as? NSPersistentHistoryResult,
                   let transactions = result.result as? [NSPersistentHistoryTransaction] else {
+                print("🔄 Daythread: history result was nil or wrong type — refreshing objects only")
                 context.refreshAllObjects()
                 NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
                 return
             }
 
+            print("🔄 Daythread: found \(transactions.count) history transaction(s)")
+
             if transactions.isEmpty {
-                // No new history. refreshAllObjects clears caches; remoteChangeToken
-                // in views forces a re-render so @FetchRequest re-evaluates its results.
                 context.refreshAllObjects()
                 NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
                 return
             }
 
             for transaction in transactions {
-                // objectIDNotification() passes object IDs, not instances —
-                // safe to merge across thread boundaries.
                 context.mergeChanges(fromContextDidSave: transaction.objectIDNotification())
             }
             context.refreshAllObjects()
             anchor.save(transactions.last!.token)
+            print("🔄 Daythread: merge complete, token updated")
 
         } catch {
             print("⚠️ Daythread: persistent history fetch failed — resetting token. \(error)")
