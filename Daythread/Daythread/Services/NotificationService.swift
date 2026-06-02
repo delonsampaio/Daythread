@@ -80,8 +80,13 @@ final class NotificationService {
     /// disabled globally, the event is untimed, or it has no assigned day.
     func schedule(_ event: TripEvent) {
         guard let id = event.id else { return }
-        cancel(id: id)
-        guard appNotificationsActive else { return }
+        // No need to cancel first — UNUserNotificationCenter.add() with the same
+        // identifier automatically replaces any existing pending request.
+        guard appNotificationsActive else {
+            // If notifications are off, ensure any existing reminder is removed.
+            cancel(id: id)
+            return
+        }
 
         let tz: TimeZone
         if let td = event.transitDetails {
@@ -109,7 +114,11 @@ final class NotificationService {
 
         var cal = Calendar.current
         cal.timeZone = tz
-        let components = cal.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+        // Request .timeZone explicitly — without it components.timeZone is nil and
+        // UNCalendarNotificationTrigger defaults to the device timezone, causing
+        // the notification to fire at the wrong time in cross-timezone events.
+        var components = cal.dateComponents([.year, .month, .day, .hour, .minute, .timeZone], from: fireDate)
+        components.timeZone = tz
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         let request = UNNotificationRequest(identifier: id.uuidString, content: content, trigger: trigger)
 
@@ -140,7 +149,9 @@ final class NotificationService {
         content.userInfo           = ["eventID": id.uuidString]
 
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 15 * 60, repeats: false)
-        let request = UNNotificationRequest(identifier: "\(id.uuidString)-snooze", content: content, trigger: trigger)
+        // Use the original event UUID — add() replaces any pending request with the
+        // same identifier, so repeated snoozes cleanly overwrite each other.
+        let request = UNNotificationRequest(identifier: id.uuidString, content: content, trigger: trigger)
         Task { try? await center.add(request) }
     }
 

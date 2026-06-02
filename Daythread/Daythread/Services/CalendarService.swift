@@ -20,28 +20,30 @@ import UIKit
 final class CalendarService {
     static let shared = CalendarService()
     private let store = EKEventStore()
-    private var authorized = false
 
-    private init() {
-        authorized = EKEventStore.authorizationStatus(for: .event) == .fullAccess
+    // Authorization is never cached — checking the live status is cheap and
+    // prevents a stale true after the user revokes permission in iOS Settings.
+    private var isAuthorized: Bool {
+        EKEventStore.authorizationStatus(for: .event) == .fullAccess
     }
+
+    private init() {}
 
     // MARK: — Authorization
 
     func ensureAuthorized() async {
         switch EKEventStore.authorizationStatus(for: .event) {
         case .fullAccess:
-            authorized = true
+            break   // already granted — no prompt needed
         case .notDetermined:
-            authorized = (try? await store.requestFullAccessToEvents()) ?? false
+            _ = try? await store.requestFullAccessToEvents()
         default:
-            authorized = false
+            break   // denied/restricted — sync calls will no-op via isAuthorized
         }
     }
 
     // MARK: — Sync (create or update)
 
-    /// Key for the global calendar sync toggle stored in UserDefaults / AppStorage.
     static let globalToggleKey = "daythread.calendarSyncEnabled"
 
     private var globalSyncEnabled: Bool {
@@ -49,7 +51,7 @@ final class CalendarService {
     }
 
     func sync(_ event: TripEvent, tripName: String, context: NSManagedObjectContext) {
-        guard authorized, globalSyncEnabled else { return }
+        guard isAuthorized, globalSyncEnabled else { return }
         guard let dayDate = event.day?.date else { return }
 
         // Per-event opt-out: remove from calendar if previously synced, then stop.
@@ -62,7 +64,6 @@ final class CalendarService {
             return
         }
 
-        // Timezone: transit events use their departure timezone; others use current.
         let startTZ: TimeZone
         if let td = event.transitDetails {
             startTZ = TimeZone(identifier: td.departureTZIdentifier) ?? .current
@@ -75,13 +76,10 @@ final class CalendarService {
         let endDate: Date
         if let start = event.eventStart(in: startTZ) {
             startDate = start
-            if let et = event.endTime {
-                let endOnDay = combining(dayDate: dayDate, time: et, in: startTZ)
-                endDate = endOnDay >= startDate ? endOnDay
-                        : Calendar.current.date(byAdding: .day, value: 1, to: endOnDay)!
-            } else {
-                endDate = Calendar.current.date(byAdding: .hour, value: 1, to: startDate)!
-            }
+            // Use the shared eventEnd(in:) helper — handles date-combining and
+            // overnight crossing in one place (DRY with eventStart).
+            endDate = event.eventEnd(in: startTZ)
+                   ?? Calendar.current.date(byAdding: .hour, value: 1, to: startDate)!
         } else {
             startDate = Calendar.current.startOfDay(for: dayDate)
             endDate = Calendar.current.date(byAdding: .day, value: 1, to: startDate)!
@@ -104,7 +102,7 @@ final class CalendarService {
         ekEvent.notes    = event.notes.isEmpty ? nil : event.notes
         ekEvent.timeZone = startTZ
 
-        // Alarm: only attach when the user chose "calendar" or "both" as reminder type.
+        // Alarm: only attach when the user chose "calendar" or "both".
         if !isAllDay && NotificationService.shared.calendarAlarmsActive {
             let offsetMinutes = UserDefaults.standard.object(forKey: NotificationService.reminderOffsetKey) as? Int ?? 15
             ekEvent.alarms = [EKAlarm(relativeOffset: -Double(offsetMinutes * 60))]
@@ -114,6 +112,9 @@ final class CalendarService {
 
         do {
             try store.save(ekEvent, span: .thisEvent, commit: true)
+            // Persist the EKEvent identifier so future edits/deletes can find it.
+            // A second context.save() here is intentional — we can't return the
+            // identifier to the caller without making sync() async/throwing.
             event.ekEventIdentifier = ekEvent.eventIdentifier ?? ""
             try? context.save()
         } catch {
@@ -124,25 +125,9 @@ final class CalendarService {
     // MARK: — Remove
 
     func remove(identifier: String) {
-        guard authorized, !identifier.isEmpty else { return }
+        guard isAuthorized, !identifier.isEmpty else { return }
         guard let event = store.event(withIdentifier: identifier) else { return }
         try? store.remove(event, span: .thisEvent, commit: true)
-    }
-
-    // MARK: — Helpers
-
-    /// Returns a Date whose calendar date comes from `dayDate` and whose time
-    /// components come from `time`, both interpreted in `timezone`.
-    private func combining(dayDate: Date, time: Date, in timezone: TimeZone) -> Date {
-        var cal = Calendar.current
-        cal.timeZone = timezone
-        let d = cal.dateComponents([.year, .month, .day], from: dayDate)
-        let t = cal.dateComponents([.hour, .minute, .second], from: time)
-        var combined = DateComponents()
-        combined.year   = d.year;   combined.month  = d.month;  combined.day    = d.day
-        combined.hour   = t.hour;   combined.minute = t.minute; combined.second = t.second
-        combined.timeZone = timezone
-        return cal.date(from: combined) ?? time
     }
 
     // MARK: — Per-trip calendar

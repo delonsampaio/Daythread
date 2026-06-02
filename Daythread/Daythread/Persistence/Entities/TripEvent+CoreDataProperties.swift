@@ -34,10 +34,26 @@ extension TripEvent {
     /// Returns nil if the event is untimed or has no assigned day.
     func eventStart(in timezone: TimeZone = .current) -> Date? {
         guard let dayDate = day?.date, let rawTime = startTime else { return nil }
+        return combining(dayDate: dayDate, time: rawTime, in: timezone)
+    }
+
+    /// The event's absolute end time on the trip day's date.
+    /// If end is before start (overnight crossing), advances by one day.
+    /// Returns nil if the event has no end time or no assigned day.
+    func eventEnd(in timezone: TimeZone = .current) -> Date? {
+        guard let dayDate = day?.date, let rawEnd = endTime else { return nil }
+        let end = combining(dayDate: dayDate, time: rawEnd, in: timezone)
+        if let start = eventStart(in: timezone), let end, end < start {
+            return Calendar.current.date(byAdding: .day, value: 1, to: end)
+        }
+        return end
+    }
+
+    private func combining(dayDate: Date, time: Date, in timezone: TimeZone) -> Date? {
         var cal = Calendar.current
         cal.timeZone = timezone
         let d = cal.dateComponents([.year, .month, .day], from: dayDate)
-        let t = cal.dateComponents([.hour, .minute], from: rawTime)
+        let t = cal.dateComponents([.hour, .minute], from: time)
         var combined = DateComponents()
         combined.year = d.year;   combined.month  = d.month;  combined.day    = d.day
         combined.hour = t.hour;   combined.minute = t.minute; combined.timeZone = timezone
