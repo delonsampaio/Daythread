@@ -24,6 +24,35 @@ struct PersistenceController {
     /// Exposed for the sharing backend and share-acceptance flow.
     var cloudKitContainer: NSPersistentCloudKitContainer { container }
 
+    // MARK: — Persistent history token
+
+    @MainActor
+    private final class HistoryAnchor {
+        private static let key = "daythread.historyToken.v5"
+
+        var token: NSPersistentHistoryToken? = {
+            guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
+            return try? NSKeyedUnarchiver.unarchivedObject(
+                ofClass: NSPersistentHistoryToken.self, from: data
+            )
+        }()
+
+        func save(_ newToken: NSPersistentHistoryToken) {
+            token = newToken
+            if let data = try? NSKeyedArchiver.archivedData(
+                withRootObject: newToken, requiringSecureCoding: true
+            ) {
+                UserDefaults.standard.set(data, forKey: Self.key)
+            }
+        }
+
+        func reset() {
+            token = nil
+            UserDefaults.standard.removeObject(forKey: Self.key)
+        }
+    }
+    private let historyAnchor = HistoryAnchor()
+
     // MARK: — Init
 
     init(inMemory: Bool = false) {
@@ -54,11 +83,12 @@ struct PersistenceController {
             if let error { fatalError("Core Data store failed: \(error)") }
         }
 
-        // automaticallyMergesChangesFromParent = true: Core Data's bridge between
-        // CloudKit's SQLite writes and the viewContext. Kept true so Core Data
-        // internally manages persistent history consumption. The background-thread
-        // warnings come from CloudKit's own framework code, not from this setting.
-        container.viewContext.automaticallyMergesChangesFromParent = true
+        // automaticallyMergesChangesFromParent = false: CloudKit's auto-merge runs on
+        // a background thread, firing objectWillChange on @ObservedObject managed objects
+        // off-main ("Publishing from background threads") — which SwiftUI drops, so the
+        // timeline never updates live. Instead we merge manually on the MAIN thread, only
+        // at IMPORT-finished (the moment imported data is committed), via persistent history.
+        container.viewContext.automaticallyMergesChangesFromParent = false
         container.viewContext.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
         container.viewContext.transactionAuthor = "DaythreadApp"
 
@@ -72,14 +102,26 @@ struct PersistenceController {
     private func setupObservers() {
         let viewContext = container.viewContext
         let container = container
+        let historyAnchor = historyAnchor
 
-        // The CRITICAL refresh trigger. CloudKit's eventChangedNotification fires on
-        // IMPORT *finished* — the only moment imported data is guaranteed committed to
-        // the store. (NSPersistentStoreRemoteChange fires earlier, before commit, so
-        // refreshing there finds nothing; and auto-merge inserts on a background thread,
-        // which SwiftUI's @FetchRequest silently drops.) Re-fetching here on queue:.main
-        // registers the new rows on the main thread, firing NSManagedObjectContextObjectsDidChange
-        // so @FetchRequest finally picks them up live.
+        // Local background saves (CalendarService, etc.) merge into the viewContext on main.
+        NotificationCenter.default.addObserver(
+            forName: .NSManagedObjectContextDidSave,
+            object: nil,
+            queue: .main
+        ) { notification in
+            guard let savedCtx = notification.object as? NSManagedObjectContext,
+                  savedCtx !== viewContext,
+                  savedCtx.persistentStoreCoordinator === viewContext.persistentStoreCoordinator
+            else { return }
+            viewContext.mergeChanges(fromContextDidSave: notification)
+        }
+
+        // The live-refresh trigger. eventChangedNotification fires on IMPORT-finished —
+        // the only moment imported CloudKit data is guaranteed committed to the store and
+        // present in persistent history. queue:.main runs the merge synchronously on the
+        // main thread (no background-thread publishing), and merging via objectIDNotification
+        // fires NSInsertedObjectsKey so @FetchRequest adds the new co-editor rows live.
         NotificationCenter.default.addObserver(
             forName: NSPersistentCloudKitContainer.eventChangedNotification,
             object: container,
@@ -87,30 +129,57 @@ struct PersistenceController {
         ) { notification in
             guard let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
                     as? NSPersistentCloudKitContainer.Event else { return }
-            if event.type == .import, event.endDate != nil {
-                Self.reregisterAllObjects(in: viewContext)
+            if let error = event.error {
+                print("☁️ Daythread CloudKit \(Self.kindString(event.type)) ERROR: \(error)")
+            }
+            guard event.type == .import, event.endDate != nil else { return }
+            MainActor.assumeIsolated {
+                Self.mergeHistory(into: viewContext, anchor: historyAnchor)
             }
         }
     }
 
-    /// Executes fresh SQL fetches for each synced entity so newly imported SQLite
-    /// rows are registered into the context as faults (firing NSInsertedObjectsKey),
-    /// then re-faults existing objects so cached values reflect the latest store.
-    /// Entity-name fetch requests avoid the MainActor-isolated generated
-    /// `fetchRequest()` accessors, which can't be used from a nonisolated closure.
-    nonisolated private static func reregisterAllObjects(in context: NSManagedObjectContext) {
-        for entity in ["TripEvent", "TripDay", "Trip"] {
-            let request = NSFetchRequest<NSManagedObject>(entityName: entity)
-            _ = try? context.fetch(request)
+    // MARK: — History merge
+
+    @MainActor
+    private static func mergeHistory(into context: NSManagedObjectContext, anchor: HistoryAnchor) {
+        let request: NSPersistentHistoryChangeRequest
+        if let token = anchor.token {
+            request = NSPersistentHistoryChangeRequest.fetchHistory(after: token)
+        } else {
+            request = NSPersistentHistoryChangeRequest.fetchHistory(after: Date(timeIntervalSinceNow: -7 * 86400))
         }
-        context.refreshAllObjects()
+        do {
+            guard let result = try context.execute(request) as? NSPersistentHistoryResult,
+                  let transactions = result.result as? [NSPersistentHistoryTransaction],
+                  !transactions.isEmpty else { return }
+            for transaction in transactions {
+                context.mergeChanges(fromContextDidSave: transaction.objectIDNotification())
+            }
+            anchor.save(transactions.last!.token)
+            print("☁️ Daythread: merged \(transactions.count) history transaction(s) live")
+        } catch {
+            print("⚠️ Daythread: history merge failed — resetting token. \(error)")
+            anchor.reset()
+            context.refreshAllObjects()
+        }
+    }
+
+    private static func kindString(_ type: NSPersistentCloudKitContainer.EventType) -> String {
+        switch type {
+        case .setup:  return "SETUP"
+        case .import: return "IMPORT"
+        case .export: return "EXPORT"
+        @unknown default: return "UNKNOWN"
+        }
     }
 
     // MARK: — Manual refresh
 
     @MainActor
     func manualRefresh() async {
-        Self.reregisterAllObjects(in: viewContext)
+        Self.mergeHistory(into: viewContext, anchor: historyAnchor)
+        viewContext.refreshAllObjects()
         try? await Task.sleep(for: .milliseconds(500))
     }
 
