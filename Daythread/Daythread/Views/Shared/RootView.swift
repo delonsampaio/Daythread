@@ -74,6 +74,11 @@ struct RootView: View {
                 for trip in activeTrips where trip.cloudKitShareID != nil && trip.isAlive {
                     cloudKit.syncParticipants(for: trip, context: context)
                 }
+                // Reschedule notifications for all future timed events after a CloudKit
+                // import. Co-editors' event changes (time edits, day moves) arrive here
+                // but never go through AddEditEventSheet, so without this the old pending
+                // notification would fire at the wrong time until the user manually edits.
+                rescheduleNotificationsForFutureEvents()
             }
         }
         // FetchedResults<Trip> is not Equatable so we compare IDs to detect changes.
@@ -107,6 +112,24 @@ struct RootView: View {
         // we retry the moment the matching attribute arrives.
         .onChange(of: activeTrips.compactMap(\.cloudKitShareID)) { _, _ in
             store.resolvePendingJoin(in: Array(activeTrips))
+        }
+    }
+
+    // MARK: — Notification rescheduling after CloudKit sync
+
+    /// Fetches all timed events starting in the future and reschedules their
+    /// notifications using each event's current local preferences (hasReminder,
+    /// lead time). Called after every CloudKit import so co-editors' event
+    /// changes (time edits, day moves) automatically update pending reminders.
+    private func rescheduleNotificationsForFutureEvents() {
+        let request = TripEvent.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "startTime > %@ AND day != nil AND day.trip != nil",
+            Date() as NSDate
+        )
+        let events = (try? context.fetch(request)) ?? []
+        for event in events where event.isAlive {
+            NotificationService.shared.schedule(event)
         }
     }
 }
