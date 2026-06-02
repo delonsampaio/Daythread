@@ -18,6 +18,7 @@
 import CloudKit
 import CoreData
 import Observation
+import UIKit
 
 // MARK: — Backend seam
 
@@ -247,10 +248,13 @@ final class CloudKitService {
         store?.currentUserCloudKitID = uid
         let role: MemberRole = currentUserIsOwner(of: trip) ? .admin : .editor
         let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Fall back to the device name rather than "Me" so two users in the same
+        // trip see distinct names even when neither has set a custom display name.
+        let effectiveName = trimmed.isEmpty ? UIDevice.current.name : trimmed
         TripMemberRegistry.upsertCurrentUser(
             in: trip,
             appleUserID: uid,
-            displayName: trimmed.isEmpty ? "Me" : trimmed,
+            displayName: effectiveName,
             role: role,
             context: context
         )

@@ -61,12 +61,12 @@ struct PersistenceController {
             if let error { fatalError("Core Data store failed: \(error)") }
         }
 
-        // automaticallyMergesChangesFromParent = true: CloudKit's internal import
-        // contexts share our coordinator and save via the normal context-save path.
-        // Auto-merge inserts their objects into the viewContext immediately on the
-        // main thread, so @FetchRequest sees new co-editor events without any
-        // persistent history timing dependency.
-        container.viewContext.automaticallyMergesChangesFromParent = true
+        // automaticallyMergesChangesFromParent = false: auto-merge triggers the merge
+        // on whatever thread posts NSManagedObjectContextDidSave (often CloudKit's
+        // background import thread), generating "Publishing from background threads"
+        // warnings and potentially dropping SwiftUI updates. We merge manually on
+        // the main queue in setupObservers() to guarantee thread safety.
+        container.viewContext.automaticallyMergesChangesFromParent = false
         container.viewContext.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
         container.viewContext.transactionAuthor = "DaythreadApp"
 
@@ -79,37 +79,35 @@ struct PersistenceController {
 
     private func setupObservers() {
         let viewContext = container.viewContext
-        let container = container
 
-        // NSPersistentStoreRemoteChange fires when CloudKit finishes an import batch.
-        // auto-merge has already inserted the new objects by this point; we just
-        // refresh all faulted objects and post the notification so views bump their
-        // remoteChangeToken and re-evaluate @FetchRequest results.
+        // Merge ALL context saves — local background saves AND CloudKit's internal
+        // import contexts — on the main queue. queue:.main ensures the merge and
+        // any resulting @FetchRequest/objectWillChange emissions happen on the main
+        // thread, eliminating "Publishing from background threads" warnings.
+        // No coordinator check: CloudKit's contexts may or may not share our
+        // coordinator reference depending on iOS internals; skipping the check
+        // ensures we never silently miss an import. Object IDs from unrelated stores
+        // are silently ignored by mergeChanges, so this is always safe.
+        NotificationCenter.default.addObserver(
+            forName: .NSManagedObjectContextDidSave,
+            object: nil,
+            queue: .main
+        ) { notification in
+            guard let savedCtx = notification.object as? NSManagedObjectContext,
+                  savedCtx !== viewContext
+            else { return }
+            viewContext.mergeChanges(fromContextDidSave: notification)
+            NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
+        }
+
+        // NSPersistentStoreRemoteChange: belt-and-suspenders refresh after each
+        // CloudKit import batch commits, in case any object wasn't caught by the
+        // context-save observer above.
         NotificationCenter.default.addObserver(
             forName: .NSPersistentStoreRemoteChange,
             object: nil,
             queue: nil
         ) { _ in
-            Task { @MainActor in
-                viewContext.refreshAllObjects()
-                NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
-            }
-        }
-
-        // eventChangedNotification: second-pass signal after the full import commits.
-        // Belt-and-suspenders alongside auto-merge in case a batch boundary splits
-        // the notification timing.
-        NotificationCenter.default.addObserver(
-            forName: NSPersistentCloudKitContainer.eventChangedNotification,
-            object: container,
-            queue: nil
-        ) { notification in
-            guard
-                let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
-                    as? NSPersistentCloudKitContainer.Event,
-                event.type == .import,
-                event.endDate != nil
-            else { return }
             Task { @MainActor in
                 viewContext.refreshAllObjects()
                 NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
