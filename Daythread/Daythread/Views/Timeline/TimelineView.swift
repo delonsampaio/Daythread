@@ -287,6 +287,11 @@ private struct DayTimelineSection: View {
 
     @FetchRequest private var fetchedEvents: FetchedResults<TripEvent>
 
+    /// Bumped on .dayThreadRemoteChangeDidApply to force this section's body to
+    /// re-evaluate after a CloudKit merge — @FetchRequest does not reliably re-run
+    /// from the merge notification alone.
+    @State private var remoteChangeToken = 0
+
     init(
         day: TripDay,
         dayNumber: Int,
@@ -326,11 +331,15 @@ private struct DayTimelineSection: View {
                     : nil
             )
         }
+        .onReceive(NotificationCenter.default.publisher(for: .dayThreadRemoteChangeDidApply)) { _ in
+            remoteChangeToken &+= 1
+        }
         }
     }
 
     @ViewBuilder
     private var dayContent: some View {
+        let _ = remoteChangeToken  // re-evaluate fetchedEvents after a remote merge
         // Soft-filter: exclude pending-delete and private events the current
         // user isn't the originator of. fetchedEvents updates automatically
         // whenever the managed object context changes (NSManagedObjectContextObjectsDidChange),

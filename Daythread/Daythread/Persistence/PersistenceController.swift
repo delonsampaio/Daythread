@@ -1,6 +1,13 @@
 import CoreData
 import CloudKit
 
+extension Notification.Name {
+    /// Posted on the main thread after remote changes are merged into the viewContext.
+    /// Views bump a token on receipt to force @FetchRequest to re-evaluate, since
+    /// mergeChanges alone does not always re-drive SwiftUI's fetched results.
+    nonisolated static let dayThreadRemoteChangeDidApply = Notification.Name("dayThreadRemoteChangeDidApply")
+}
+
 struct PersistenceController {
     static let shared = PersistenceController()
 
@@ -156,8 +163,14 @@ struct PersistenceController {
             for transaction in transactions {
                 context.mergeChanges(fromContextDidSave: transaction.objectIDNotification())
             }
+            // Re-fault so TripDay.events relationship caches flush and reflect the
+            // newly merged child events when @FetchRequest re-evaluates.
+            context.refreshAllObjects()
             anchor.save(transactions.last!.token)
             print("☁️ Daythread: merged \(transactions.count) history transaction(s) live")
+            // Force SwiftUI views to re-evaluate: mergeChanges inserts the objects but
+            // @FetchRequest does not always re-run from the merge notification alone.
+            NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
         } catch {
             print("⚠️ Daythread: history merge failed — resetting token. \(error)")
             anchor.reset()
@@ -180,6 +193,7 @@ struct PersistenceController {
     func manualRefresh() async {
         Self.mergeHistory(into: viewContext, anchor: historyAnchor)
         viewContext.refreshAllObjects()
+        NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
         try? await Task.sleep(for: .milliseconds(500))
     }
 

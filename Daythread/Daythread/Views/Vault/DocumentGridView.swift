@@ -63,6 +63,8 @@ struct DocumentGridView: View {
     @State private var viewingDocument: TripDocument?
     @State private var editingDocument: TripDocument?
     @State private var pendingUndoDelete: PendingDelete?
+    /// Bumped on CloudKit remote-change merges so documentsArray is re-read.
+    @State private var remoteChangeToken = 0
 
     private let gridColumns = [GridItem(.adaptive(minimum: 100))]
 
@@ -92,6 +94,7 @@ struct DocumentGridView: View {
     var body: some View {
         LiveContent(isDead: !trip.isAlive) {
         Group {
+            let _ = remoteChangeToken
             if sortedDocuments.isEmpty {
                 ContentUnavailableView("No documents yet",
                                        systemImage: "doc.fill",
@@ -116,6 +119,9 @@ struct DocumentGridView: View {
             }
         }
         .refreshable { await PersistenceController.shared.manualRefresh() }
+        .onReceive(NotificationCenter.default.publisher(for: .dayThreadRemoteChangeDidApply)) { _ in
+            remoteChangeToken &+= 1
+        }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 // Sort menu
