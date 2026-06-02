@@ -28,6 +28,18 @@ final class HapticManager {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
+    func swipeRevealOpen() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    func swipeRevealClose() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    func selection() {
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+
     func tabSwitch() {
         UISelectionFeedbackGenerator().selectionChanged()
     }

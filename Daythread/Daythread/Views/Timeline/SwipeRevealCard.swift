@@ -90,7 +90,7 @@ struct SwipeRevealCard<Content: View>: View {
                 circleButton(label: "Edit",
                              icon: "pencil",
                              color: Color(uiColor: .systemBlue),
-                             action: editAction)
+                             action: { HapticManager.shared.selection(); editAction() })
                 circleButton(label: isLocked ? "Unlock" : "Lock",
                              icon: isLocked ? "lock.open.fill" : "lock.fill",
                              color: Color(uiColor: .systemOrange),
@@ -143,8 +143,13 @@ struct SwipeRevealCard<Content: View>: View {
         withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
             offset = targetOffset
         }
-        if targetOffset == 0 { isOpen = false }
-        else { isOpen = true }
+        if targetOffset == 0 {
+            isOpen = false
+            HapticManager.shared.swipeRevealClose()
+        } else {
+            isOpen = true
+            HapticManager.shared.swipeRevealOpen()
+        }
     }
 
     private func close() {
