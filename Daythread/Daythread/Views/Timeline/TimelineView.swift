@@ -453,10 +453,19 @@ private struct DayTimelineSection: View {
 // MARK: — Helpers
 
 private extension View {
+    /// Attaches a drag payload when `condition` is true. The `payload` autoclosure
+    /// is evaluated by SwiftUI/UIKit exactly when UIDragInteraction requests the
+    /// drag item — the precise "lift" moment — so the haptic fires in perfect sync
+    /// with no gesture conflicts. Call sites pass a plain String expression unchanged.
     @ViewBuilder
-    func draggableWhen(_ condition: Bool, payload: String) -> some View {
+    func draggableWhen(_ condition: Bool, payload: @autoclosure @escaping () -> String) -> some View {
         if condition {
-            self.draggable(payload)
+            self.draggable(
+                {
+                    HapticManager.shared.dragLift()
+                    return payload()
+                }()
+            )
         } else {
             self
         }
