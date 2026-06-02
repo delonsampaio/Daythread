@@ -35,10 +35,11 @@ struct PersistenceController {
 
     @MainActor
     private final class HistoryAnchor {
-        // v3 suffix forces a fresh start on all devices — old tokens from
-        // previous code iterations may point past the co-editor's changes,
-        // causing fetchHistory to return empty and miss new events.
-        private static let key = "daythread.historyToken.v3"
+        // v4 suffix forces a fresh start on all devices after the Phase 2
+        // Core Data model change (visibleToMemberIDs). Store migration can
+        // invalidate the v3 token, causing fetchHistory to silently return
+        // nothing. v4 clears UserDefaults and falls back to the 7-day window.
+        private static let key = "daythread.historyToken.v4"
 
         var token: NSPersistentHistoryToken? = {
             guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
