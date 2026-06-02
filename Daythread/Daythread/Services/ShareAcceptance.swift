@@ -33,6 +33,27 @@ extension Notification.Name {
 final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(
         _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        // Required for CloudKit real-time sync. NSPersistentCloudKitContainer relies
+        // on silent APNs pushes to know when co-editors make changes. Without this
+        // call, the OS never delivers those pushes and NSPersistentStoreRemoteChange
+        // never fires — changes only appear when the app is closed and reopened
+        // (which triggers a mandatory catch-up fetch on next launch).
+        application.registerForRemoteNotifications()
+        return true
+    }
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        print("✅ Daythread: registered for APNs — CloudKit real-time sync enabled")
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("❌ Daythread: APNs registration failed — CloudKit sync will be delayed: \(error.localizedDescription)")
+    }
+
+    func application(
+        _ application: UIApplication,
         configurationForConnecting connectingSceneSession: UISceneSession,
         options: UIScene.ConnectionOptions
     ) -> UISceneConfiguration {
