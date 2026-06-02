@@ -24,6 +24,13 @@ struct CloudKitTripSharingBackend: TripSharingBackend {
     }
 
     func makeShare(for trip: Trip) async throws -> CKShare {
+        // If the trip's object graph already has a share (e.g. the local
+        // cloudKitShareID was cleared by stopSharing but CloudKit/Core Data still
+        // holds share metadata), reuse it. Calling share([trip], to:) again on an
+        // already-shared record hangs, which froze the "Invite People" flow.
+        if let existing = try persistentContainer.fetchShares(matching: [trip.objectID])[trip.objectID] {
+            return existing
+        }
         let (_, share, _) = try await persistentContainer.share([trip], to: nil)
         share[CKShare.SystemFieldKey.title] = trip.name as CKRecordValue
         return share
