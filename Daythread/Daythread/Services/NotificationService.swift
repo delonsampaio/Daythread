@@ -118,7 +118,6 @@ final class NotificationService {
     // MARK: — Snooze (called from notification delegate)
 
     func snooze(id: UUID, tripName: String, title: String) {
-        let fireDate = Date().addingTimeInterval(15 * 60)
         let content = UNMutableNotificationContent()
         content.title              = title
         content.body               = "Snoozed — starting soon."
