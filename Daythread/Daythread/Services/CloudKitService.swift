@@ -236,7 +236,11 @@ final class CloudKitService {
     /// Registers the current iCloud user as a real member of a shared trip
     /// (owner → admin, joiner → editor) so co-editors see real names + roles.
     /// Device-only and best-effort: no-op when the trip isn't shared or identity
-    /// is unavailable. `displayName` falls back to "Me" when blank.
+    /// is unavailable. Name resolution priority:
+    /// 1. Custom name set in Profile → Settings (non-empty)
+    /// 2. Name from CKShare currentUserParticipant.userIdentity.nameComponents
+    ///    (same name the system sharing sheet shows)
+    /// 3. Device name (UIDevice.current.name) as a last resort
     func registerCurrentUserMembership(
         in trip: Trip,
         displayName: String,
@@ -248,9 +252,16 @@ final class CloudKitService {
         store?.currentUserCloudKitID = uid
         let role: MemberRole = currentUserIsOwner(of: trip) ? .admin : .editor
         let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Fall back to the device name rather than "Me" so two users in the same
-        // trip see distinct names even when neither has set a custom display name.
-        let effectiveName = trimmed.isEmpty ? UIDevice.current.name : trimmed
+        let effectiveName: String
+        if !trimmed.isEmpty {
+            effectiveName = trimmed
+        } else if let share = existingShare(for: trip),
+                  let nc = share.currentUserParticipant?.userIdentity.nameComponents {
+            let formatted = PersonNameComponentsFormatter().string(from: nc)
+            effectiveName = formatted.isEmpty ? UIDevice.current.name : formatted
+        } else {
+            effectiveName = UIDevice.current.name
+        }
         TripMemberRegistry.upsertCurrentUser(
             in: trip,
             appleUserID: uid,
