@@ -83,21 +83,28 @@ struct PersistenceController {
             object: nil,
             queue: .main
         ) { _ in
-            _ = try? viewContext.fetch(TripEvent.fetchRequest())
-            _ = try? viewContext.fetch(TripDay.fetchRequest())
-            _ = try? viewContext.fetch(Trip.fetchRequest())
-            viewContext.refreshAllObjects()
+            Self.reregisterAllObjects(in: viewContext)
         }
+    }
+
+    /// Executes fresh SQL fetches for each synced entity so newly imported SQLite
+    /// rows are registered into the context as faults (firing NSInsertedObjectsKey),
+    /// then re-faults existing objects so cached values reflect the latest store.
+    /// Entity-name fetch requests avoid the MainActor-isolated generated
+    /// `fetchRequest()` accessors, which can't be used from a nonisolated closure.
+    nonisolated private static func reregisterAllObjects(in context: NSManagedObjectContext) {
+        for entity in ["TripEvent", "TripDay", "Trip"] {
+            let request = NSFetchRequest<NSManagedObject>(entityName: entity)
+            _ = try? context.fetch(request)
+        }
+        context.refreshAllObjects()
     }
 
     // MARK: — Manual refresh
 
     @MainActor
     func manualRefresh() async {
-        _ = try? viewContext.fetch(TripEvent.fetchRequest())
-        _ = try? viewContext.fetch(TripDay.fetchRequest())
-        _ = try? viewContext.fetch(Trip.fetchRequest())
-        viewContext.refreshAllObjects()
+        Self.reregisterAllObjects(in: viewContext)
         try? await Task.sleep(for: .milliseconds(500))
     }
 
