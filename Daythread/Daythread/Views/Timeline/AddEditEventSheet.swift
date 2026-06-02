@@ -38,10 +38,29 @@ struct AddEditEventSheet: View {
     @State private var showInCalendar: Bool = true
     @State private var hasReminder: Bool = true
     @State private var isPrivate: Bool = false
+    /// IDs of members (besides the originator) who can see this event when private.
+    /// Empty = only me. Non-empty = me + selected members.
+    @State private var sharedWithMemberIDs: Set<String> = []
     @AppStorage("daythread.notificationsEnabled") private var notificationsEnabled = true
 
     private var tripDays: [TripDay] {
         trip?.daysArray ?? []
+    }
+
+    /// Trip members other than the current user — shown in the "also visible to" picker.
+    private var otherMembers: [TripMember] {
+        let myID = store.currentUserCloudKitID ?? ""
+        return (trip?.membersArray ?? []).filter { member in
+            !member.appleUserID.isEmpty && member.appleUserID != myID
+        }
+    }
+
+    private var visibilitySummary: String {
+        if sharedWithMemberIDs.isEmpty { return "Only you" }
+        let names = otherMembers
+            .filter { sharedWithMemberIDs.contains($0.appleUserID) }
+            .map { $0.displayName.isEmpty ? "Traveler" : $0.displayName }
+        return "You + \(names.joined(separator: ", "))"
     }
 
     /// New events: always can set privacy. Editing: only originator can change it.
@@ -157,18 +176,53 @@ struct AddEditEventSheet: View {
                     }
                 }
 
-                // Private events: only shown on shared trips and only the
-                // originator can change visibility (non-originators can't hide
-                // their group-mates' events from themselves).
+                // Visibility: only shown on shared trips; only the originator
+                // can change visibility so non-originators can't hide others' events.
                 if trip?.cloudKitShareID != nil && canTogglePrivacy {
                     Section {
                         Toggle(isOn: $isPrivate) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Keep private")
-                                Text("Only you see this event")
+                                Text("Limit visibility")
+                                Text(isPrivate ? visibilitySummary : "Everyone in the trip sees this")
                                     .font(.caption)
                                     .foregroundStyle(ThemeTokens.textMuted)
                             }
+                        }
+
+                        if isPrivate {
+                            let others = otherMembers
+                            if others.isEmpty {
+                                Text("No other members to share with")
+                                    .font(.caption)
+                                    .foregroundStyle(ThemeTokens.textMuted)
+                            } else {
+                                ForEach(others) { member in
+                                    let id = member.appleUserID
+                                    Button {
+                                        if sharedWithMemberIDs.contains(id) {
+                                            sharedWithMemberIDs.remove(id)
+                                        } else {
+                                            sharedWithMemberIDs.insert(id)
+                                        }
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: sharedWithMemberIDs.contains(id)
+                                                  ? "checkmark.circle.fill"
+                                                  : "circle")
+                                                .foregroundStyle(sharedWithMemberIDs.contains(id)
+                                                                 ? ThemeTokens.accent
+                                                                 : ThemeTokens.textMuted)
+                                            Text(member.displayName.isEmpty ? "Traveler" : member.displayName)
+                                                .foregroundStyle(ThemeTokens.textPrimary)
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    } header: {
+                        if isPrivate {
+                            Text("Also visible to")
                         }
                     }
                 }
@@ -291,6 +345,9 @@ struct AddEditEventSheet: View {
         showInCalendar = event.showInCalendar
         hasReminder    = event.hasReminder
         isPrivate      = event.isPrivate
+        if !event.visibleToMemberIDs.isEmpty {
+            sharedWithMemberIDs = Set(event.visibleToMemberIDs.split(separator: ",").map(String.init))
+        }
     }
 
     // MARK: — Category picker
@@ -346,7 +403,12 @@ struct AddEditEventSheet: View {
             if let td = transitDetails { event.transitDetails = td }
             event.showInCalendar = showInCalendar
             event.hasReminder    = hasReminder
-            if canTogglePrivacy { event.isPrivate = isPrivate }
+            if canTogglePrivacy {
+                event.isPrivate = isPrivate
+                event.visibleToMemberIDs = isPrivate
+                    ? sharedWithMemberIDs.sorted().joined(separator: ",")
+                    : ""
+            }
             // Apply a day change if the picker was changed (or the event was
             // dragged to a different day before opening edit).
             if event.day?.id != targetDay?.id {
@@ -373,6 +435,9 @@ struct AddEditEventSheet: View {
             event.showInCalendar      = showInCalendar
             event.hasReminder         = hasReminder
             event.isPrivate           = isPrivate
+            event.visibleToMemberIDs  = isPrivate
+                ? sharedWithMemberIDs.sorted().joined(separator: ",")
+                : ""
             event.addedByAppleUserID  = store.currentUserCloudKitID ?? ""
             // Zone-hopping: link parent before save so CloudKit assigns the
             // record to the correct zone on first persist.

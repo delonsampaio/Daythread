@@ -9,6 +9,10 @@ extension TripEvent {
     @NSManaged public var id: UUID?
     @NSManaged public var addedByAppleUserID: String
     @NSManaged public var isPrivate: Bool
+    /// Comma-separated CloudKit user record names of members (besides the originator)
+    /// who can see this event when isPrivate=true. Empty = only the originator sees it.
+    /// Synced (syncable=YES) so all devices enforce the same visibility.
+    @NSManaged public var visibleToMemberIDs: String
     @NSManaged public var title: String
     @NSManaged public var startTime: Date?
     @NSManaged public var endTime: Date?

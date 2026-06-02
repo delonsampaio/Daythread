@@ -432,12 +432,18 @@ private struct DayTimelineSection: View {
 
     // MARK: — Private event visibility
 
-    /// An event is visible when: the trip is not shared, the event is not private,
-    /// or the current user is the originator of a private event.
+    /// An event is visible when:
+    /// - The trip is not shared (no CloudKit share), OR
+    /// - The event is not private, OR
+    /// - The current user is the originator, OR
+    /// - The current user's ID is in visibleToMemberIDs (Phase 2 subgroup)
     private func isVisible(_ event: TripEvent) -> Bool {
         guard event.day?.trip?.cloudKitShareID != nil else { return true }
         guard event.isPrivate else { return true }
-        return isOriginator(event)
+        if isOriginator(event) { return true }
+        let myID = store.currentUserCloudKitID ?? ""
+        guard !myID.isEmpty, !event.visibleToMemberIDs.isEmpty else { return false }
+        return event.visibleToMemberIDs.split(separator: ",").contains(myID[...])
     }
 
     private func isOriginator(_ event: TripEvent) -> Bool {
