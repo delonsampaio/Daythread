@@ -27,8 +27,10 @@
         <relationship name="trip" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Trip" inverseName="days" inverseEntity="Trip" syncable="YES"/>
     </entity>
     <entity name="TripEvent" representedClassName="TripEvent" syncable="YES">
+        <attribute name="addedByAppleUserID" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
         <attribute name="categoryRaw" optional="YES" attributeType="String" defaultValueString="activity" syncable="YES"/>
         <attribute name="ekEventIdentifier" optional="YES" attributeType="String" defaultValueString="" syncable="NO"/>
+        <attribute name="isPrivate" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES" syncable="YES"/>
         <attribute name="hasReminder" optional="YES" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES" syncable="NO"/>
         <attribute name="showInCalendar" optional="YES" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES" syncable="NO"/>
         <attribute name="endTime" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="YES"/>

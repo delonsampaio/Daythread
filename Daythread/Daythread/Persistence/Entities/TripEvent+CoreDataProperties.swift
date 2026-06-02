@@ -7,6 +7,8 @@ extension TripEvent {
     }
 
     @NSManaged public var id: UUID?
+    @NSManaged public var addedByAppleUserID: String
+    @NSManaged public var isPrivate: Bool
     @NSManaged public var title: String
     @NSManaged public var startTime: Date?
     @NSManaged public var endTime: Date?

@@ -16,6 +16,7 @@ struct AddEditEventSheet: View {
 
     @Environment(\.managedObjectContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(TripStore.self) private var store
 
     @State private var title: String = ""
     @State private var category: EventCategory = .activity
@@ -36,10 +37,19 @@ struct AddEditEventSheet: View {
     @State private var userEditedEndTime: Bool = false
     @State private var showInCalendar: Bool = true
     @State private var hasReminder: Bool = true
+    @State private var isPrivate: Bool = false
     @AppStorage("daythread.notificationsEnabled") private var notificationsEnabled = true
 
     private var tripDays: [TripDay] {
         trip?.daysArray ?? []
+    }
+
+    /// New events: always can set privacy. Editing: only originator can change it.
+    private var canTogglePrivacy: Bool {
+        guard let event = editingEvent else { return true }
+        let myID = store.currentUserCloudKitID ?? ""
+        if event.addedByAppleUserID.isEmpty || myID.isEmpty { return true }
+        return event.addedByAppleUserID == myID
     }
 
     var body: some View {
@@ -144,6 +154,22 @@ struct AddEditEventSheet: View {
                     Toggle("Add to Apple Calendar", isOn: $showInCalendar)
                     if notificationsEnabled && hasStartTime {
                         Toggle("Remind me", isOn: $hasReminder)
+                    }
+                }
+
+                // Private events: only shown on shared trips and only the
+                // originator can change visibility (non-originators can't hide
+                // their group-mates' events from themselves).
+                if trip?.cloudKitShareID != nil && canTogglePrivacy {
+                    Section {
+                        Toggle(isOn: $isPrivate) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Keep private")
+                                Text("Only you see this event")
+                                    .font(.caption)
+                                    .foregroundStyle(ThemeTokens.textMuted)
+                            }
+                        }
                     }
                 }
 
@@ -264,6 +290,7 @@ struct AddEditEventSheet: View {
         transitDetails = event.transitDetails
         showInCalendar = event.showInCalendar
         hasReminder    = event.hasReminder
+        isPrivate      = event.isPrivate
     }
 
     // MARK: — Category picker
@@ -319,6 +346,7 @@ struct AddEditEventSheet: View {
             if let td = transitDetails { event.transitDetails = td }
             event.showInCalendar = showInCalendar
             event.hasReminder    = hasReminder
+            if canTogglePrivacy { event.isPrivate = isPrivate }
             // Apply a day change if the picker was changed (or the event was
             // dragged to a different day before opening edit).
             if event.day?.id != targetDay?.id {
@@ -342,8 +370,10 @@ struct AddEditEventSheet: View {
             event.isTimeLocked = isTimeLocked
             event.sortOrder = nextOrder
             event.notes = notes
-            event.showInCalendar = showInCalendar
-            event.hasReminder    = hasReminder
+            event.showInCalendar      = showInCalendar
+            event.hasReminder         = hasReminder
+            event.isPrivate           = isPrivate
+            event.addedByAppleUserID  = store.currentUserCloudKitID ?? ""
             // Zone-hopping: link parent before save so CloudKit assigns the
             // record to the correct zone on first persist.
             event.day = targetDay

@@ -279,6 +279,7 @@ private struct DayTimelineSection: View {
     @Binding var editingEvent: TripEvent?
 
     @Environment(\.managedObjectContext) private var context
+    @Environment(TripStore.self) private var store
 
     var body: some View {
         if !day.isAlive {
@@ -302,9 +303,11 @@ private struct DayTimelineSection: View {
 
     @ViewBuilder
     private var dayContent: some View {
-        // Soft-filter the pending deletion so it vanishes immediately while
-        // the undo toast counts down. Actual context.delete fires on commit.
-        let events = day.eventsArray.filter { $0.objectID != vm.pendingEventDelete?.id }
+        // Soft-filter: exclude pending-delete and private events the current
+        // user isn't the originator of.
+        let events = day.eventsArray
+            .filter { $0.objectID != vm.pendingEventDelete?.id }
+            .filter { isVisible($0) }
         let violated = vm.violatedLockIDs(in: events)
         let outOfOrder = vm.outOfOrderEventIDs(in: events)
         VStack(spacing: 12) {
@@ -383,6 +386,25 @@ private struct DayTimelineSection: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 4)
+    }
+
+    // MARK: — Private event visibility
+
+    /// An event is visible when: the trip is not shared, the event is not private,
+    /// or the current user is the originator of a private event.
+    private func isVisible(_ event: TripEvent) -> Bool {
+        guard event.day?.trip?.cloudKitShareID != nil else { return true }
+        guard event.isPrivate else { return true }
+        return isOriginator(event)
+    }
+
+    private func isOriginator(_ event: TripEvent) -> Bool {
+        let myID = store.currentUserCloudKitID ?? ""
+        if event.addedByAppleUserID.isEmpty || myID.isEmpty {
+            // Legacy event or no CloudKit identity — fall back to store ownership.
+            return event.day?.trip?.objectID.persistentStore?.url?.lastPathComponent != "shared.sqlite"
+        }
+        return event.addedByAppleUserID == myID
     }
 }
 
