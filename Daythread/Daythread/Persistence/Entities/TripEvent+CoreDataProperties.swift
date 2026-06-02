@@ -27,3 +27,20 @@ extension TripEvent {
 }
 
 extension TripEvent: Identifiable {}
+
+extension TripEvent {
+    /// The event's absolute start time, combining the trip day's calendar date
+    /// with the time component of `startTime` in the given timezone.
+    /// Returns nil if the event is untimed or has no assigned day.
+    func eventStart(in timezone: TimeZone = .current) -> Date? {
+        guard let dayDate = day?.date, let rawTime = startTime else { return nil }
+        var cal = Calendar.current
+        cal.timeZone = timezone
+        let d = cal.dateComponents([.year, .month, .day], from: dayDate)
+        let t = cal.dateComponents([.hour, .minute], from: rawTime)
+        var combined = DateComponents()
+        combined.year = d.year;   combined.month  = d.month;  combined.day    = d.day
+        combined.hour = t.hour;   combined.minute = t.minute; combined.timeZone = timezone
+        return cal.date(from: combined)
+    }
+}

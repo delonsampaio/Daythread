@@ -73,14 +73,10 @@ final class CalendarService {
         let isAllDay = event.startTime == nil
         let startDate: Date
         let endDate: Date
-        if let st = event.startTime {
-            // startTime stores only the TIME component — the date part reflects
-            // whenever the event was created, not the trip day. Combine dayDate
-            // (the correct calendar date) with the time from startTime.
-            startDate = combining(dayDate: dayDate, time: st, in: startTZ)
+        if let start = event.eventStart(in: startTZ) {
+            startDate = start
             if let et = event.endTime {
                 let endOnDay = combining(dayDate: dayDate, time: et, in: startTZ)
-                // If end is before start the event crosses midnight — push to next day.
                 endDate = endOnDay >= startDate ? endOnDay
                         : Calendar.current.date(byAdding: .day, value: 1, to: endOnDay)!
             } else {
@@ -107,6 +103,10 @@ final class CalendarService {
         ekEvent.location = event.location
         ekEvent.notes    = event.notes.isEmpty ? nil : event.notes
         ekEvent.timeZone = startTZ
+
+        // Alarm: fire N minutes before the event. Offset is negative (before start).
+        let offsetMinutes = UserDefaults.standard.object(forKey: NotificationService.reminderOffsetKey) as? Int ?? 15
+        ekEvent.alarms = isAllDay ? [] : [EKAlarm(relativeOffset: -Double(offsetMinutes * 60))]
 
         do {
             try store.save(ekEvent, span: .thisEvent, commit: true)

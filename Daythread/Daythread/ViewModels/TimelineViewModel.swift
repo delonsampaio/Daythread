@@ -289,14 +289,19 @@ final class TimelineViewModel {
     private func syncCalendar(_ event: TripEvent, context: NSManagedObjectContext) {
         let tripName = event.day?.trip?.name ?? ""
         CalendarService.shared.sync(event, tripName: tripName, context: context)
+        NotificationService.shared.schedule(event)
     }
 
     func deleteEvent(_ event: TripEvent, context: NSManagedObjectContext) {
         let ekID = event.ekEventIdentifier
+        let eventID = event.id
         context.delete(event)
         try? context.save()
         if !ekID.isEmpty {
-            Task { CalendarService.shared.remove(identifier: ekID) }
+            CalendarService.shared.remove(identifier: ekID)
+        }
+        if let id = eventID {
+            NotificationService.shared.cancel(id: id)
         }
     }
 

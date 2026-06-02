@@ -345,12 +345,14 @@ struct AddEditEventSheet: View {
         }
         try? context.save()
 
-        // Calendar sync — fire-and-forget so it doesn't delay dismiss.
+        // Calendar + notification sync — fire-and-forget so it doesn't delay dismiss.
         let tripName = trip?.name ?? ""
         let ctx = context
         Task {
             await CalendarService.shared.ensureAuthorized()
             CalendarService.shared.sync(savedEvent, tripName: tripName, context: ctx)
+            await NotificationService.shared.requestAuthorization()
+            NotificationService.shared.schedule(savedEvent)
         }
 
         HapticManager.shared.sheetConfirm()

@@ -20,6 +20,7 @@ struct DaythreadApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .task { NotificationService.shared.registerCategories() }
                 .environment(\.managedObjectContext, persistence.viewContext)
                 .environment(store)
             // Co-editing: ShareSceneDelegate accepts the tapped CKShare invite
