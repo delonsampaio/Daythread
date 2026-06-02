@@ -271,4 +271,51 @@ final class CloudKitService {
         )
         try? context.save()
     }
+
+    // MARK: — Shared-database push subscription
+
+    /// NSPersistentCloudKitContainer reliably creates the silent-push subscription
+    /// for the PRIVATE database but is notorious for failing to create one for the
+    /// SHARED database — so participants never get pushed when a co-editor changes
+    /// something, and only sync at launch. This creates a CKDatabaseSubscription
+    /// (shouldSendContentAvailable = true) on the shared DB so APNs wakes the app.
+    /// Idempotent — safe to call on every launch.
+    nonisolated func ensureSharedDatabaseSubscription() {
+        let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
+        let sharedDB = container.sharedCloudDatabase
+
+        let subscription = CKDatabaseSubscription(subscriptionID: "daythread-shared-sync")
+        let info = CKSubscription.NotificationInfo()
+        info.shouldSendContentAvailable = true   // silent push that wakes the app
+        subscription.notificationInfo = info
+
+        let op = CKModifySubscriptionsOperation(
+            subscriptionsToSave: [subscription],
+            subscriptionIDsToDelete: nil
+        )
+        op.qualityOfService = .utility
+        op.modifySubscriptionsResultBlock = { result in
+            switch result {
+            case .success:
+                print("✅ Daythread: shared-DB silent-push subscription registered")
+            case .failure(let error):
+                print("❌ Daythread: shared-DB subscription failed: \(error.localizedDescription)")
+            }
+        }
+        sharedDB.add(op)
+    }
+
+    /// DIAGNOSTIC: logs whether the shared database has any push subscriptions.
+    nonisolated func verifySharedDatabaseSubscription() {
+        let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
+        container.sharedCloudDatabase.fetchAllSubscriptions { subs, error in
+            if let error {
+                print("⚠️ Daythread: error fetching shared subscriptions: \(error.localizedDescription)")
+            } else if let subs, !subs.isEmpty {
+                print("✅ Daythread: shared-DB subscriptions: \(subs.map(\.subscriptionID))")
+            } else {
+                print("❌ Daythread: NO shared-DB subscriptions — live push cannot arrive")
+            }
+        }
+    }
 }

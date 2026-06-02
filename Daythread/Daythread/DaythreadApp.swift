@@ -21,6 +21,14 @@ struct DaythreadApp: App {
         WindowGroup {
             RootView()
                 .task { NotificationService.shared.registerCategories() }
+                // NSPersistentCloudKitContainer often fails to create the silent-push
+                // subscription on the SHARED database, so participants only sync at
+                // launch. Create it explicitly (idempotent) and log the current state.
+                .task {
+                    let ck = CloudKitService()
+                    ck.ensureSharedDatabaseSubscription()
+                    ck.verifySharedDatabaseSubscription()
+                }
                 .environment(\.managedObjectContext, persistence.viewContext)
                 .environment(store)
             // Co-editing: ShareSceneDelegate accepts the tapped CKShare invite
