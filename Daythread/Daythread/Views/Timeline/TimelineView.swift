@@ -458,15 +458,43 @@ private extension View {
         if condition {
             self
                 .draggable(payload)
-                // .draggable() has no onBegan callback. Fire the lift haptic at 0.3 s
-                // — slightly before SwiftUI's internal drag recognizer (~0.35 s) so the
-                // simultaneous gesture completes before the drag system can cancel it.
-                .simultaneousGesture(
-                    LongPressGesture(minimumDuration: 0.3)
-                        .onEnded { _ in HapticManager.shared.dragLift() }
-                )
+                // UIKit overlay rather than simultaneousGesture: SwiftUI's
+                // LongPressGesture.onEnded at <0.35s cancels the drag system; at
+                // >0.35s the drag system cancels the gesture before it fires. A UIKit
+                // UILongPressGestureRecognizer with cancelsTouchesInView=false fires
+                // independently at 0.3s without disrupting SwiftUI's drag recognizer.
+                .overlay { DragLiftHapticOverlay() }
         } else {
             self
+        }
+    }
+}
+
+/// Transparent UIKit overlay that fires a heavy impact haptic when a 0.3s long
+/// press begins, without cancelling SwiftUI's drag gesture.
+private struct DragLiftHapticOverlay: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        let recognizer = UILongPressGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handle(_:))
+        )
+        recognizer.minimumPressDuration = 0.3
+        recognizer.cancelsTouchesInView = false   // must not steal touches from drag
+        recognizer.delaysTouchesEnded = false
+        view.addGestureRecognizer(recognizer)
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator: NSObject {
+        @objc func handle(_ r: UILongPressGestureRecognizer) {
+            guard r.state == .began else { return }
+            UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
         }
     }
 }
