@@ -268,8 +268,11 @@ private struct TripTimelineList: View {
 
 // MARK: — Single day section (observes the day)
 
-/// One day's header + event rows. Holds the day as `@ObservedObject` so adding,
-/// editing, deleting, or reordering its events repaints immediately.
+/// One day's header + event rows. Uses @FetchRequest (not day.eventsArray) so
+/// CloudKit-synced inserts from co-editors show up automatically: @FetchRequest
+/// observes NSManagedObjectContextObjectsDidChange directly, whereas the
+/// relationship NSSet cache on TripDay is NOT updated when mergeChanges inserts
+/// a new event as a fault — causing day.eventsArray to return a stale set.
 private struct DayTimelineSection: View {
     @ObservedObject var day: TripDay
     let dayNumber: Int
@@ -282,12 +285,29 @@ private struct DayTimelineSection: View {
     @Environment(\.managedObjectContext) private var context
     @Environment(TripStore.self) private var store
 
-    /// Bumped on every CloudKit remote-change merge so the body re-evaluates and
-    /// re-reads `day.eventsArray`. refreshAllObjects() re-faults objects but does
-    /// not reliably fire objectWillChange on a TripDay whose events relationship
-    /// changed remotely (a co-editor adding/editing an event), so without this the
-    /// timeline only updates after the app is relaunched.
-    @State private var remoteChangeToken = 0
+    @FetchRequest private var fetchedEvents: FetchedResults<TripEvent>
+
+    init(
+        day: TripDay,
+        dayNumber: Int,
+        vm: TimelineViewModel,
+        dragTargetEventID: Binding<UUID?>,
+        endDropTargetDayID: Binding<UUID?>,
+        swipeOpenEventID: Binding<UUID?>,
+        editingEvent: Binding<TripEvent?>
+    ) {
+        self.day = day
+        self.dayNumber = dayNumber
+        self.vm = vm
+        _dragTargetEventID = dragTargetEventID
+        _endDropTargetDayID = endDropTargetDayID
+        _swipeOpenEventID = swipeOpenEventID
+        _editingEvent = editingEvent
+        _fetchedEvents = FetchRequest(
+            sortDescriptors: [NSSortDescriptor(keyPath: \TripEvent.sortOrder, ascending: true)],
+            predicate: NSPredicate(format: "day == %@", day)
+        )
+    }
 
     var body: some View {
         if !day.isAlive {
@@ -296,7 +316,7 @@ private struct DayTimelineSection: View {
         Section {
             dayContent
         } header: {
-            let events = day.eventsArray
+            let events = fetchedEvents.filter { $0.isAlive }
             let hasOutOfOrder = !vm.outOfOrderEventIDs(in: events).isEmpty
             DayHeaderView(
                 day: day,
@@ -306,20 +326,17 @@ private struct DayTimelineSection: View {
                     : nil
             )
         }
-        .onReceive(NotificationCenter.default.publisher(for: .dayThreadRemoteChangeDidApply)) { _ in
-            remoteChangeToken &+= 1
-        }
         }
     }
 
     @ViewBuilder
     private var dayContent: some View {
-        // Reference the token so a remote-change bump forces this body to recompute
-        // and re-read the (now re-faulted) events relationship.
-        let _ = remoteChangeToken
         // Soft-filter: exclude pending-delete and private events the current
-        // user isn't the originator of.
-        let events = day.eventsArray
+        // user isn't the originator of. fetchedEvents updates automatically
+        // whenever the managed object context changes (NSManagedObjectContextObjectsDidChange),
+        // so co-editor inserts appear as soon as mergeChanges runs on the viewContext.
+        let events = fetchedEvents
+            .filter { $0.isAlive }
             .filter { $0.objectID != vm.pendingEventDelete?.id }
             .filter { isVisible($0) }
         let violated = vm.violatedLockIDs(in: events)

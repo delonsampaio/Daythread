@@ -2,10 +2,10 @@ import CoreData
 import CloudKit
 
 extension Notification.Name {
-    /// Posted on the main thread after NSPersistentStoreRemoteChange applies
-    /// refreshAllObjects() — views observe this to force a re-render when
-    /// objectWillChange alone does not fire (e.g. faulted relationship caches).
-    static let dayThreadRemoteChangeDidApply = Notification.Name("dayThreadRemoteChangeDidApply")
+    /// Posted on the main thread after remote changes are merged into the viewContext.
+    /// Views observe this to force a re-render when objectWillChange alone does not
+    /// fire (e.g. a TripDay whose events relationship changed via co-editor sync).
+    nonisolated static let dayThreadRemoteChangeDidApply = Notification.Name("dayThreadRemoteChangeDidApply")
 }
 
 struct PersistenceController {
@@ -39,6 +39,34 @@ struct PersistenceController {
     /// Exposed for the sharing backend and share-acceptance flow.
     var cloudKitContainer: NSPersistentCloudKitContainer { container }
 
+    // MARK: — Persistent history token
+
+    /// Tracks the last persistent history transaction merged into the viewContext.
+    /// Stored in a class wrapper because PersistenceController is a struct, and
+    /// `static let shared` is immutable — we need a reference type for mutable state.
+    private final class HistoryAnchor: @unchecked Sendable {
+        // nonisolated(unsafe): only ever read/written inside viewContext.perform
+        // (main thread) so the developer guarantees thread safety.
+        nonisolated(unsafe) var token: NSPersistentHistoryToken? = {
+            guard let data = UserDefaults.standard.data(forKey: "daythread.historyToken") else { return nil }
+            return try? NSKeyedUnarchiver.unarchivedObject(
+                ofClass: NSPersistentHistoryToken.self, from: data
+            )
+        }()
+
+        nonisolated func save(_ newToken: NSPersistentHistoryToken) {
+            token = newToken
+            if let data = try? NSKeyedArchiver.archivedData(
+                withRootObject: newToken, requiringSecureCoding: true
+            ) {
+                UserDefaults.standard.set(data, forKey: "daythread.historyToken")
+            }
+        }
+    }
+    private let historyAnchor = HistoryAnchor()
+
+    // MARK: — Init
+
     init(inMemory: Bool = false) {
         container = NSPersistentCloudKitContainer(
             name: "Daythread",
@@ -53,7 +81,6 @@ struct PersistenceController {
             description.url = URL(fileURLWithPath: "/dev/null")
             description.cloudKitContainerOptions = nil
         } else {
-            // Private database (owner's own trips + their other devices).
             description.cloudKitContainerOptions =
                 NSPersistentCloudKitContainerOptions(containerIdentifier: "iCloud.com.delonsampaio.daythread")
             description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
@@ -68,79 +95,96 @@ struct PersistenceController {
             if let error { fatalError("Core Data store failed: \(error)") }
         }
 
-        // automaticallyMergesChangesFromParent = false — merging on whatever
-        // background thread CloudKit's private import context fires from triggers
-        // SwiftUI's "Publishing changes from background threads" warning for every
-        // @ObservedObject watching that data. New managed objects (e.g. a freshly
-        // accepted shared trip) reach the viewContext via the NSManagedObjectContextDidSave
-        // observer below, which dispatches mergeChanges(fromContextDidSave:) to the
-        // main thread. Existing objects are refreshed by the NSPersistentStoreRemoteChange
-        // observer. Share-link resolution is handled by resolvePendingJoin in the
-        // eventChangedNotification handler, which fires after the import completes.
+        // automaticallyMergesChangesFromParent = false: CloudKit's import runs on
+        // a background thread. With auto-merge on, SwiftUI fires "Publishing from
+        // background threads" for every @ObservedObject on every sync event. We
+        // merge manually via persistent history inside viewContext.perform (main
+        // thread) so objectWillChange always fires on the correct thread.
         container.viewContext.automaticallyMergesChangesFromParent = false
         container.viewContext.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
         container.viewContext.transactionAuthor = "DaythreadApp"
 
         if !inMemory {
-            let viewContext = container.viewContext
-            NotificationCenter.default.addObserver(
-                forName: .NSManagedObjectContextDidSave,
-                object: nil,
-                queue: .main
-            ) { notification in
-                guard let savedCtx = notification.object as? NSManagedObjectContext,
-                      savedCtx !== viewContext,
-                      savedCtx.persistentStoreCoordinator === viewContext.persistentStoreCoordinator
-                else { return }
-                // Delivered on `.main` queue — safe to merge directly.
-                // This fires for both local saves and CloudKit's internal import
-                // context saves, inserting new managed objects (e.g. a newly
-                // accepted shared trip) into the viewContext on the main thread
-                // without triggering background-publishing warnings.
-                viewContext.mergeChanges(fromContextDidSave: notification)
-            }
+            setupObservers()
+        }
+    }
 
-            // CloudKit's remote import does NOT post NSManagedObjectContextDidSave
-            // on the viewContext — it writes into a private background context and
-            // posts NSPersistentStoreRemoteChange instead. Without this observer,
-            // edits made by co-editors only appear after the app restarts.
-            // NSPersistentStoreRemoteChangeNotificationPostOptionKey is already set
-            // on both stores (lines 53 and 115) so this fires whenever CloudKit
-            // finishes importing remote changes.
-            let coordinator = container.persistentStoreCoordinator
-            NotificationCenter.default.addObserver(
-                forName: .NSPersistentStoreRemoteChange,
-                object: coordinator,
-                queue: nil          // delivered on a background thread; dispatch explicitly
-            ) { _ in
-                // mergeChanges(fromContextDidSave:) requires the save notification,
-                // which we don't have here. Use refreshAllObjects so the viewContext
-                // re-faults every stale managed object from the store, picking up
-                // whatever CloudKit just imported. Must run on the viewContext's queue.
-                viewContext.perform {
-                    viewContext.refreshAllObjects()
-                    // refreshAllObjects() re-faults objects but does not reliably
-                    // fire objectWillChange on every @ObservedObject (notably a
-                    // TripDay whose events relationship changed). Post an explicit
-                    // signal so views can force a re-render. Already on the
-                    // viewContext's main queue (viewContext is main-thread bound).
-                    NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
-                }
+    // MARK: — Observers
+
+    private func setupObservers() {
+        let viewContext = container.viewContext
+        let coordinator = container.persistentStoreCoordinator
+        let historyAnchor = historyAnchor
+
+        // NSPersistentStoreRemoteChange fires after CloudKit finishes importing
+        // remote records AND after the persistent history transactions are committed.
+        // We use persistent history (not refreshAllObjects alone) because:
+        // - refreshAllObjects re-faults existing objects but cannot INSERT new ones
+        // - a co-editor's new event doesn't exist in the viewContext at all until
+        //   mergeChanges(fromContextDidSave:) inserts it
+        // - After the merge we still call refreshAllObjects to clear relationship
+        //   caches (objectIDNotification inserts events as faults without updating
+        //   the in-memory TripDay.events cache, so eventsArray would return stale
+        //   data on the next read without a cache flush).
+        NotificationCenter.default.addObserver(
+            forName: .NSPersistentStoreRemoteChange,
+            object: coordinator,
+            queue: nil
+        ) { _ in
+            viewContext.perform {
+                Self.mergeRemoteHistory(into: viewContext, anchor: historyAnchor)
             }
         }
     }
 
-    /// Manual pull-to-refresh action. NSPersistentCloudKitContainer syncs in the
-    /// background automatically, but re-faulting the viewContext surfaces anything
-    /// already imported into the store that hasn't yet re-rendered, and the posted
-    /// notification forces views to re-read their relationships. The brief delay
-    /// keeps the refresh spinner on screen long enough to read as deliberate.
+    // MARK: — History merge (shared by observer + manualRefresh)
+
+    /// Fetches all persistent history transactions since the last token, merges
+    /// them into `context`, clears relationship caches, updates the anchor, and
+    /// posts dayThreadRemoteChangeDidApply. Must be called on the context's queue.
+    private static nonisolated func mergeRemoteHistory(
+        into context: NSManagedObjectContext,
+        anchor: HistoryAnchor
+    ) {
+        let request = NSPersistentHistoryChangeRequest.fetchHistory(after: anchor.token)
+        guard let result = try? context.execute(request) as? NSPersistentHistoryResult,
+              let transactions = result.result as? [NSPersistentHistoryTransaction],
+              !transactions.isEmpty else {
+            // No new history — clear caches and signal anyway so pull-to-refresh
+            // and the re-render token always reflect the current store state.
+            context.refreshAllObjects()
+            NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
+            return
+        }
+
+        // Merge each transaction: inserts new objects (co-editor adds), updates
+        // existing ones, removes deleted ones.
+        for transaction in transactions {
+            context.mergeChanges(fromContextDidSave: transaction.objectIDNotification())
+        }
+
+        // objectIDNotification() inserts objects as faults without updating
+        // in-memory relationship caches. Without this flush, TripDay.events
+        // still returns the stale cached set on the next eventsArray read.
+        context.refreshAllObjects()
+
+        if let last = transactions.last {
+            anchor.save(last.token)
+        }
+        NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
+    }
+
+    // MARK: — Manual refresh
+
+    /// Pull-to-refresh: merges un-processed history, clears caches, signals views.
+    /// The brief sleep keeps the spinner visible long enough to feel deliberate.
     @MainActor
     func manualRefresh() async {
-        viewContext.refreshAllObjects()
-        NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
+        Self.mergeRemoteHistory(into: viewContext, anchor: historyAnchor)
         try? await Task.sleep(for: .milliseconds(500))
     }
+
+    // MARK: — Debug
 
     /// Run ONCE on a real device to push the record types to CloudKit's Development
     /// environment. Remove the call after the schema has been pushed.
@@ -150,6 +194,8 @@ struct PersistenceController {
         catch { print("⚠️ initializeCloudKitSchema failed: \(error)") }
     }
     #endif
+
+    // MARK: — Shared store
 
     /// Adds a second store description scoped to CloudKit's shared database so
     /// records from accepted CKShares sync into a separate SQLite store.
