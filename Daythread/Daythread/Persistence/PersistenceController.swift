@@ -65,6 +65,30 @@ struct PersistenceController {
         container.viewContext.automaticallyMergesChangesFromParent = true
         container.viewContext.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
         container.viewContext.transactionAuthor = "DaythreadApp"
+
+        if !inMemory {
+            setupObservers()
+        }
+    }
+
+    // MARK: — Observers
+
+    private func setupObservers() {
+        let viewContext = container.viewContext
+
+        // automaticallyMergesChangesFromParent inserts new CloudKit objects into the
+        // viewContext, but that merge fires from a background thread. SwiftUI's
+        // @FetchRequest sees NSInsertedObjectsKey from a background thread and ignores it.
+        // Calling refreshAllObjects() on the main queue fires NSManagedObjectContextObjectsDidChange
+        // with NSRefreshedObjectsKey from the main thread — @FetchRequest re-evaluates all
+        // context objects (including the just-inserted CloudKit faults) and updates the UI.
+        NotificationCenter.default.addObserver(
+            forName: .NSPersistentStoreRemoteChange,
+            object: nil,
+            queue: .main
+        ) { _ in
+            viewContext.refreshAllObjects()
+        }
     }
 
     // MARK: — Manual refresh
