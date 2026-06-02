@@ -35,10 +35,16 @@
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Daythread adds your trip events to Apple Calendar so your itinerary appears alongside other appointments.</string>
 
-	<!-- ── CloudKit: background push (reason this file exists) ── -->
+	<!-- ── CloudKit: background push + sync scheduling ──
+	     remote-notification: receive CloudKit silent pushes.
+	     fetch / processing: let NSPersistentCloudKitContainer schedule its
+	     export/import background activities (the activity.export task requests
+	     that were failing without these), so changes sync live, not only at launch. ── -->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
+		<string>fetch</string>
+		<string>processing</string>
 	</array>
 
 	<!-- ── CloudKit sharing: required so tapping a CKShare invite link routes
