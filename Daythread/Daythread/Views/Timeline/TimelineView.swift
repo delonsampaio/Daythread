@@ -392,7 +392,14 @@ private extension View {
     @ViewBuilder
     func draggableWhen(_ condition: Bool, payload: String) -> some View {
         if condition {
-            self.draggable(payload)
+            self
+                .draggable(payload)
+                // .draggable() has no onBegan callback — a simultaneous long-press
+                // at the same threshold (~0.4 s) fires the lift haptic reliably.
+                .simultaneousGesture(
+                    LongPressGesture(minimumDuration: 0.4)
+                        .onEnded { _ in HapticManager.shared.dragLift() }
+                )
         } else {
             self
         }
