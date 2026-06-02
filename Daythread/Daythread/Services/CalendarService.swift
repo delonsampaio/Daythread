@@ -104,9 +104,13 @@ final class CalendarService {
         ekEvent.notes    = event.notes.isEmpty ? nil : event.notes
         ekEvent.timeZone = startTZ
 
-        // Alarm: fire N minutes before the event. Offset is negative (before start).
-        let offsetMinutes = UserDefaults.standard.object(forKey: NotificationService.reminderOffsetKey) as? Int ?? 15
-        ekEvent.alarms = isAllDay ? [] : [EKAlarm(relativeOffset: -Double(offsetMinutes * 60))]
+        // Alarm: only attach when the user chose "calendar" or "both" as reminder type.
+        if !isAllDay && NotificationService.shared.calendarAlarmsActive {
+            let offsetMinutes = UserDefaults.standard.object(forKey: NotificationService.reminderOffsetKey) as? Int ?? 15
+            ekEvent.alarms = [EKAlarm(relativeOffset: -Double(offsetMinutes * 60))]
+        } else {
+            ekEvent.alarms = []
+        }
 
         do {
             try store.save(ekEvent, span: .thisEvent, commit: true)

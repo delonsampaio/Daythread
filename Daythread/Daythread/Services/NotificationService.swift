@@ -16,8 +16,9 @@ import UserNotifications
 final class NotificationService {
     static let shared = NotificationService()
 
-    static let globalToggleKey  = "daythread.notificationsEnabled"
+    static let globalToggleKey   = "daythread.notificationsEnabled"
     static let reminderOffsetKey = "daythread.reminderMinutesBefore"
+    static let reminderTypeKey   = "daythread.reminderType"
 
     private let center = UNUserNotificationCenter.current()
 
@@ -26,6 +27,18 @@ final class NotificationService {
     }
     private var reminderMinutes: Int {
         UserDefaults.standard.object(forKey: Self.reminderOffsetKey) as? Int ?? 15
+    }
+    /// Whether in-app (UNUserNotificationCenter) reminders should fire.
+    var appNotificationsActive: Bool {
+        guard notificationsEnabled else { return false }
+        let type = UserDefaults.standard.string(forKey: Self.reminderTypeKey) ?? "app"
+        return type == "app" || type == "both"
+    }
+    /// Whether Apple Calendar alarms (EKAlarm) should be attached to events.
+    var calendarAlarmsActive: Bool {
+        guard notificationsEnabled else { return false }
+        let type = UserDefaults.standard.string(forKey: Self.reminderTypeKey) ?? "app"
+        return type == "calendar" || type == "both"
     }
 
     private init() {}
@@ -68,7 +81,7 @@ final class NotificationService {
     func schedule(_ event: TripEvent) {
         guard let id = event.id else { return }
         cancel(id: id)
-        guard notificationsEnabled else { return }
+        guard appNotificationsActive else { return }
 
         let tz: TimeZone
         if let td = event.transitDetails {

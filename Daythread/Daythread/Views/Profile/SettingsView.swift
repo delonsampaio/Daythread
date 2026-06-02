@@ -20,10 +20,25 @@ private enum ReminderOffset: Int, CaseIterable, Identifiable {
     }
 }
 
+enum ReminderType: String, CaseIterable, Identifiable {
+    case app      = "app"
+    case calendar = "calendar"
+    case both     = "both"
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .app:      return "In-app notification"
+        case .calendar: return "Apple Calendar alarm"
+        case .both:     return "Both"
+        }
+    }
+}
+
 struct SettingsView: View {
     @AppStorage("daythread.userDisplayName") private var displayName = ""
     @AppStorage("daythread.calendarSyncEnabled") private var calendarSyncEnabled = true
     @AppStorage("daythread.notificationsEnabled") private var notificationsEnabled = true
+    @AppStorage("daythread.reminderType") private var reminderTypeRaw = ReminderType.app.rawValue
     @AppStorage("daythread.reminderMinutesBefore") private var reminderMinutes = 15
 
     var body: some View {
@@ -49,6 +64,11 @@ struct SettingsView: View {
             Section {
                 Toggle("Event reminders", isOn: $notificationsEnabled)
                 if notificationsEnabled {
+                    Picker("Reminder type", selection: $reminderTypeRaw) {
+                        ForEach(ReminderType.allCases) { type in
+                            Text(type.label).tag(type.rawValue)
+                        }
+                    }
                     Picker("Remind me", selection: $reminderMinutes) {
                         ForEach(ReminderOffset.allCases) { offset in
                             Text(offset.label).tag(offset.rawValue)
@@ -58,7 +78,7 @@ struct SettingsView: View {
             } header: {
                 Text("Notifications")
             } footer: {
-                Text("Daythread will send a reminder before each timed event. Applies to both in-app notifications and the Apple Calendar alarm.")
+                Text("In-app notifications include Snooze and View Itinerary actions. Apple Calendar alarms fire from the Calendar app. Both fire at the same lead time.")
             }
             Section("Support") {
                 NavigationLink("Help & FAQ") {
