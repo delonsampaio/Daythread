@@ -20,6 +20,9 @@ extension TripEvent {
     /// Device-local EKEvent identifier — not synced to CloudKit (syncable="NO").
     /// Each device manages its own Apple Calendar entries independently.
     @NSManaged public var ekEventIdentifier: String
+    /// Whether to fire a reminder for this event (device-local, not synced to CloudKit).
+    /// Only active when the global reminder toggle is on in Settings.
+    @NSManaged public var hasReminder: Bool
     /// Whether this event should appear in the user's Apple Calendar (device-local, not synced to CloudKit).
     @NSManaged public var showInCalendar: Bool
     @NSManaged public var day: TripDay?

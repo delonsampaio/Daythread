@@ -82,8 +82,9 @@ final class NotificationService {
         guard let id = event.id else { return }
         // No need to cancel first — UNUserNotificationCenter.add() with the same
         // identifier automatically replaces any existing pending request.
-        guard appNotificationsActive else {
-            // If notifications are off, ensure any existing reminder is removed.
+        guard appNotificationsActive, event.hasReminder else {
+            // Notifications off globally or disabled for this event — remove any
+            // existing pending reminder so it doesn't fire stale.
             cancel(id: id)
             return
         }

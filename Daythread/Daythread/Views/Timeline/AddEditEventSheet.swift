@@ -35,6 +35,8 @@ struct AddEditEventSheet: View {
     /// that, end tracks start automatically (1-hour gap). After, it's theirs.
     @State private var userEditedEndTime: Bool = false
     @State private var showInCalendar: Bool = true
+    @State private var hasReminder: Bool = true
+    @AppStorage("daythread.notificationsEnabled") private var notificationsEnabled = true
 
     private var tripDays: [TripDay] {
         trip?.daysArray ?? []
@@ -140,6 +142,9 @@ struct AddEditEventSheet: View {
 
                 Section {
                     Toggle("Add to Apple Calendar", isOn: $showInCalendar)
+                    if notificationsEnabled && hasStartTime {
+                        Toggle("Remind me", isOn: $hasReminder)
+                    }
                 }
 
                 if category.requiresTransitDetails {
@@ -258,6 +263,7 @@ struct AddEditEventSheet: View {
         if let et = event.endTime { endTime = et; userEditedEndTime = true }
         transitDetails = event.transitDetails
         showInCalendar = event.showInCalendar
+        hasReminder    = event.hasReminder
     }
 
     // MARK: — Category picker
@@ -312,6 +318,7 @@ struct AddEditEventSheet: View {
             event.endTime = hasStartTime ? endTime : nil
             if let td = transitDetails { event.transitDetails = td }
             event.showInCalendar = showInCalendar
+            event.hasReminder    = hasReminder
             // Apply a day change if the picker was changed (or the event was
             // dragged to a different day before opening edit).
             if event.day?.id != targetDay?.id {
@@ -336,6 +343,7 @@ struct AddEditEventSheet: View {
             event.sortOrder = nextOrder
             event.notes = notes
             event.showInCalendar = showInCalendar
+            event.hasReminder    = hasReminder
             // Zone-hopping: link parent before save so CloudKit assigns the
             // record to the correct zone on first persist.
             event.day = targetDay
