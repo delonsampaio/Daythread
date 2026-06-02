@@ -42,7 +42,9 @@ final class TimelineViewModel {
         context: NSManagedObjectContext
     ) {
         guard !event.isTimeLocked else { return }
-        if hasTimeConflict(event, in: day) {
+        let conflictIDs = conflictingIDs(event, in: day)
+        if !conflictIDs.isEmpty {
+            shakeEvents(conflictIDs)
             HapticManager.shared.deleteAction()
             return
         }
@@ -82,7 +84,9 @@ final class TimelineViewModel {
         }
 
         // Reject if the dragged event's time overlaps with an existing event in the target day.
-        if hasTimeConflict(dragged, in: targetDay) {
+        let timeConflictIDs = conflictingIDs(dragged, in: targetDay)
+        if !timeConflictIDs.isEmpty {
+            shakeEvents(timeConflictIDs)
             HapticManager.shared.deleteAction()
             return false
         }
@@ -128,7 +132,9 @@ final class TimelineViewModel {
             return false
         }
 
-        if hasTimeConflict(dragged, in: targetDay) {
+        let timeConflictIDs = conflictingIDs(dragged, in: targetDay)
+        if !timeConflictIDs.isEmpty {
+            shakeEvents(timeConflictIDs)
             HapticManager.shared.deleteAction()
             return false
         }
@@ -147,15 +153,29 @@ final class TimelineViewModel {
 
     // MARK: — Private helpers
 
-    /// Sets `shakingEventIDs` to the locked events violated in `proposed`, then
-    /// clears it after 600 ms so the shake animation completes before resetting.
-    private func shakeViolators(in proposed: [TripEvent]) {
-        let violators = violatedLockIDs(in: proposed)
-        shakingEventIDs = violators
+    /// Shakes the given event IDs for 600 ms then clears.
+    private func shakeEvents(_ ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        shakingEventIDs = ids
         Task {
             try? await Task.sleep(for: .milliseconds(600))
             shakingEventIDs = []
         }
+    }
+
+    private func shakeViolators(in proposed: [TripEvent]) {
+        shakeEvents(violatedLockIDs(in: proposed))
+    }
+
+    /// Returns IDs of events in `day` whose time window conflicts with `event`.
+    private func conflictingIDs(_ event: TripEvent, in day: TripDay) -> Set<UUID> {
+        guard let start = event.startTime, let end = event.endTime else { return [] }
+        return Set(ScheduleEngine.findConflicts(
+            startTime: start,
+            endTime: end,
+            among: day.eventsArray,
+            excludingID: event.id
+        ).compactMap(\.id))
     }
 
     /// Fractional indexing: returns a sortOrder value for an item placed between
@@ -270,20 +290,6 @@ final class TimelineViewModel {
         }
         try? context.save()
         HapticManager.shared.sheetConfirm()
-    }
-
-    /// Returns true if `event` has a timed window that overlaps any existing timed
-    /// event in `day` (excluding itself). Uses ScheduleEngine for consistent rules
-    /// with the sheet's conflict alert.
-    private func hasTimeConflict(_ event: TripEvent, in day: TripDay) -> Bool {
-        guard let start = event.startTime, let end = event.endTime else { return false }
-        let conflicts = ScheduleEngine.findConflicts(
-            startTime: start,
-            endTime: end,
-            among: day.eventsArray,
-            excludingID: event.id
-        )
-        return !conflicts.isEmpty
     }
 
     private func syncCalendar(_ event: TripEvent, context: NSManagedObjectContext) {
