@@ -42,19 +42,18 @@ struct PersistenceController {
     // MARK: — Persistent history token
 
     /// Tracks the last persistent history transaction merged into the viewContext.
-    /// Stored in a class wrapper because PersistenceController is a struct, and
-    /// `static let shared` is immutable — we need a reference type for mutable state.
-    private final class HistoryAnchor: @unchecked Sendable {
-        // nonisolated(unsafe): only ever read/written inside viewContext.perform
-        // (main thread) so the developer guarantees thread safety.
-        nonisolated(unsafe) var token: NSPersistentHistoryToken? = {
+    /// @MainActor ensures token reads and writes are compile-time guaranteed to
+    /// happen on the main thread — no nonisolated(unsafe) needed.
+    @MainActor
+    private final class HistoryAnchor {
+        var token: NSPersistentHistoryToken? = {
             guard let data = UserDefaults.standard.data(forKey: "daythread.historyToken") else { return nil }
             return try? NSKeyedUnarchiver.unarchivedObject(
                 ofClass: NSPersistentHistoryToken.self, from: data
             )
         }()
 
-        nonisolated func save(_ newToken: NSPersistentHistoryToken) {
+        func save(_ newToken: NSPersistentHistoryToken) {
             token = newToken
             if let data = try? NSKeyedArchiver.archivedData(
                 withRootObject: newToken, requiringSecureCoding: true
@@ -131,7 +130,10 @@ struct PersistenceController {
             object: coordinator,
             queue: nil
         ) { _ in
-            viewContext.perform {
+            // Task { @MainActor in } hops to the main actor, giving compile-time
+            // safety for both the @MainActor-isolated HistoryAnchor and the
+            // NSManagedObjectContext (main-queue bound) operations inside merge.
+            Task { @MainActor in
                 Self.mergeRemoteHistory(into: viewContext, anchor: historyAnchor)
             }
         }
@@ -142,7 +144,8 @@ struct PersistenceController {
     /// Fetches all persistent history transactions since the last token, merges
     /// them into `context`, clears relationship caches, updates the anchor, and
     /// posts dayThreadRemoteChangeDidApply. Must be called on the context's queue.
-    private static nonisolated func mergeRemoteHistory(
+    @MainActor
+    private static func mergeRemoteHistory(
         into context: NSManagedObjectContext,
         anchor: HistoryAnchor
     ) {
