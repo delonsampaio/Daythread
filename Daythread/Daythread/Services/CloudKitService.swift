@@ -68,7 +68,7 @@ final class CloudKitService {
             return nil
         }
         do {
-            let share = try await backend.makeShare(for: trip)
+            let share = try await makeShareResilient(for: trip)
             trip.cloudKitShareID = share.recordID.recordName
             try modelContext.save()
             isSharing = true
@@ -78,6 +78,38 @@ final class CloudKitService {
             errorMessage = "Could not create share: \(error.localizedDescription)"
             return nil
         }
+    }
+
+    /// Works around an NSPersistentCloudKitContainer bug: `share([trip], to:)`
+    /// frequently CREATES the CKShare but never returns while the container is busy
+    /// mirroring (constant export cycles), which froze the "Invite People" spinner
+    /// indefinitely. The share metadata does land in Core Data during the hang, so
+    /// we kick `share()` off in the background and poll `fetchShares` for the share
+    /// it creates — returning the moment it appears instead of waiting on `share()`.
+    /// The unawaited `share()` task is left to finish on its own (NSPCKC ignores
+    /// cancellation); recovering via fetchShares is what unblocks the UI.
+    private func makeShareResilient(for trip: Trip) async throws -> CKShare {
+        // Fast path: already shared (e.g. created on a previous, hung attempt).
+        if let existing = try backend.existingShare(for: trip) {
+            return existing
+        }
+        // Inherits @MainActor isolation (CloudKitService is @MainActor), so passing
+        // the non-Sendable `trip` into the task is safe — it never leaves the actor.
+        let shareTask = Task { try await backend.makeShare(for: trip) }
+        // Poll ~10s for the share share() persists mid-hang.
+        for _ in 0..<20 {
+            do { try await Task.sleep(for: .milliseconds(500)) } catch { break }
+            if let created = try? backend.existingShare(for: trip) {
+                daythreadLog.log("makeShareResilient: recovered share via fetchShares")
+                shareTask.cancel()   // best-effort; NSPCKC may ignore it
+                created[CKShare.SystemFieldKey.title] = trip.name as CKRecordValue
+                return created
+            }
+        }
+        // share() never persisted a share in time — fall back to its return value,
+        // which surfaces the real result (or error) instead of spinning forever.
+        daythreadLog.log("makeShareResilient: poll exhausted — awaiting share() directly")
+        return try await shareTask.value
     }
 
     /// Fetches the existing CKShare for an already-shared trip so the UI can

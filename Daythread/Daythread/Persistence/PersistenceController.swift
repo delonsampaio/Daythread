@@ -23,7 +23,7 @@ struct PersistenceController {
     /// ⚠️ Validate with a CLEAN INSTALL (delete + reinstall) on both devices first —
     /// an in-place update over NSPCKC-imported shared data will duplicate records until
     /// the one-time shared-store cutover migration is added (post-validation).
-    nonisolated static let useCustomSharedSync = false
+    nonisolated static let useCustomSharedSync = true
 
     private static let managedObjectModel: NSManagedObjectModel = {
         let bundle = Bundle(for: Trip.self)
