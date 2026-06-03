@@ -28,6 +28,8 @@ struct DaythreadApp: App {
                     let ck = CloudKitService()
                     ck.ensureSharedDatabaseSubscription()
                     ck.verifySharedDatabaseSubscription()
+                    // Phase 2 diagnostic: log real shared-zone record format on device.
+                    await SharedSyncEngine.shared.runDiagnosticFetch()
                 }
                 .environment(\.managedObjectContext, persistence.viewContext)
                 .environment(store)
