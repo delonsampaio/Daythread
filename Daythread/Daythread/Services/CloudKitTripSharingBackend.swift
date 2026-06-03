@@ -27,6 +27,7 @@ struct CloudKitTripSharingBackend: TripSharingBackend {
     func makeShare(for trip: Trip) async throws -> CKShare {
         // objectID is the only thing safe to read off the caller's context here.
         let objectID = trip.objectID
+        let title = (trip.value(forKey: "name") as? String) ?? ""
 
         // If the trip's object graph already has a share (e.g. the local
         // cloudKitShareID was cleared by stopSharing but CloudKit/Core Data still
@@ -37,26 +38,23 @@ struct CloudKitTripSharingBackend: TripSharingBackend {
             return existing
         }
 
-        // share([trip], to:) grabs the persistent-store-coordinator lock and must
-        // wait behind the foreground export backlog (NSPCKC exports in-foreground
-        // because the `processing` background mode was removed for App Store
-        // validation). Called on the viewContext that wait FROZE the main thread
-        // until the backlog cleared. Resolve the trip on a BACKGROUND context and
-        // share that object so the lock-wait happens off the main thread — the UI
-        // stays responsive and share() still completes normally.
-        let bgContext = persistentContainer.newBackgroundContext()
-        let (bgTrip, title) = try await bgContext.perform { () -> (Trip, String) in
-            guard let t = try bgContext.existingObject(with: objectID) as? Trip else {
-                throw CocoaError(.managedObjectReferentialIntegrity)
-            }
-            // KVC read — Trip's typed `name` accessor is MainActor-isolated and this
-            // closure runs on the background context's queue.
-            let name = (t.value(forKey: "name") as? String) ?? ""
-            return (t, name)
+        // CRITICAL: this module is MainActor-by-default, so makeShare runs on the
+        // MAIN actor — awaiting share() here kept its internal main-queue work on the
+        // main thread and deadlocked the UI even on an idle container. Run share() on
+        // a fully DETACHED task so it physically cannot touch the main thread; the
+        // share it creates is then re-fetched on the calling context.
+        let pc = persistentContainer
+        daythreadLog.log("makeShare: calling NSPCKC share() on a detached task…")
+        try await Task.detached(priority: .userInitiated) {
+            let bg = pc.newBackgroundContext()
+            let obj = try bg.existingObject(with: objectID)
+            _ = try await pc.share([obj], to: nil)
+        }.value
+        daythreadLog.log("makeShare: share() detached returned")
+
+        guard let share = try persistentContainer.fetchShares(matching: [objectID])[objectID] else {
+            throw CocoaError(.fileNoSuchFile)
         }
-        daythreadLog.log("makeShare: calling NSPCKC share() on background context…")
-        let (_, share, _) = try await persistentContainer.share([bgTrip], to: nil)
-        daythreadLog.log("makeShare: share() returned")
         share[CKShare.SystemFieldKey.title] = title as CKRecordValue
         return share
     }
