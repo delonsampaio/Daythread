@@ -2,6 +2,11 @@ import CloudKit
 import CoreData
 import os
 
+/// Echo-suppression flag. True while the engine applies remote changes or writes back
+/// push results, so the SYNCHRONOUS local-save observer doesn't re-push them. Only
+/// touched on the main thread; file-scope so the @Sendable observer block can read it.
+nonisolated(unsafe) private var sharedSyncApplyingRemote = false
+
 /// Custom sync engine for the SHARED CloudKit database (Path A). Replaces
 /// NSPersistentCloudKitContainer's deferred shared-store mirroring with direct
 /// CloudKit fetches that run immediately on push, giving participants reliable
@@ -18,31 +23,38 @@ final class SharedSyncEngine {
     private let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
     private var sharedDB: CKDatabase { container.sharedCloudDatabase }
     private var isSyncing = false
-    /// True while applying remote changes or writing back push results — the local-save
-    /// observer ignores saves during this window to avoid re-pushing what we just pulled.
-    private var isApplyingRemoteChanges = false
 
     private init() {}
 
-    /// Observes local viewContext saves and pushes participant edits. Call once at launch.
-    /// Uses the async-sequence form so the whole loop stays on the main actor (no
-    /// non-Sendable Notification crossing an isolation boundary).
+    /// Observes local viewContext saves SYNCHRONOUSLY (queue: nil) and pushes participant
+    /// edits. Synchronous delivery is REQUIRED: the observer must run during the save while
+    /// `sharedSyncApplyingRemote` is still set, so pulled records aren't re-pushed. (Async
+    /// delivery fires after the flag resets → infinite echo loop.) The block extracts only
+    /// Sendable values (objectIDs, recordIDs) and hops to the main actor to push.
     func start() {
         guard PersistenceController.useCustomSharedSync else { return }
         let viewContext = PersistenceController.shared.viewContext
-        Task { @MainActor in
-            for await note in NotificationCenter.default.notifications(named: .NSManagedObjectContextDidSave) {
-                guard (note.object as? NSManagedObjectContext) === viewContext else { continue }
-                handleLocalSave(note)
+        NotificationCenter.default.addObserver(
+            forName: .NSManagedObjectContextDidSave, object: viewContext, queue: nil
+        ) { note in
+            guard !sharedSyncApplyingRemote else { return }   // synchronous echo suppression
+            let inserted = (note.userInfo?[NSInsertedObjectsKey] as? Set<NSManagedObject>) ?? []
+            let updated  = (note.userInfo?[NSUpdatedObjectsKey]  as? Set<NSManagedObject>) ?? []
+            let deleted  = (note.userInfo?[NSDeletedObjectsKey]  as? Set<NSManagedObject>) ?? []
+            let saveIDs = inserted.union(updated).filter(SharedSyncEngine.isSharedSynced).map(\.objectID)
+            let deleteIDs = deleted.filter(SharedSyncEngine.isSharedSynced).compactMap(SharedSyncEngine.recordID(forDeleted:))
+            guard !saveIDs.isEmpty || !deleteIDs.isEmpty else { return }
+            Task { @MainActor in
+                await SharedSyncEngine.shared.pushLocalChanges(saveObjectIDs: saveIDs, toDelete: deleteIDs)
             }
         }
     }
 
     /// Run a Core Data mutation with the push observer suppressed.
     private func suppressingPush(_ body: () -> Void) {
-        isApplyingRemoteChanges = true
+        sharedSyncApplyingRemote = true
         body()
-        isApplyingRemoteChanges = false
+        sharedSyncApplyingRemote = false
     }
 
     // MARK: — Public entry point
@@ -124,21 +136,9 @@ final class SharedSyncEngine {
 
     // MARK: — Push (local participant edits → shared zone)
 
-    private func handleLocalSave(_ note: Notification) {
-        guard PersistenceController.useCustomSharedSync, !isApplyingRemoteChanges else { return }
-        let inserted = (note.userInfo?[NSInsertedObjectsKey] as? Set<NSManagedObject>) ?? []
-        let updated  = (note.userInfo?[NSUpdatedObjectsKey]  as? Set<NSManagedObject>) ?? []
-        let deleted  = (note.userInfo?[NSDeletedObjectsKey]  as? Set<NSManagedObject>) ?? []
-
-        let toSave = inserted.union(updated).filter(Self.isSharedSynced)
-        let toDelete = deleted.filter(Self.isSharedSynced).compactMap(Self.recordID(forDeleted:))
-        guard !toSave.isEmpty || !toDelete.isEmpty else { return }
-
-        Task { await pushLocalChanges(toSave: Array(toSave), toDelete: toDelete) }
-    }
-
-    private func pushLocalChanges(toSave objects: [NSManagedObject], toDelete recordIDs: [CKRecord.ID]) async {
+    fileprivate func pushLocalChanges(saveObjectIDs: [NSManagedObjectID], toDelete recordIDs: [CKRecord.ID]) async {
         let context = PersistenceController.shared.viewContext
+        let objects = saveObjectIDs.compactMap { try? context.existingObject(with: $0) }
         // Parents first so newly-created parents get recordNames before children encode.
         let ordered = objects.sorted { Self.hierarchyRank($0) < Self.hierarchyRank($1) }
         var records: [CKRecord] = []
