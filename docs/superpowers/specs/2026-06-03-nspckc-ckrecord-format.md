@@ -28,30 +28,35 @@ Each Core Data attribute → a CKRecord field keyed `CD_<attributeName>`, same v
 `CD_id` (String/UUID), `CD_title`, `CD_startTime` (Date/Timestamp), `CD_endTime`, `CD_notes`, `CD_sortOrder` (Int64), `CD_isPrivate` (Int64 0/1), `CD_visibleToMemberIDs`, `CD_categoryRaw`, `CD_latitude`/`CD_longitude` (Double), `CD_isTimeLocked`, `CD_addedByAppleUserID`.
 
 Notes:
-- **Booleans** are stored as **Int64 0/1**. **🔎 VERIFY.**
-- Device-local attributes marked `syncable="NO"` (`ekEventIdentifier`, `hasReminder`, `showInCalendar`) are **NOT** present as CKRecord fields — do not write them. **🔎 VERIFY** they're absent.
-- `CD_id` value matches the Core Data `id` UUID (used for our local upsert match). **🔎 VERIFY** the field name and that it carries the UUID.
+- **Booleans** are stored as **`INT(64)`** 0/1 (VERIFIED: `CD_isPrivate`, `CD_isTimeLocked`, etc.).
+- **Device-local fields ARE present in the schema** (`CD_ekEventIdentifier`, `CD_hasReminder`, `CD_showInCalendar`) even though the model marks them `syncable="NO"` — likely legacy/retained. **The engine must NOT write them** (they're device-specific; propagating them would clobber the other device's local state). Skip on push; ignore on pull.
+- **Legacy/unknown fields** also present that aren't in the current model (e.g. `CD_moveReceipt`, `CD_participantNames` on Trip, `CD_category` BYTES on TripEvent). CloudKit schema is additive, so old fields persist. **Ignore any field not in the current Core Data model.**
+- `CD_id` (STRING) carries the Core Data `id` UUID as a string — used for our local upsert match (VERIFIED present).
 
 ## 3. Entity-name field
 Each record carries a field **`CD_entityName`** = the Core Data entity name (e.g. `"TripEvent"`). **🔎 VERIFY present and exact key.**
 
-## 4. To-one relationships (the critical part)
-Stored as a CKRecord field `CD_<relationshipName>` whose value is a **`CKRecord.Reference`** to the related record, in the **same zone**.
+## 4. To-one relationships (VERIFIED — differs from initial assumption)
+**CONFIRMED in dashboard:** relationships are stored as a **`STRING`** field `CD_<relationshipName>` whose value is the **recordName of the related record** — NOT a `CKReference`, and there is **no `.deleteSelf` action**.
 
-- `CD_TripEvent.CD_day` → Reference to the `CD_TripDay` record.
-- `CD_TripDay.CD_trip` → Reference to the `CD_Trip` record.
-- `CD_TripEvent.CD_transitDetails` (inverse held on TransitDetails: `CD_TransitDetails.CD_event`).
+- `CD_TripEvent.CD_day` → **STRING** = recordName of the `CD_TripDay` record
+- `CD_TripDay.CD_trip` → **STRING** = recordName of the `CD_Trip` record
+- `CD_TripEvent.CD_transitDetails` → **STRING** = recordName of the `CD_TransitDetails` record
 
-**Reference action:** child→parent references that mirror a Core Data **Cascade** delete rule use **`CKReference.Action.deleteSelf`** (so deleting the parent record cascades). Nullify rules use `.none`.
+**Implications for the engine:**
+- **Push encoder:** set `record["CD_day"] = <parent recordName string>` (not a reference). Simpler than references.
+- **Cascade deletes are NOT server-side** (no `.deleteSelf`). When a participant deletes a parent, we must either delete the children explicitly in the same `CKModifyRecordsOperation`, or rely on the owner's Core Data cascade rule firing when it imports the parent deletion. **Decide in Phase 3** (prefer explicit child deletion to be safe).
+- **Pull mapper:** resolve `CD_day` (a recordName string) to the local TripDay by matching on recordName. Requires we persist each pulled record's recordName alongside its object (store it, since `CD_id` ≠ recordName).
 
-**🔎 VERIFY (most important):** open a real `CD_TripEvent` record and confirm whether `CD_day` is a **Reference** (and its action) vs. a plain recordName string. This determines the entire push encoder.
+**🔎 STILL NEEDED — a sample record's VALUES** (the Query button was disabled — select the share zone under "Select a Zone" first, or we capture this during Phase 2 pull): the **recordName format** NSPCKC uses (so participant-created records mint compatible names), and confirm `CD_day`'s value is indeed a recordName string. Low risk to defer to the Phase 2 pull (we'll log the first fetched records).
 
 ## 5. To-many relationships
 **Not stored on the parent.** Derived from the inverse to-one reference (Section 4). Our model's to-manys (Trip.days, TripDay.events, Trip.documents/expenses/lodging/members/preTripTasks) all have inverse to-ones, so **no `CDMR_*` companion records are expected.** **🔎 VERIFY** there are no `CDMR_*` record types in the schema.
 
-## 6. Blobs → CKAsset
-Binary attributes with `allowsExternalBinaryDataStorage=YES` are stored as **CKAsset** in field `CD_<attr>`:
-`CD_coverImageData` (Trip), `CD_documentData` (TripDocument), `CD_receiptImageData` (TripExpense), `CD_avatarData` (TripMember). **🔎 VERIFY** they're CKAssets (not inline bytes).
+## 6. Large-value overflow & blobs (VERIFIED)
+**CONFIRMED:** every field has a companion `CD_<field>_ckAsset` (ASSET) alongside the inline field (e.g. `CD_name` STRING + `CD_name_ckAsset` ASSET; `CD_coverImageData` BYTES + `CD_coverImageData_ckAsset` ASSET). This is NSPCKC's **large-value overflow**: a value under the inline size limit goes in the plain field with `_ckAsset` null; a large value (big blobs/long strings) goes in `_ckAsset` as a `CKAsset` with the plain field null.
+
+**Engine rule:** write small strings/scalars to `CD_<field>`; write large binaries (cover images, document data, receipts, avatars) to `CD_<field>_ckAsset` as a `CKAsset`. On pull, read whichever is populated. **🔎 confirm the exact size threshold during Phase 2** (or just always asset-encode the known blob fields and inline everything else — safest).
 
 ## 7. Record identity & system fields
 - **recordName:** NSPCKC generates an opaque recordName per object (not the bare UUID). For **updates**, we must reuse the existing record's recordName + `encodedSystemFields` (read during pull, persisted) and pass `savePolicy = .ifServerRecordUnchanged`. For **new** participant-created records, we generate a recordName — **🔎 VERIFY** what format NSPCKC uses so a participant-created record is accepted (likely any unique name works as long as the zone + type + fields are correct).
