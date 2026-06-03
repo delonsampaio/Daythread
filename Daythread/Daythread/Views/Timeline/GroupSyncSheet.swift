@@ -140,6 +140,11 @@ struct GroupSyncSheet: View {
                 // sees co-editors immediately (not just after they open the
                 // app themselves). Then register the current user's own entry.
                 cloudKit.syncParticipants(for: trip, context: context)
+                // Only deal with the display name once the trip is actually shared.
+                // For an unshared trip the registration path early-returns anyway, and
+                // auto-prompting here put a name alert + keyboard on screen right as the
+                // user taps "Invite People" — pure clutter during the invite flow.
+                guard trip.cloudKitShareID != nil else { return }
                 // Prompt for a display name if none is set — otherwise co-editors
                 // would see a neutral "Traveler" placeholder instead of a real name.
                 if myName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
