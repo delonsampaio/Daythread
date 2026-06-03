@@ -23,8 +23,30 @@ final class SharedSyncEngine {
     private let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
     private var sharedDB: CKDatabase { container.sharedCloudDatabase }
     private var isSyncing = false
+    private var pollTask: Task<Void, Never>?
 
     private init() {}
+
+    // MARK: — Foreground polling (resilience against silent-push throttling)
+
+    /// iOS throttles silent pushes, so live sync "eventually stops" if we rely on
+    /// push alone. While the app is foregrounded, poll every 20s so co-editor changes
+    /// appear within that window even when no push arrives (and instantly when one does).
+    func startPeriodicSync() {
+        guard PersistenceController.useCustomSharedSync, pollTask == nil else { return }
+        pollTask = Task { @MainActor in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(20))
+                if Task.isCancelled { break }
+                await fetchAllSharedZones()
+            }
+        }
+    }
+
+    func stopPeriodicSync() {
+        pollTask?.cancel()
+        pollTask = nil
+    }
 
     /// Observes local viewContext saves SYNCHRONOUSLY (queue: nil) and pushes participant
     /// edits. Synchronous delivery is REQUIRED: the observer must run during the save while

@@ -34,10 +34,14 @@ struct DaythreadApp: App {
                     SharedSyncEngine.shared.start()
                     await SharedSyncEngine.shared.fetchAllSharedZones()
                 }
-                // Pull again whenever the app returns to the foreground.
+                // Pull on foreground, and poll while active (push alone is throttled
+                // by iOS and eventually stops delivering). Stop polling in the background.
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active {
                         Task { await SharedSyncEngine.shared.fetchAllSharedZones() }
+                        SharedSyncEngine.shared.startPeriodicSync()
+                    } else {
+                        SharedSyncEngine.shared.stopPeriodicSync()
                     }
                 }
                 .environment(\.managedObjectContext, persistence.viewContext)
