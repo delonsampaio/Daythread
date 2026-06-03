@@ -29,7 +29,9 @@ struct DaythreadApp: App {
                     let ck = CloudKitService()
                     ck.ensureSharedDatabaseSubscription()
                     ck.verifySharedDatabaseSubscription()
-                    // Path A: pull shared-zone changes at launch (or log-only when flag off).
+                    // Path A: start the local-edit push observer, then pull shared-zone
+                    // changes at launch (or log-only when the flag is off).
+                    SharedSyncEngine.shared.start()
                     await SharedSyncEngine.shared.fetchAllSharedZones()
                 }
                 // Pull again whenever the app returns to the foreground.

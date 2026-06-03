@@ -18,8 +18,32 @@ final class SharedSyncEngine {
     private let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
     private var sharedDB: CKDatabase { container.sharedCloudDatabase }
     private var isSyncing = false
+    /// True while applying remote changes or writing back push results — the local-save
+    /// observer ignores saves during this window to avoid re-pushing what we just pulled.
+    private var isApplyingRemoteChanges = false
 
     private init() {}
+
+    /// Observes local viewContext saves and pushes participant edits. Call once at launch.
+    /// Uses the async-sequence form so the whole loop stays on the main actor (no
+    /// non-Sendable Notification crossing an isolation boundary).
+    func start() {
+        guard PersistenceController.useCustomSharedSync else { return }
+        let viewContext = PersistenceController.shared.viewContext
+        Task { @MainActor in
+            for await note in NotificationCenter.default.notifications(named: .NSManagedObjectContextDidSave) {
+                guard (note.object as? NSManagedObjectContext) === viewContext else { continue }
+                handleLocalSave(note)
+            }
+        }
+    }
+
+    /// Run a Core Data mutation with the push observer suppressed.
+    private func suppressingPush(_ body: () -> Void) {
+        isApplyingRemoteChanges = true
+        body()
+        isApplyingRemoteChanges = false
+    }
 
     // MARK: — Public entry point
 
@@ -57,7 +81,9 @@ final class SharedSyncEngine {
             let deletions = changes.deletions.map(\.recordID)
             guard !records.isEmpty || !deletions.isEmpty else { return }
 
-            CKRecordMapper.apply(modifications: records, deletions: deletions, into: context, sharedStore: sharedStore)
+            suppressingPush {
+                CKRecordMapper.apply(modifications: records, deletions: deletions, into: context, sharedStore: sharedStore)
+            }
             saveToken(changes.changeToken, zoneName: zoneID.zoneName, ownerName: zoneID.ownerName, context: context)
             NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
             daythreadLog.log("SharedSync: zone '\(zoneID.zoneName, privacy: .public)' merged \(records.count, privacy: .public) record(s), \(deletions.count, privacy: .public) deletion(s)")
@@ -94,6 +120,99 @@ final class SharedSyncEngine {
     nonisolated private static func sharedStore(in context: NSManagedObjectContext) -> NSPersistentStore? {
         context.persistentStoreCoordinator?.persistentStores
             .first { $0.url?.lastPathComponent == "shared.sqlite" }
+    }
+
+    // MARK: — Push (local participant edits → shared zone)
+
+    private func handleLocalSave(_ note: Notification) {
+        guard PersistenceController.useCustomSharedSync, !isApplyingRemoteChanges else { return }
+        let inserted = (note.userInfo?[NSInsertedObjectsKey] as? Set<NSManagedObject>) ?? []
+        let updated  = (note.userInfo?[NSUpdatedObjectsKey]  as? Set<NSManagedObject>) ?? []
+        let deleted  = (note.userInfo?[NSDeletedObjectsKey]  as? Set<NSManagedObject>) ?? []
+
+        let toSave = inserted.union(updated).filter(Self.isSharedSynced)
+        let toDelete = deleted.filter(Self.isSharedSynced).compactMap(Self.recordID(forDeleted:))
+        guard !toSave.isEmpty || !toDelete.isEmpty else { return }
+
+        Task { await pushLocalChanges(toSave: Array(toSave), toDelete: toDelete) }
+    }
+
+    private func pushLocalChanges(toSave objects: [NSManagedObject], toDelete recordIDs: [CKRecord.ID]) async {
+        let context = PersistenceController.shared.viewContext
+        // Parents first so newly-created parents get recordNames before children encode.
+        let ordered = objects.sorted { Self.hierarchyRank($0) < Self.hierarchyRank($1) }
+        var records: [CKRecord] = []
+        var objectByName: [String: NSManagedObject] = [:]
+        for object in ordered {
+            guard let record = CKRecordMapper.ckRecord(for: object) else { continue }
+            records.append(record)
+            objectByName[record.recordID.recordName] = object
+        }
+        guard !records.isEmpty || !recordIDs.isEmpty else { return }
+
+        do {
+            let (saveResults, _) = try await sharedDB.modifyRecords(
+                saving: records, deleting: recordIDs,
+                savePolicy: .ifServerRecordUnchanged, atomically: false
+            )
+            var conflicts: [CKRecord] = []
+            for (recordID, result) in saveResults {
+                switch result {
+                case .success(let saved):
+                    writeBack(saved, to: objectByName[recordID.recordName])
+                case .failure(let error):
+                    if let ckError = error as? CKError, ckError.code == .serverRecordChanged,
+                       let server = ckError.serverRecord, let object = objectByName[recordID.recordName] {
+                        CKRecordMapper.applyFields(of: object, to: server)  // client trumps
+                        conflicts.append(server)
+                    } else {
+                        daythreadLog.error("SharedSync push failed \(recordID.recordName, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                    }
+                }
+            }
+            // Retry merged conflicts once against the now-current server records.
+            if !conflicts.isEmpty {
+                let (retry, _) = try await sharedDB.modifyRecords(
+                    saving: conflicts, deleting: [],
+                    savePolicy: .ifServerRecordUnchanged, atomically: false
+                )
+                for (recordID, result) in retry {
+                    if case .success(let saved) = result { writeBack(saved, to: objectByName[recordID.recordName]) }
+                }
+            }
+            suppressingPush { try? context.save() }
+            daythreadLog.log("SharedSync push: \(records.count, privacy: .public) saved, \(recordIDs.count, privacy: .public) deleted")
+        } catch {
+            daythreadLog.error("SharedSync push op failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Persist the saved record's identity + change tag back onto the local object.
+    private func writeBack(_ record: CKRecord, to object: NSManagedObject?) {
+        guard let object else { return }
+        object.setValue(record.recordID.recordName, forKey: "ckRecordName")
+        object.setValue(CKRecordMapper.encodedSystemFields(of: record), forKey: "ckSystemFields")
+    }
+
+    nonisolated private static func isSharedSynced(_ object: NSManagedObject) -> Bool {
+        guard let name = object.entity.name, CKRecordMapper.syncedEntities.contains(name) else { return false }
+        return object.objectID.persistentStore?.url?.lastPathComponent == "shared.sqlite"
+    }
+
+    /// Build the CKRecord.ID for a just-deleted object from its stored system fields.
+    nonisolated private static func recordID(forDeleted object: NSManagedObject) -> CKRecord.ID? {
+        guard let data = object.value(forKey: "ckSystemFields") as? Data,
+              let record = CKRecordMapper.record(fromSystemFields: data) else { return nil }
+        return record.recordID
+    }
+
+    nonisolated private static func hierarchyRank(_ object: NSManagedObject) -> Int {
+        switch object.entity.name {
+        case "Trip": return 0
+        case "TripEvent": return 2
+        case "TransitDetails": return 3
+        default: return 1   // TripDay, TripMember, TripExpense, TripDocument, LodgingInfo, PreTripTask
+        }
     }
 
     // MARK: — Diagnostic (flag off): log records without touching Core Data

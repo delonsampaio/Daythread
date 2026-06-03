@@ -90,7 +90,15 @@ enum CKRecordMapper {
             out = CKRecord(recordType: "CD_\(entityName)", recordID: CKRecord.ID(recordName: name, zoneID: zoneID))
         }
 
-        out["CD_entityName"] = entityName as CKRecordValue
+        applyFields(of: object, to: out)
+        return out
+    }
+
+    /// Set a local object's CD_ fields/relationships onto an existing CKRecord shell.
+    /// Used by `ckRecord(for:)` and by conflict resolution (re-applying our edits onto
+    /// the server's current record after `.serverRecordChanged`).
+    nonisolated static func applyFields(of object: NSManagedObject, to out: CKRecord) {
+        out["CD_entityName"] = (object.entity.name ?? "") as CKRecordValue
 
         for (attrName, attr) in object.entity.attributesByName {
             if skippedAttributes.contains(attrName) { continue }
@@ -116,7 +124,6 @@ enum CKRecordMapper {
                 out["CD_\(relName)"] = parentName as CKRecordValue
             }
         }
-        return out
     }
 
     /// Find the zone for a new (never-synced) object by borrowing it from a related
