@@ -143,7 +143,9 @@ final class ShareSceneDelegate: NSObject, UIWindowSceneDelegate {
 
     /// Post on main so DaythreadApp.onReceive sets pendingJoinShareRecordName before
     /// any onChange handlers run (avoids a race with main-thread join resolution).
-    private func postAcceptance(_ metadata: CKShare.Metadata) {
+    /// nonisolated: invoked from CloudKit's nonisolated completion blocks; it only
+    /// hops to main to post a notification (no actor-isolated state).
+    nonisolated private func postAcceptance(_ metadata: CKShare.Metadata) {
         DispatchQueue.main.async {
             NotificationCenter.default.post(
                 name: .daythreadDidAcceptShare,
