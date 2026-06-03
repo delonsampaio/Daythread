@@ -48,7 +48,14 @@ Each record carries a field **`CD_entityName`** = the Core Data entity name (e.g
 - **Cascade deletes are NOT server-side** (no `.deleteSelf`). When a participant deletes a parent, we must either delete the children explicitly in the same `CKModifyRecordsOperation`, or rely on the owner's Core Data cascade rule firing when it imports the parent deletion. **Decide in Phase 3** (prefer explicit child deletion to be safe).
 - **Pull mapper:** resolve `CD_day` (a recordName string) to the local TripDay by matching on recordName. Requires we persist each pulled record's recordName alongside its object (store it, since `CD_id` ≠ recordName).
 
-**🔎 STILL NEEDED — a sample record's VALUES** (the Query button was disabled — select the share zone under "Select a Zone" first, or we capture this during Phase 2 pull): the **recordName format** NSPCKC uses (so participant-created records mint compatible names), and confirm `CD_day`'s value is indeed a recordName string. Low risk to defer to the Phase 2 pull (we'll log the first fetched records).
+**✅ CONFIRMED on-device (Phase 2.2 diagnostic):**
+- `recordName` is an **uppercase UUID**, **distinct from `CD_id`** (e.g. TripDay recordName `5F855C52-…` vs CD_id `6345BF9C-…`). They are independent.
+- `CD_day` / `CD_trip` values **exactly equal the parent record's `recordName`**. Verified: TripEvents with `CD_day=D472DD5A-…` ↔ a TripDay with `recordName=D472DD5A-…`; child records with `CD_trip=9F4873A0-…` ↔ the Trip with `recordName=9F4873A0-…`.
+- New participant-created records can mint a fresh `UUID().uuidString` (uppercase) as recordName, carrying the object's own `id` in `CD_id`.
+
+**Engine consequence:** because `recordName ≠ id`, each local object must persist its `recordName` to (a) resolve incoming relationships and (b) target updates/deletes on push. Add a **local-only `ckRecordName: String?` (syncable="NO")** attribute to each of the 9 trip-graph entities. Relationship resolution: object whose `ckRecordName == CD_day`.
+
+**Skip:** records of type `cloudkit.share` (recordName `cloudkit.zoneshare`) — that's the CKShare metadata record, not a CD_ entity.
 
 ## 5. To-many relationships
 **Not stored on the parent.** Derived from the inverse to-one reference (Section 4). Our model's to-manys (Trip.days, TripDay.events, Trip.documents/expenses/lodging/members/preTripTasks) all have inverse to-ones, so **no `CDMR_*` companion records are expected.** **🔎 VERIFY** there are no `CDMR_*` record types in the schema.
