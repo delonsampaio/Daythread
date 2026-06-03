@@ -114,8 +114,9 @@ final class ShareSceneDelegate: NSObject, UIWindowSceneDelegate {
             switch result {
             case .success:
                 daythreadLog.log("CKShare accepted (custom engine) — fetching joined zone")
+                let zoneID = metadata.share.recordID.zoneID
                 Task { @MainActor in
-                    await SharedSyncEngine.shared.fetchAllSharedZones()
+                    await SharedSyncEngine.shared.fetchJoinedZone(zoneID)
                 }
                 self.postAcceptance(metadata)
             case .failure(let error):

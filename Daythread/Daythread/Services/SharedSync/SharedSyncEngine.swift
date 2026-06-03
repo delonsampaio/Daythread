@@ -81,17 +81,30 @@ final class SharedSyncEngine {
         }
     }
 
+    /// Fetch a specific just-joined zone, retrying briefly: immediately after
+    /// CKAcceptSharesOperation completes the zone is often not yet queryable.
+    func fetchJoinedZone(_ zoneID: CKRecordZone.ID) async {
+        guard PersistenceController.useCustomSharedSync else { return }
+        for attempt in 0..<6 {
+            let count = await fetchZone(zoneID)
+            if count > 0 { return }
+            daythreadLog.log("SharedSync: joined zone empty (attempt \(attempt, privacy: .public)), retrying")
+            try? await Task.sleep(for: .seconds(1.5))
+        }
+    }
+
     // MARK: — Per-zone fetch + map
 
-    private func fetchZone(_ zoneID: CKRecordZone.ID) async {
+    @discardableResult
+    private func fetchZone(_ zoneID: CKRecordZone.ID) async -> Int {
         let context = PersistenceController.shared.viewContext
-        guard let sharedStore = Self.sharedStore(in: context) else { return }
+        guard let sharedStore = Self.sharedStore(in: context) else { return 0 }
         let token = loadToken(zoneName: zoneID.zoneName, context: context)
         do {
             let changes = try await sharedDB.recordZoneChanges(inZoneWith: zoneID, since: token)
             let records = changes.modificationResultsByID.values.compactMap { try? $0.get().record }
             let deletions = changes.deletions.map(\.recordID)
-            guard !records.isEmpty || !deletions.isEmpty else { return }
+            guard !records.isEmpty || !deletions.isEmpty else { return 0 }
 
             suppressingPush {
                 CKRecordMapper.apply(modifications: records, deletions: deletions, into: context, sharedStore: sharedStore)
@@ -99,8 +112,10 @@ final class SharedSyncEngine {
             saveToken(changes.changeToken, zoneName: zoneID.zoneName, ownerName: zoneID.ownerName, context: context)
             NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
             daythreadLog.log("SharedSync: zone '\(zoneID.zoneName, privacy: .public)' merged \(records.count, privacy: .public) record(s), \(deletions.count, privacy: .public) deletion(s)")
+            return records.count
         } catch {
             daythreadLog.error("SharedSync zone '\(zoneID.zoneName, privacy: .public)' fetch failed: \(error.localizedDescription, privacy: .public)")
+            return 0
         }
     }
 
