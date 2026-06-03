@@ -38,6 +38,7 @@ final class SharedSyncEngine {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(20))
                 if Task.isCancelled { break }
+                daythreadLog.log("SharedSync poll tick (isSyncing=\(self.isSyncing, privacy: .public))")
                 await fetchAllSharedZones()
             }
         }
@@ -88,7 +89,10 @@ final class SharedSyncEngine {
             await runDiagnosticFetch()   // flag off: read-only, no Core Data writes
             return
         }
-        guard !isSyncing else { return }
+        guard !isSyncing else {
+            daythreadLog.log("SharedSync: fetchAllSharedZones SKIPPED — already syncing (possible stuck flag)")
+            return
+        }
         isSyncing = true
         defer { isSyncing = false }
 
