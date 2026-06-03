@@ -136,6 +136,15 @@ struct PersistenceController {
             } else {
                 daythreadLog.log("CloudKit \(Self.kindString(event.type), privacy: .public) \(state, privacy: .public)")
             }
+            // Track in-flight exports so share creation can wait for a quiet window —
+            // NSPCKC's share() deadlocks if it grabs the store lock mid-export.
+            if event.type == .export {
+                let isStart = event.endDate == nil
+                MainActor.assumeIsolated {
+                    if isStart { Self.activeExportCount += 1 }
+                    else { Self.activeExportCount = max(0, Self.activeExportCount - 1) }
+                }
+            }
             guard event.type == .import, event.endDate != nil else { return }
             MainActor.assumeIsolated {
                 viewContext.refreshAllObjects()
@@ -151,6 +160,31 @@ struct PersistenceController {
         case .import: return "IMPORT"
         case .export: return "EXPORT"
         @unknown default: return "UNKNOWN"
+        }
+    }
+
+    // MARK: — Export quiescence (for safe share creation)
+
+    /// Number of NSPCKC export cycles currently in flight, maintained by the event
+    /// observer above. `share()` deadlocks if it seizes the store lock while an
+    /// export holds it (the export needs the main thread to publish, which share()
+    /// is blocking) — so we wait for this to hit zero before creating a share.
+    @MainActor static var activeExportCount = 0
+
+    /// Suspends until no NSPCKC export is in flight (or `timeout` elapses), then
+    /// adds a short settle delay so the just-finished export fully releases the
+    /// store lock. Yields the main thread throughout, so the UI stays responsive.
+    @MainActor
+    func waitForExportQuiescence(timeout: TimeInterval = 8) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Self.activeExportCount > 0 && Date() < deadline {
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        try? await Task.sleep(for: .milliseconds(400))
+        if Self.activeExportCount > 0 {
+            daythreadLog.log("waitForExportQuiescence: timed out with \(Self.activeExportCount, privacy: .public) export(s) still active")
+        } else {
+            daythreadLog.log("waitForExportQuiescence: container idle — safe to share")
         }
     }
 

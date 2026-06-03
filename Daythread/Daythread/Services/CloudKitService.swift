@@ -67,9 +67,14 @@ final class CloudKitService {
             isSharing = true
             return nil
         }
+        // NSPCKC's share() deadlocks if it grabs the store lock while an export is
+        // mid-flight (the export needs the main thread that share() blocks). Pause our
+        // own sync traffic and wait for the container to go idle before sharing, then
+        // resume. This is the fix for the "Invite People" freeze.
+        SharedSyncEngine.shared.stopPeriodicSync()
+        await PersistenceController.shared.waitForExportQuiescence()
+        defer { SharedSyncEngine.shared.startPeriodicSync() }
         do {
-            // makeShare runs share() on a background context so NSPCKC's
-            // PSC-lock + foreground export-backlog wait stays OFF the main thread.
             let share = try await backend.makeShare(for: trip)
             trip.cloudKitShareID = share.recordID.recordName
             try modelContext.save()
