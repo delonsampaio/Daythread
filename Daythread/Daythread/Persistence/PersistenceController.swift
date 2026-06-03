@@ -15,6 +15,14 @@ extension Notification.Name {
 struct PersistenceController {
     static let shared = PersistenceController()
 
+    /// Path A rollout flag. While true, shared.sqlite is detached from
+    /// NSPersistentCloudKitContainer and synced by the custom SharedSyncEngine
+    /// (reliable participant sync). While false, the shared store stays on NSPCKC
+    /// (the legacy path whose participant import is deferred indefinitely).
+    /// Kept FALSE until the custom pull + push paths are both built and verified,
+    /// so co-editing never regresses mid-build.
+    nonisolated static let useCustomSharedSync = false
+
     private static let managedObjectModel: NSManagedObjectModel = {
         let bundle = Bundle(for: Trip.self)
         if let url = bundle.url(forResource: "Daythread", withExtension: "momd"),
@@ -181,11 +189,20 @@ struct PersistenceController {
               let privateURL = privateDescription.url else { return }
         let sharedURL = privateURL.deletingLastPathComponent().appendingPathComponent("shared.sqlite")
         let sharedDescription = NSPersistentStoreDescription(url: sharedURL)
-        let options = NSPersistentCloudKitContainerOptions(containerIdentifier: "iCloud.com.delonsampaio.daythread")
-        options.databaseScope = .shared
-        sharedDescription.cloudKitContainerOptions = options
+        // History tracking stays on regardless: the custom engine uses persistent
+        // history on shared.sqlite to detect local participant edits to push.
         sharedDescription.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
         sharedDescription.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
+        if Self.useCustomSharedSync {
+            // Path A: detach from NSPCKC — shared.sqlite becomes a plain local store
+            // that SharedSyncEngine mirrors to/from the CKShare zones manually.
+            sharedDescription.cloudKitContainerOptions = nil
+        } else {
+            // Legacy path: NSPCKC mirrors the shared store (participant import deferred).
+            let options = NSPersistentCloudKitContainerOptions(containerIdentifier: "iCloud.com.delonsampaio.daythread")
+            options.databaseScope = .shared
+            sharedDescription.cloudKitContainerOptions = options
+        }
         container.persistentStoreDescriptions.append(sharedDescription)
     }
 }
