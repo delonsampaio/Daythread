@@ -171,21 +171,29 @@ struct PersistenceController {
     /// is blocking) — so we wait for this to hit zero before creating a share.
     @MainActor static var activeExportCount = 0
 
-    /// Suspends until no NSPCKC export is in flight (or `timeout` elapses), then
-    /// adds a short settle delay so the just-finished export fully releases the
-    /// store lock. Yields the main thread throughout, so the UI stays responsive.
+    /// Suspends until no NSPCKC export is in flight AND none starts for a short
+    /// settle window (or `timeout` elapses). Returns true only if the container
+    /// actually reached idle — callers must NOT create a share otherwise, because
+    /// share() deadlocks against an in-flight export. Yields the main thread
+    /// throughout, so the UI stays responsive (spinner, not freeze).
     @MainActor
-    func waitForExportQuiescence(timeout: TimeInterval = 8) async {
+    @discardableResult
+    func waitForExportQuiescence(timeout: TimeInterval = 30) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
-        while Self.activeExportCount > 0 && Date() < deadline {
+        while Date() < deadline {
+            if Self.activeExportCount == 0 {
+                // Require the container to STAY idle through a settle window — a fresh
+                // install's initial sync exports in bursts with brief gaps between them.
+                try? await Task.sleep(for: .milliseconds(700))
+                if Self.activeExportCount == 0 {
+                    daythreadLog.log("waitForExportQuiescence: container idle — safe to share")
+                    return true
+                }
+            }
             try? await Task.sleep(for: .milliseconds(200))
         }
-        try? await Task.sleep(for: .milliseconds(400))
-        if Self.activeExportCount > 0 {
-            daythreadLog.log("waitForExportQuiescence: timed out with \(Self.activeExportCount, privacy: .public) export(s) still active")
-        } else {
-            daythreadLog.log("waitForExportQuiescence: container idle — safe to share")
-        }
+        daythreadLog.log("waitForExportQuiescence: timed out with \(Self.activeExportCount, privacy: .public) export(s) still active")
+        return false
     }
 
     // MARK: — Sync ping (wake the mirroring delegate)

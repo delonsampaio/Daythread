@@ -72,8 +72,15 @@ final class CloudKitService {
         // own sync traffic and wait for the container to go idle before sharing, then
         // resume. This is the fix for the "Invite People" freeze.
         SharedSyncEngine.shared.stopPeriodicSync()
-        await PersistenceController.shared.waitForExportQuiescence()
+        let idle = await PersistenceController.shared.waitForExportQuiescence()
         defer { SharedSyncEngine.shared.startPeriodicSync() }
+        guard idle else {
+            // Container never went quiet — calling share() now would deadlock the main
+            // thread against an in-flight export. Bail out responsively; the user can
+            // retry once CloudKit settles (typically a few seconds after launch).
+            errorMessage = "iCloud is still syncing. Please try sharing again in a few seconds."
+            return nil
+        }
         do {
             let share = try await backend.makeShare(for: trip)
             trip.cloudKitShareID = share.recordID.recordName
