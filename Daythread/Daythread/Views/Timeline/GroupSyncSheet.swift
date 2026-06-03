@@ -22,6 +22,8 @@ struct GroupSyncSheet: View {
     @State private var pendingShare: CKShare?
     @State private var showShareSheet = false
     @State private var isPreparingShare = false
+    @State private var showNamePrompt = false
+    @State private var nameInput = ""
     /// Captured before the system sheet opens while the CKShare still exists.
     /// UICloudSharingController deletes the share BEFORE cloudSharingControllerDidStopSharing
     /// fires, so checking isOwner inside that callback always returns false.
@@ -138,7 +140,26 @@ struct GroupSyncSheet: View {
                 // sees co-editors immediately (not just after they open the
                 // app themselves). Then register the current user's own entry.
                 cloudKit.syncParticipants(for: trip, context: context)
-                await registerMyMembership()
+                // Prompt for a display name if none is set — otherwise co-editors
+                // would see a neutral "Traveler" placeholder instead of a real name.
+                if myName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    nameInput = ""
+                    showNamePrompt = true
+                } else {
+                    await registerMyMembership()
+                }
+            }
+            .alert("Your name", isPresented: $showNamePrompt) {
+                TextField("Name", text: $nameInput)
+                Button("Save") {
+                    let trimmed = nameInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { return }
+                    myName = trimmed
+                    Task { await registerMyMembership() }
+                }
+                Button("Not now", role: .cancel) { }
+            } message: {
+                Text("Enter a name so co-travelers know who's who on this trip. You can change it later in Settings.")
             }
         }
         }

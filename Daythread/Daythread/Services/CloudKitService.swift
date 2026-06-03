@@ -241,7 +241,9 @@ final class CloudKitService {
     /// 1. Custom name set in Profile → Settings (non-empty)
     /// 2. Name from CKShare currentUserParticipant.userIdentity.nameComponents
     ///    (same name the system sharing sheet shows)
-    /// 3. Device name (UIDevice.current.name) as a last resort
+    /// 3. "Traveler" placeholder — NOT the device name. UIDevice.current.name is
+    ///    privacy-redacted to "iPhone"/"iPad" on iOS 16+, which is worse than a
+    ///    neutral placeholder. The UI prompts the user to set a real name when sharing.
     func registerCurrentUserMembership(
         in trip: Trip,
         displayName: String,
@@ -257,11 +259,11 @@ final class CloudKitService {
         if !trimmed.isEmpty {
             effectiveName = trimmed
         } else if let share = existingShare(for: trip),
-                  let nc = share.currentUserParticipant?.userIdentity.nameComponents {
-            let formatted = PersonNameComponentsFormatter().string(from: nc)
-            effectiveName = formatted.isEmpty ? UIDevice.current.name : formatted
+                  let nc = share.currentUserParticipant?.userIdentity.nameComponents,
+                  !PersonNameComponentsFormatter().string(from: nc).isEmpty {
+            effectiveName = PersonNameComponentsFormatter().string(from: nc)
         } else {
-            effectiveName = UIDevice.current.name
+            effectiveName = "Traveler"
         }
         TripMemberRegistry.upsertCurrentUser(
             in: trip,

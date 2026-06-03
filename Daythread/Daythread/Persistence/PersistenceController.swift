@@ -80,8 +80,36 @@ struct PersistenceController {
         container.viewContext.transactionAuthor = "DaythreadApp"
 
         if !inMemory {
+            performSharedStoreCutoverIfNeeded()
             setupObservers()
         }
+    }
+
+    // MARK: — Path A cutover
+
+    /// One-time migration when the custom shared-sync engine is first enabled.
+    /// Existing participants have shared-trip objects that NSPCKC imported — those
+    /// lack the ckRecordName/ckSystemFields the engine needs to match records, so a
+    /// naive first sync would DUPLICATE everything. Wipe the local shared store once
+    /// (it's only a mirror of the owner's CloudKit data); the engine then re-fetches
+    /// it cleanly with proper identities. Only touches shared-with-me data; the
+    /// private store (the user's own trips) is untouched.
+    private func performSharedStoreCutoverIfNeeded() {
+        let key = "daythread.sharedStoreCutover.v1"
+        guard Self.useCustomSharedSync, !UserDefaults.standard.bool(forKey: key) else { return }
+        guard let sharedStore = container.persistentStoreCoordinator.persistentStores
+            .first(where: { $0.url?.lastPathComponent == "shared.sqlite" }) else { return }
+
+        let context = container.viewContext
+        for entity in CKRecordMapper.syncedEntities + ["SyncState"] {
+            let fetch = NSFetchRequest<NSFetchRequestResult>(entityName: entity)
+            let delete = NSBatchDeleteRequest(fetchRequest: fetch)
+            delete.affectedStores = [sharedStore]
+            _ = try? container.persistentStoreCoordinator.execute(delete, with: context)
+        }
+        context.reset()
+        UserDefaults.standard.set(true, forKey: key)
+        daythreadLog.log("Path A cutover: wiped local shared store for clean custom-sync re-fetch")
     }
 
     // MARK: — Observers
