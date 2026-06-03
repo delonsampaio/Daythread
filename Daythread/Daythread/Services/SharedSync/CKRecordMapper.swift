@@ -13,9 +13,9 @@ enum CKRecordMapper {
         "TripDocument", "TripExpense", "LodgingInfo", "PreTripTask"
     ]
 
-    /// Device-local / engine-internal attributes that must never be imported.
+    /// Device-local / engine-internal attributes that must never be imported or pushed.
     nonisolated private static let skippedAttributes: Set<String> = [
-        "ckRecordName", "ekEventIdentifier", "hasReminder", "showInCalendar"
+        "ckRecordName", "ckSystemFields", "ekEventIdentifier", "hasReminder", "showInCalendar"
     ]
 
     // MARK: — Read path (CKRecord → Core Data)
@@ -69,6 +69,73 @@ enum CKRecordMapper {
         }
 
         if context.hasChanges { try? context.save() }
+    }
+
+    // MARK: — Write path (Core Data → CKRecord)
+
+    /// Encode a local object into its CKRecord, matching NSPCKC's `CD_` format.
+    /// Uses the object's stored system fields for an existing record, or mints a new
+    /// record in the parent's zone. Caller must have already assigned recordNames to
+    /// any new parent objects this one references (push parents before children).
+    nonisolated static func ckRecord(for object: NSManagedObject) -> CKRecord? {
+        guard let entityName = object.entity.name, syncedEntities.contains(entityName) else { return nil }
+
+        let out: CKRecord
+        if let existing = record(fromSystemFields: object.value(forKey: "ckSystemFields") as? Data) {
+            out = existing
+        } else {
+            guard let zoneID = zoneIDForNewChild(of: object) else { return nil }
+            let name = (object.value(forKey: "ckRecordName") as? String) ?? UUID().uuidString
+            object.setValue(name, forKey: "ckRecordName")
+            out = CKRecord(recordType: "CD_\(entityName)", recordID: CKRecord.ID(recordName: name, zoneID: zoneID))
+        }
+
+        out["CD_entityName"] = entityName as CKRecordValue
+
+        for (attrName, attr) in object.entity.attributesByName {
+            if skippedAttributes.contains(attrName) { continue }
+            let key = "CD_\(attrName)"
+            let value = object.value(forKey: attrName)
+            switch attr.attributeType {
+            case .binaryDataAttributeType:
+                if let data = value as? Data, let url = writeTempAsset(data) {
+                    out["\(key)_ckAsset"] = CKAsset(fileURL: url)
+                }
+            case .booleanAttributeType:
+                out[key] = (((value as? Bool) == true) ? 1 : 0) as CKRecordValue
+            case .UUIDAttributeType:
+                if let u = value as? UUID { out[key] = u.uuidString as CKRecordValue }
+            default:
+                if let v = value as? CKRecordValue { out[key] = v }
+            }
+        }
+
+        for (relName, rel) in object.entity.relationshipsByName where !rel.isToMany {
+            if let parent = object.value(forKey: relName) as? NSManagedObject,
+               let parentName = parent.value(forKey: "ckRecordName") as? String {
+                out["CD_\(relName)"] = parentName as CKRecordValue
+            }
+        }
+        return out
+    }
+
+    /// Find the zone for a new (never-synced) object by borrowing it from a related
+    /// object that already has system fields (participants only create children of
+    /// already-shared objects, so a parent with a known zone always exists).
+    nonisolated private static func zoneIDForNewChild(of object: NSManagedObject) -> CKRecordZone.ID? {
+        for (relName, rel) in object.entity.relationshipsByName where !rel.isToMany {
+            guard let parent = object.value(forKey: relName) as? NSManagedObject else { continue }
+            if let rec = record(fromSystemFields: parent.value(forKey: "ckSystemFields") as? Data) {
+                return rec.recordID.zoneID
+            }
+        }
+        return nil
+    }
+
+    /// Write blob bytes to a temp file for CKAsset upload.
+    nonisolated private static func writeTempAsset(_ data: Data) -> URL? {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        do { try data.write(to: url); return url } catch { return nil }
     }
 
     // MARK: — Helpers
