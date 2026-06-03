@@ -52,12 +52,19 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         print("❌ Daythread: APNs registration failed — CloudKit sync will be delayed: \(error.localizedDescription)")
     }
 
-    // NOTE: didReceiveRemoteNotification is intentionally NOT implemented.
-    // NSPersistentCloudKitContainer swizzles that delegate method to intercept
-    // CloudKit's silent pushes natively. A manual implementation in a SwiftUI
-    // @UIApplicationDelegateAdaptor app can swallow the push before Core Data's
-    // swizzler runs. registerForRemoteNotifications() + the remote-notification
-    // background mode are all that's needed for the container to receive pushes.
+    /// REQUIRED for live CloudKit sync in a SwiftUI @UIApplicationDelegateAdaptor app.
+    /// iOS 13+ inspects the AppDelegate and, if this method is absent, assumes the app
+    /// can't handle silent (content-available) pushes — and drops them before Core
+    /// Data's swizzled handler ever sees them, so the participant only syncs at cold
+    /// launch. Implementing even this stub makes the OS deliver the push; Core Data's
+    /// swizzle wraps around it and runs the shared-DB import.
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        completionHandler(.newData)
+    }
 
     func application(
         _ application: UIApplication,

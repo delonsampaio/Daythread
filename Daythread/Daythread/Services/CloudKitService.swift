@@ -277,14 +277,20 @@ final class CloudKitService {
     /// NSPersistentCloudKitContainer reliably creates the silent-push subscription
     /// for the PRIVATE database but is notorious for failing to create one for the
     /// SHARED database — so participants never get pushed when a co-editor changes
-    /// something, and only sync at launch. This creates a CKDatabaseSubscription
-    /// (shouldSendContentAvailable = true) on the shared DB so APNs wakes the app.
-    /// Idempotent — safe to call on every launch.
+    /// something, and only sync at launch.
+    ///
+    /// CRITICAL: the subscription ID MUST be Core Data's own internal shared-DB
+    /// subscription ID. The container's swizzled push handler inspects the incoming
+    /// push for that exact subscriptionID and DROPS any push whose ID doesn't match —
+    /// so a custom-ID subscription wakes the device but never triggers an import.
+    /// Using the internal ID makes the container treat our push as its own and run
+    /// the shared-DB import. CKModifySubscriptionsOperation is idempotent, so saving
+    /// over the container's (possibly missing) subscription is safe.
     nonisolated func ensureSharedDatabaseSubscription() {
         let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
         let sharedDB = container.sharedCloudDatabase
 
-        let subscription = CKDatabaseSubscription(subscriptionID: "daythread-shared-sync")
+        let subscription = CKDatabaseSubscription(subscriptionID: "com.apple.coredata.cloudkit.shared.subscription")
         let info = CKSubscription.NotificationInfo()
         info.shouldSendContentAvailable = true   // silent push that wakes the app
         subscription.notificationInfo = info
