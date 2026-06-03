@@ -1,5 +1,10 @@
 import CoreData
 import CloudKit
+import os
+
+/// Visible in Console.app on a real/TestFlight device (filter subsystem "Daythread").
+/// print() only shows in the Xcode debugger, so we use Logger for on-device diagnostics.
+nonisolated let daythreadLog = Logger(subsystem: "com.DelonSampaio.Daythread", category: "CloudKit")
 
 extension Notification.Name {
     /// Posted on the main thread after a CloudKit import finishes. Views bump a
@@ -89,15 +94,15 @@ struct PersistenceController {
             // on A when it adds an event, and confirm whether B receives anything live.
             let state = event.endDate == nil ? "started" : "finished"
             if let error = event.error {
-                print("☁️ Daythread CloudKit \(Self.kindString(event.type)) \(state) ERROR: \(error)")
+                daythreadLog.error("CloudKit \(Self.kindString(event.type), privacy: .public) \(state, privacy: .public) ERROR: \(error.localizedDescription, privacy: .public)")
             } else {
-                print("☁️ Daythread CloudKit \(Self.kindString(event.type)) \(state)")
+                daythreadLog.log("CloudKit \(Self.kindString(event.type), privacy: .public) \(state, privacy: .public)")
             }
             guard event.type == .import, event.endDate != nil else { return }
             MainActor.assumeIsolated {
                 viewContext.refreshAllObjects()
                 NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
-                print("☁️ Daythread: import applied — UI refresh posted")
+                daythreadLog.log("import applied — UI refresh posted")
             }
         }
     }

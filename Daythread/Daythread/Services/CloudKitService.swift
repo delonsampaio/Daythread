@@ -19,6 +19,7 @@ import CloudKit
 import CoreData
 import Observation
 import UIKit
+import os
 
 // MARK: — Backend seam
 
@@ -303,9 +304,9 @@ final class CloudKitService {
         op.modifySubscriptionsResultBlock = { result in
             switch result {
             case .success:
-                print("✅ Daythread: shared-DB silent-push subscription registered")
+                daythreadLog.log("shared-DB silent-push subscription registered (internal ID)")
             case .failure(let error):
-                print("❌ Daythread: shared-DB subscription failed: \(error.localizedDescription)")
+                daythreadLog.error("shared-DB subscription FAILED: \(error.localizedDescription, privacy: .public)")
             }
         }
         sharedDB.add(op)
@@ -316,11 +317,12 @@ final class CloudKitService {
         let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
         container.sharedCloudDatabase.fetchAllSubscriptions { subs, error in
             if let error {
-                print("⚠️ Daythread: error fetching shared subscriptions: \(error.localizedDescription)")
+                daythreadLog.error("error fetching shared subscriptions: \(error.localizedDescription, privacy: .public)")
             } else if let subs, !subs.isEmpty {
-                print("✅ Daythread: shared-DB subscriptions: \(subs.map(\.subscriptionID))")
+                let ids = subs.map(\.subscriptionID).joined(separator: ", ")
+                daythreadLog.log("shared-DB subscriptions: \(ids, privacy: .public)")
             } else {
-                print("❌ Daythread: NO shared-DB subscriptions — live push cannot arrive")
+                daythreadLog.error("NO shared-DB subscriptions — live push cannot arrive")
             }
         }
     }
