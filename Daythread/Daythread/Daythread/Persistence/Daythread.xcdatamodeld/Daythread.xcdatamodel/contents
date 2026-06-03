@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="22758" systemVersion="24B91" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="" usedWithCloudKit="YES">
     <entity name="Trip" representedClassName="Trip" syncable="YES">
+        <attribute name="ckRecordName" optional="YES" attributeType="String" syncable="NO"/>
         <attribute name="cloudKitShareID" optional="YES" attributeType="String" syncable="YES"/>
         <attribute name="coverImageData" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES" syncable="YES"/>
         <attribute name="createdAt" optional="YES" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO" syncable="YES"/>
@@ -19,6 +20,7 @@
         <relationship name="preTripTasks" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="PreTripTask" inverseName="trip" inverseEntity="PreTripTask" syncable="YES"/>
     </entity>
     <entity name="TripDay" representedClassName="TripDay" syncable="YES">
+        <attribute name="ckRecordName" optional="YES" attributeType="String" syncable="NO"/>
         <attribute name="date" optional="YES" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO" syncable="YES"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
         <attribute name="notes" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
@@ -28,6 +30,7 @@
     </entity>
     <entity name="TripEvent" representedClassName="TripEvent" syncable="YES">
         <attribute name="addedByAppleUserID" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="ckRecordName" optional="YES" attributeType="String" syncable="NO"/>
         <attribute name="categoryRaw" optional="YES" attributeType="String" defaultValueString="activity" syncable="YES"/>
         <attribute name="ekEventIdentifier" optional="YES" attributeType="String" defaultValueString="" syncable="NO"/>
         <attribute name="isPrivate" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES" syncable="YES"/>
@@ -49,6 +52,7 @@
     </entity>
     <entity name="TransitDetails" representedClassName="TransitDetails" syncable="YES">
         <attribute name="arrivalCode" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="ckRecordName" optional="YES" attributeType="String" syncable="NO"/>
         <attribute name="arrivalGate" optional="YES" attributeType="String" syncable="YES"/>
         <attribute name="arrivalName" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
         <attribute name="arrivalTerminal" optional="YES" attributeType="String" syncable="YES"/>
@@ -68,6 +72,7 @@
     </entity>
     <entity name="LodgingInfo" representedClassName="LodgingInfo" syncable="YES">
         <attribute name="address" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="ckRecordName" optional="YES" attributeType="String" syncable="NO"/>
         <attribute name="checkIn" optional="YES" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO" syncable="YES"/>
         <attribute name="checkOut" optional="YES" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO" syncable="YES"/>
         <attribute name="confirmationNumber" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
@@ -78,6 +83,7 @@
     </entity>
     <entity name="TripMember" representedClassName="TripMember" syncable="YES">
         <attribute name="appleUserID" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="ckRecordName" optional="YES" attributeType="String" syncable="NO"/>
         <attribute name="avatarData" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES" syncable="YES"/>
         <attribute name="displayName" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
@@ -87,6 +93,7 @@
     </entity>
     <entity name="TripDocument" representedClassName="TripDocument" syncable="YES">
         <attribute name="addedAt" optional="YES" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="ckRecordName" optional="YES" attributeType="String" syncable="NO"/>
         <attribute name="documentData" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES" syncable="YES"/>
         <attribute name="expiryDate" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="YES"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
@@ -100,6 +107,7 @@
     </entity>
     <entity name="TripExpense" representedClassName="TripExpense" syncable="YES">
         <attribute name="amount" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES" syncable="YES"/>
+        <attribute name="ckRecordName" optional="YES" attributeType="String" syncable="NO"/>
         <attribute name="categoryRaw" optional="YES" attributeType="String" defaultValueString="other" syncable="YES"/>
         <attribute name="currencyCode" optional="YES" attributeType="String" defaultValueString="USD" syncable="YES"/>
         <attribute name="date" optional="YES" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO" syncable="YES"/>
@@ -113,6 +121,7 @@
         <relationship name="trip" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Trip" inverseName="expenses" inverseEntity="Trip" syncable="YES"/>
     </entity>
     <entity name="PreTripTask" representedClassName="PreTripTask" syncable="YES">
+        <attribute name="ckRecordName" optional="YES" attributeType="String" syncable="NO"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
         <attribute name="isComplete" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES" syncable="YES"/>
         <attribute name="sortOrder" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES" syncable="YES"/>

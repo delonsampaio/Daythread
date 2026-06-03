@@ -7,6 +7,8 @@ extension TripEvent {
     }
 
     @NSManaged public var id: UUID?
+    /// Local-only (syncable=NO): CloudKit recordName in the shared zone (SharedSyncEngine).
+    @NSManaged public var ckRecordName: String?
     @NSManaged public var addedByAppleUserID: String
     @NSManaged public var isPrivate: Bool
     /// Comma-separated CloudKit user record names of members (besides the originator)

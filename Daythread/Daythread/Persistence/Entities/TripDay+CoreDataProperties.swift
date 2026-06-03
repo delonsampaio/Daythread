@@ -7,6 +7,8 @@ extension TripDay {
     }
 
     @NSManaged public var id: UUID?
+    /// Local-only (syncable=NO): CloudKit recordName in the shared zone (SharedSyncEngine).
+    @NSManaged public var ckRecordName: String?
     @NSManaged public var date: Date
     @NSManaged public var sortOrder: Int
     @NSManaged public var notes: String

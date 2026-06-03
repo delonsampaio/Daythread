@@ -7,6 +7,8 @@ extension LodgingInfo {
     }
 
     @NSManaged public var id: UUID?
+    /// Local-only (syncable=NO): CloudKit recordName in the shared zone (SharedSyncEngine).
+    @NSManaged public var ckRecordName: String?
     @NSManaged public var name: String
     @NSManaged public var address: String
     @NSManaged public var checkIn: Date

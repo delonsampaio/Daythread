@@ -7,6 +7,8 @@ extension TripExpense {
     }
 
     @NSManaged public var id: UUID?
+    /// Local-only (syncable=NO): CloudKit recordName in the shared zone (SharedSyncEngine).
+    @NSManaged public var ckRecordName: String?
     @NSManaged public var title: String
     @NSManaged public var amount: Double
     @NSManaged public var currencyCode: String

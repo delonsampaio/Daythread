@@ -9,6 +9,9 @@ extension Trip {
     // Always-set / defaulted attributes are declared non-optional to match the
     // app's existing call sites. Genuinely-optional attributes stay Optional.
     @NSManaged public var id: UUID?
+    /// Local-only (syncable=NO): the CloudKit recordName of this object in the shared
+    /// zone. Used by SharedSyncEngine to resolve relationships and target push updates.
+    @NSManaged public var ckRecordName: String?
     @NSManaged public var name: String
     @NSManaged public var destination: String
     @NSManaged public var startDate: Date

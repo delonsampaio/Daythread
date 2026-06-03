@@ -7,6 +7,8 @@ extension TripDocument {
     }
 
     @NSManaged public var id: UUID?
+    /// Local-only (syncable=NO): CloudKit recordName in the shared zone (SharedSyncEngine).
+    @NSManaged public var ckRecordName: String?
     @NSManaged public var title: String
     @NSManaged public var documentData: Data?
     @NSManaged public var mimeType: String
