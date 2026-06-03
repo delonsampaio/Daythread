@@ -12,6 +12,9 @@ extension Trip {
     /// Local-only (syncable=NO): the CloudKit recordName of this object in the shared
     /// zone. Used by SharedSyncEngine to resolve relationships and target push updates.
     @NSManaged public var ckRecordName: String?
+    /// Local-only (syncable=NO): archived CKRecord system fields (recordID, zone,
+    /// change tag) for safe .ifServerRecordUnchanged updates on push.
+    @NSManaged public var ckSystemFields: Data?
     @NSManaged public var name: String
     @NSManaged public var destination: String
     @NSManaged public var startDate: Date

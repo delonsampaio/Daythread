@@ -47,6 +47,8 @@ enum CKRecordMapper {
                 object.setValue(recordName, forKey: "ckRecordName")
             }
             applyAttributes(from: record, to: object)
+            // Preserve the record's CloudKit identity + change tag for safe push updates.
+            object.setValue(encodedSystemFields(of: record), forKey: "ckSystemFields")
             byRecordName[recordName] = object
         }
 
@@ -102,6 +104,24 @@ enum CKRecordMapper {
                 object.setValue(raw, forKey: attrName)
             }
         }
+    }
+
+    /// Archive a record's system fields (recordID, zone, change tag) to Data.
+    nonisolated static func encodedSystemFields(of record: CKRecord) -> Data {
+        let coder = NSKeyedArchiver(requiringSecureCoding: true)
+        record.encodeSystemFields(with: coder)
+        return coder.encodedData
+    }
+
+    /// Reconstruct a CKRecord (recordID/zone/change tag, no field values) from
+    /// archived system fields. Returns nil if the data is missing or corrupt.
+    nonisolated static func record(fromSystemFields data: Data?) -> CKRecord? {
+        guard let data else { return nil }
+        guard let coder = try? NSKeyedUnarchiver(forReadingFrom: data) else { return nil }
+        coder.requiresSecureCoding = true
+        let record = CKRecord(coder: coder)
+        coder.finishDecoding()
+        return record
     }
 
     nonisolated private static func existingObject(
