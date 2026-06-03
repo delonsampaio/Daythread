@@ -16,6 +16,7 @@ struct DaythreadApp: App {
     @State private var store = TripStore()
     private let persistence = PersistenceController.shared
     @AppStorage("daythread.userDisplayName") private var userDisplayName: String = ""
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -28,8 +29,14 @@ struct DaythreadApp: App {
                     let ck = CloudKitService()
                     ck.ensureSharedDatabaseSubscription()
                     ck.verifySharedDatabaseSubscription()
-                    // Phase 2 diagnostic: log real shared-zone record format on device.
-                    await SharedSyncEngine.shared.runDiagnosticFetch()
+                    // Path A: pull shared-zone changes at launch (or log-only when flag off).
+                    await SharedSyncEngine.shared.fetchAllSharedZones()
+                }
+                // Pull again whenever the app returns to the foreground.
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active {
+                        Task { await SharedSyncEngine.shared.fetchAllSharedZones() }
+                    }
                 }
                 .environment(\.managedObjectContext, persistence.viewContext)
                 .environment(store)
