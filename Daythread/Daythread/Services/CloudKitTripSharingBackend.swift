@@ -12,6 +12,7 @@
 
 import CloudKit
 import CoreData
+import os
 
 struct CloudKitTripSharingBackend: TripSharingBackend {
     let container: CKContainer
@@ -29,9 +30,12 @@ struct CloudKitTripSharingBackend: TripSharingBackend {
         // holds share metadata), reuse it. Calling share([trip], to:) again on an
         // already-shared record hangs, which froze the "Invite People" flow.
         if let existing = try persistentContainer.fetchShares(matching: [trip.objectID])[trip.objectID] {
+            daythreadLog.log("makeShare: reusing existing share")
             return existing
         }
+        daythreadLog.log("makeShare: calling NSPCKC share()…")
         let (_, share, _) = try await persistentContainer.share([trip], to: nil)
+        daythreadLog.log("makeShare: share() returned")
         share[CKShare.SystemFieldKey.title] = trip.name as CKRecordValue
         return share
     }
