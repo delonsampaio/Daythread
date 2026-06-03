@@ -119,6 +119,10 @@
         <attribute name="title" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
         <relationship name="trip" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Trip" inverseName="preTripTasks" inverseEntity="Trip" syncable="YES"/>
     </entity>
+    <entity name="SyncPing" representedClassName="SyncPing" syncable="YES">
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO" syncable="YES"/>
+        <attribute name="updatedAt" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="YES"/>
+    </entity>
     <elements>
         <element name="LodgingInfo" positionX="0" positionY="0" width="128" height="134"/>
         <element name="PreTripTask" positionX="0" positionY="0" width="128" height="104"/>
@@ -129,5 +133,6 @@
         <element name="TripEvent" positionX="0" positionY="0" width="128" height="224"/>
         <element name="TripExpense" positionX="0" positionY="0" width="128" height="224"/>
         <element name="TripMember" positionX="0" positionY="0" width="128" height="134"/>
+        <element name="SyncPing" positionX="0" positionY="0" width="128" height="74"/>
     </elements>
 </model>

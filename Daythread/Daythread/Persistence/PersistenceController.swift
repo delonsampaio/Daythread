@@ -116,10 +116,50 @@ struct PersistenceController {
         }
     }
 
+    // MARK: — Sync ping (wake the mirroring delegate)
+
+    @MainActor private static var lastPingAt = Date.distantPast
+
+    /// Writes a tiny change to the PRIVATE store to force NSPersistentCloudKitContainer's
+    /// mirroring delegate to wake up. The participant's stalled SHARED-database import is
+    /// flushed as a side effect of the resulting private export cycle. Called when a CloudKit
+    /// silent push arrives. Debounced to avoid ping-pong between a single user's own devices
+    /// (the ping lives in the private DB, so it never reaches the other CKShare participant).
+    @MainActor
+    func pokeSyncPing() {
+        let now = Date()
+        guard now.timeIntervalSince(Self.lastPingAt) > 3 else { return }
+        Self.lastPingAt = now
+
+        let ctx = viewContext
+        let request = SyncPing.fetchRequest()
+        request.fetchLimit = 1
+        let ping: SyncPing
+        if let existing = (try? ctx.fetch(request))?.first {
+            ping = existing
+        } else {
+            ping = SyncPing(context: ctx)
+            ping.id = UUID()
+            // Keep it out of the shared store so it only wakes the private export cycle.
+            if let privateStore = ctx.persistentStoreCoordinator?.persistentStores
+                .first(where: { $0.url?.lastPathComponent != "shared.sqlite" }) {
+                ctx.assign(ping, to: privateStore)
+            }
+        }
+        ping.updatedAt = now
+        do {
+            try ctx.save()
+            daythreadLog.log("SyncPing poked — waking mirroring delegate to flush shared import")
+        } catch {
+            daythreadLog.error("SyncPing save failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     // MARK: — Manual refresh
 
     @MainActor
     func manualRefresh() async {
+        pokeSyncPing()
         viewContext.refreshAllObjects()
         NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
         try? await Task.sleep(for: .milliseconds(500))

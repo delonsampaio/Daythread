@@ -18,6 +18,7 @@
 import UIKit
 import CloudKit
 import CoreData
+import os
 
 extension Notification.Name {
     /// Posted after a CKShare is accepted. userInfo["recordName"] = share record name.
@@ -63,6 +64,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
+        daythreadLog.log("remote notification received (silent CloudKit push)")
+        // Poke the private store to wake NSPCKC's mirroring delegate, which flushes the
+        // participant's otherwise-deferred SHARED-database import. See pokeSyncPing().
+        Task { @MainActor in
+            PersistenceController.shared.pokeSyncPing()
+        }
         completionHandler(.newData)
     }
 
