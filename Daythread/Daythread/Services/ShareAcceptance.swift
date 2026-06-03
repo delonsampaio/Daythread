@@ -97,35 +97,59 @@ final class ShareSceneDelegate: NSObject, UIWindowSceneDelegate {
         _ windowScene: UIWindowScene,
         userDidAcceptCloudKitShareWith metadata: CKShare.Metadata
     ) {
-        let persistentContainer = PersistenceController.shared.cloudKitContainer
+        if PersistenceController.useCustomSharedSync {
+            acceptViaCustomEngine(metadata)
+        } else {
+            acceptViaNSPCKC(metadata)
+        }
+    }
 
-        // Accept INTO the shared store so Core Data imports the shared object
-        // graph (trip + days + events). The shared store is the one the
-        // PersistenceController created with databaseScope == .shared.
+    /// Path A: the shared store is severed from NSPCKC, so `acceptShareInvitations`
+    /// won't work. Accept the share with a raw CKAcceptSharesOperation, then trigger
+    /// the custom engine to pull the newly-joined zone into shared.sqlite.
+    private func acceptViaCustomEngine(_ metadata: CKShare.Metadata) {
+        let operation = CKAcceptSharesOperation(shareMetadatas: [metadata])
+        operation.qualityOfService = .userInitiated
+        operation.acceptSharesResultBlock = { result in
+            switch result {
+            case .success:
+                daythreadLog.log("CKShare accepted (custom engine) — fetching joined zone")
+                Task { @MainActor in
+                    await SharedSyncEngine.shared.fetchAllSharedZones()
+                }
+                self.postAcceptance(metadata)
+            case .failure(let error):
+                daythreadLog.error("CKShare accept failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        CKContainer(identifier: containerID).add(operation)
+    }
+
+    /// Legacy path: let NSPCKC import the shared graph into the (still-mirrored) shared store.
+    private func acceptViaNSPCKC(_ metadata: CKShare.Metadata) {
+        let persistentContainer = PersistenceController.shared.cloudKitContainer
         guard let sharedStore = Self.sharedStore(in: persistentContainer) else {
             print("⚠️ No shared Core Data store found to accept the share into")
             return
         }
-
-        persistentContainer.acceptShareInvitations(
-            from: [metadata],
-            into: sharedStore
-        ) { _, error in
+        persistentContainer.acceptShareInvitations(from: [metadata], into: sharedStore) { _, error in
             if let error {
                 print("⚠️ Failed to accept CloudKit share: \(error)")
                 return
             }
-            // Post on main so DaythreadApp.onReceive sets pendingJoinShareRecordName
-            // before any onChange handlers run (those execute on main). Without this,
-            // the background-thread post can race with main-thread onChange calls that
-            // check pendingJoinShareRecordName before it's been written.
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(
-                    name: .daythreadDidAcceptShare,
-                    object: nil,
-                    userInfo: ["recordName": metadata.share.recordID.recordName]
-                )
-            }
+            self.postAcceptance(metadata)
+        }
+    }
+
+    /// Post on main so DaythreadApp.onReceive sets pendingJoinShareRecordName before
+    /// any onChange handlers run (avoids a race with main-thread join resolution).
+    private func postAcceptance(_ metadata: CKShare.Metadata) {
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: .daythreadDidAcceptShare,
+                object: nil,
+                userInfo: ["recordName": metadata.share.recordID.recordName]
+            )
         }
     }
 
