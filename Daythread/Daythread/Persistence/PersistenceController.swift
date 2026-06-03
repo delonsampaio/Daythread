@@ -19,9 +19,11 @@ struct PersistenceController {
     /// NSPersistentCloudKitContainer and synced by the custom SharedSyncEngine
     /// (reliable participant sync). While false, the shared store stays on NSPCKC
     /// (the legacy path whose participant import is deferred indefinitely).
-    /// Kept FALSE until the custom pull + push paths are both built and verified,
-    /// so co-editing never regresses mid-build.
-    nonisolated static let useCustomSharedSync = false
+    /// Pull + push paths are built (Phases 0–4). Flipping ON for end-to-end validation.
+    /// ⚠️ Validate with a CLEAN INSTALL (delete + reinstall) on both devices first —
+    /// an in-place update over NSPCKC-imported shared data will duplicate records until
+    /// the one-time shared-store cutover migration is added (post-validation).
+    nonisolated static let useCustomSharedSync = true
 
     private static let managedObjectModel: NSManagedObjectModel = {
         let bundle = Bundle(for: Trip.self)
