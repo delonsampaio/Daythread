@@ -231,7 +231,14 @@ struct PersistenceController {
 
     @MainActor
     func manualRefresh() async {
-        pokeSyncPing()
+        if Self.useCustomSharedSync {
+            // Path A: pull shared-zone changes through the custom engine. Poking the
+            // private store here is pointless (the engine owns shared sync) and only
+            // adds NSPCKC export churn.
+            await SharedSyncEngine.shared.fetchAllSharedZones()
+        } else {
+            pokeSyncPing()
+        }
         viewContext.refreshAllObjects()
         NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
         try? await Task.sleep(for: .milliseconds(500))
