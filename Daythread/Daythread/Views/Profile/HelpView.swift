@@ -298,8 +298,8 @@ struct HelpView: View {
                 isPro: true
             )
             FAQRow(
-                question: "How do I stop sharing a trip?",
-                answer: "Open Group Sync, tap 'Trip is shared — Manage people & permissions', then choose 'Stop Sharing' in the system sheet. Co-editors will no longer see updates.",
+                question: "How do I stop sharing a trip, or leave a shared trip?",
+                answer: "Owner: open Group Sync, tap 'Trip is shared — Manage people & permissions', then choose 'Stop Sharing'. Co-editors will lose access immediately.\n\nParticipant: open Group Sync and tap 'Trip is shared', then choose 'Stop Accessing' in the system sheet to remove yourself from the trip.",
                 isPro: true
             )
         }
@@ -383,7 +383,7 @@ struct HelpView: View {
         .init(section: "Co-editing & Sync", question: "What happens if two people edit at the same time?", answer: "The app automatically merges changes made at the same time. If two people edit the exact same detail simultaneously, the most recent change is saved."),
         .init(section: "Co-editing & Sync", question: "How do I add or remove people after sharing?", answer: "Open Group Sync and tap 'Trip is shared — Manage people & permissions' to add people, change permissions, or stop sharing — no need to stop and re-invite.", isPro: true),
         .init(section: "Co-editing & Sync", question: "Why do my co-editors show as 'Owner' instead of a name?", answer: "Apple's system sharing sheet only shows names for people in your Contacts. Set your name in Settings → Your Profile so co-editors see it in Daythread's own Members list, regardless of Contacts.", isPro: true),
-        .init(section: "Co-editing & Sync", question: "How do I stop sharing a trip?", answer: "Open Group Sync, tap 'Trip is shared — Manage people & permissions', then choose 'Stop Sharing' in the system sheet.", isPro: true),
+        .init(section: "Co-editing & Sync", question: "How do I stop sharing a trip, or leave a shared trip?", answer: "Owner: open Group Sync, tap 'Trip is shared — Manage people & permissions', then choose 'Stop Sharing'. Participant: tap 'Trip is shared', then 'Stop Accessing'.", isPro: true),
         .init(section: "Pro Features", question: "What's included in Daythread Pro?", answer: "Pro unlocks: Unlimited document storage · Receipt photo attachments on expenses · Expense splitting with debt minimisation · Trip sharing & co-editing · ETA badges between events · Role-based permissions.", isPro: true),
         .init(section: "Pro Features", question: "How do I upgrade to Pro?", answer: "Go to the Profile tab and tap 'Upgrade to Pro'. The one-time $9.99 Lifetime purchase includes Family Sharing.", isPro: true),
         .init(section: "Pro Features", question: "How do I restore my Pro purchase on a new device?", answer: "Go to Profile → Settings and tap 'Restore Purchases'.", isPro: true),
