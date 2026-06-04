@@ -66,29 +66,24 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     ) {
         daythreadLog.log("remote notification received (silent CloudKit push)")
         Task { @MainActor in
-            if PersistenceController.useCustomSharedSync {
-                // Path A: route to the correct fetch loop based on which database
-                // triggered the push. Private-DB pushes (owner receiving participant
-                // edits) go to fetchAllOwnedZones; shared-DB pushes go to fetchAllSharedZones.
-                if let ckNotification = CKNotification(fromRemoteNotificationDictionary: userInfo),
-                   let dbNotification = ckNotification as? CKDatabaseNotification {
-                    switch dbNotification.databaseScope {
-                    case .private:
-                        daythreadLog.log("routing push → fetchAllOwnedZones (private-DB)")
-                        await SharedSyncEngine.shared.fetchAllOwnedZones()
-                    default:
-                        daythreadLog.log("routing push → fetchAllSharedZones (shared-DB)")
-                        await SharedSyncEngine.shared.fetchAllSharedZones()
-                    }
-                } else {
-                    // Unknown notification type — fetch both to be safe.
-                    daythreadLog.log("unknown push type — fetching both shared and owned zones")
-                    await SharedSyncEngine.shared.fetchAllSharedZones()
+            // Route to the correct fetch loop based on which database triggered the push.
+            // Private-DB pushes (owner receiving participant edits) go to fetchAllOwnedZones;
+            // shared-DB pushes go to fetchAllSharedZones.
+            if let ckNotification = CKNotification(fromRemoteNotificationDictionary: userInfo),
+               let dbNotification = ckNotification as? CKDatabaseNotification {
+                switch dbNotification.databaseScope {
+                case .private:
+                    daythreadLog.log("routing push → fetchAllOwnedZones (private-DB)")
                     await SharedSyncEngine.shared.fetchAllOwnedZones()
+                default:
+                    daythreadLog.log("routing push → fetchAllSharedZones (shared-DB)")
+                    await SharedSyncEngine.shared.fetchAllSharedZones()
                 }
             } else {
-                // Legacy path: poke the private store to wake NSPCKC's mirroring delegate.
-                PersistenceController.shared.pokeSyncPing()
+                // Unknown notification type — fetch both to be safe.
+                daythreadLog.log("unknown push type — fetching both shared and owned zones")
+                await SharedSyncEngine.shared.fetchAllSharedZones()
+                await SharedSyncEngine.shared.fetchAllOwnedZones()
             }
         }
         completionHandler(.newData)

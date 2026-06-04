@@ -136,15 +136,6 @@ struct PersistenceController {
             } else {
                 daythreadLog.log("CloudKit \(Self.kindString(event.type), privacy: .public) \(state, privacy: .public)")
             }
-            // Track in-flight exports so share creation can wait for a quiet window —
-            // NSPCKC's share() deadlocks if it grabs the store lock mid-export.
-            if event.type == .export {
-                let isStart = event.endDate == nil
-                MainActor.assumeIsolated {
-                    if isStart { Self.activeExportCount += 1 }
-                    else { Self.activeExportCount = max(0, Self.activeExportCount - 1) }
-                }
-            }
             guard event.type == .import, event.endDate != nil else { return }
             MainActor.assumeIsolated {
                 viewContext.refreshAllObjects()
@@ -163,90 +154,12 @@ struct PersistenceController {
         }
     }
 
-    // MARK: — Export quiescence (for safe share creation)
-
-    /// Number of NSPCKC export cycles currently in flight, maintained by the event
-    /// observer above. `share()` deadlocks if it seizes the store lock while an
-    /// export holds it (the export needs the main thread to publish, which share()
-    /// is blocking) — so we wait for this to hit zero before creating a share.
-    @MainActor static var activeExportCount = 0
-
-    /// Suspends until no NSPCKC export is in flight AND none starts for a short
-    /// settle window (or `timeout` elapses). Returns true only if the container
-    /// actually reached idle — callers must NOT create a share otherwise, because
-    /// share() deadlocks against an in-flight export. Yields the main thread
-    /// throughout, so the UI stays responsive (spinner, not freeze).
-    @MainActor
-    @discardableResult
-    func waitForExportQuiescence(timeout: TimeInterval = 30) async -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if Self.activeExportCount == 0 {
-                // Require the container to STAY idle through a settle window — a fresh
-                // install's initial sync exports in bursts with brief gaps between them.
-                try? await Task.sleep(for: .milliseconds(700))
-                if Self.activeExportCount == 0 {
-                    daythreadLog.log("waitForExportQuiescence: container idle — safe to share")
-                    return true
-                }
-            }
-            try? await Task.sleep(for: .milliseconds(200))
-        }
-        daythreadLog.log("waitForExportQuiescence: timed out with \(Self.activeExportCount, privacy: .public) export(s) still active")
-        return false
-    }
-
-    // MARK: — Sync ping (wake the mirroring delegate)
-
-    @MainActor private static var lastPingAt = Date.distantPast
-
-    /// Writes a tiny change to the PRIVATE store to force NSPersistentCloudKitContainer's
-    /// mirroring delegate to wake up. The participant's stalled SHARED-database import is
-    /// flushed as a side effect of the resulting private export cycle. Called when a CloudKit
-    /// silent push arrives. Debounced to avoid ping-pong between a single user's own devices
-    /// (the ping lives in the private DB, so it never reaches the other CKShare participant).
-    @MainActor
-    func pokeSyncPing() {
-        let now = Date()
-        guard now.timeIntervalSince(Self.lastPingAt) > 3 else { return }
-        Self.lastPingAt = now
-
-        let ctx = viewContext
-        let request = SyncPing.fetchRequest()
-        request.fetchLimit = 1
-        let ping: SyncPing
-        if let existing = (try? ctx.fetch(request))?.first {
-            ping = existing
-        } else {
-            ping = SyncPing(context: ctx)
-            ping.id = UUID()
-            // Keep it out of the shared store so it only wakes the private export cycle.
-            if let privateStore = ctx.persistentStoreCoordinator?.persistentStores
-                .first(where: { $0.url?.lastPathComponent != "shared.sqlite" }) {
-                ctx.assign(ping, to: privateStore)
-            }
-        }
-        ping.updatedAt = now
-        do {
-            try ctx.save()
-            daythreadLog.log("SyncPing poked — waking mirroring delegate to flush shared import")
-        } catch {
-            daythreadLog.error("SyncPing save failed: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
     // MARK: — Manual refresh
 
     @MainActor
     func manualRefresh() async {
-        if Self.useCustomSharedSync {
-            // Path A: pull shared-zone changes through the custom engine. Poking the
-            // private store here is pointless (the engine owns shared sync) and only
-            // adds NSPCKC export churn.
-            await SharedSyncEngine.shared.fetchAllSharedZones()
-        } else {
-            pokeSyncPing()
-        }
+        await SharedSyncEngine.shared.fetchAllSharedZones()
+        await SharedSyncEngine.shared.fetchAllOwnedZones()
         viewContext.refreshAllObjects()
         NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
         try? await Task.sleep(for: .milliseconds(500))

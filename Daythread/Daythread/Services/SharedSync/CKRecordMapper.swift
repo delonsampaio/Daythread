@@ -1,5 +1,6 @@
 import CloudKit
 import CoreData
+import os
 
 /// Maps CloudKit shared-zone records (NSPersistentCloudKitContainer's `CD_` format)
 /// to/from the local Core Data graph in shared.sqlite. Generic over the model:
@@ -55,11 +56,16 @@ enum CKRecordMapper {
         // Pass 2 — wire to-one relationships (values are parent recordNames).
         for record in records {
             guard let object = byRecordName[record.recordID.recordName] else { continue }
+            let entityName = object.entity.name ?? "?"
             for (relName, rel) in object.entity.relationshipsByName where !rel.isToMany {
                 guard let parentName = record["CD_\(relName)"] as? String, !parentName.isEmpty else { continue }
                 let parent = byRecordName[parentName]
                     ?? existingObject(entityName: rel.destinationEntity?.name ?? "", recordName: parentName, in: context)
-                if let parent { object.setValue(parent, forKey: relName) }
+                if let parent {
+                    object.setValue(parent, forKey: relName)
+                } else {
+                    daythreadLog.error("SharedSync wire: \(entityName, privacy: .public).\(relName, privacy: .public) → parent recordName \(parentName, privacy: .public) NOT FOUND — orphaned (entity \(rel.destinationEntity?.name ?? "?", privacy: .public))")
+                }
             }
         }
 
