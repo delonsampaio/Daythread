@@ -150,19 +150,33 @@ struct TripsListView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 0) {
             Spacer()
-            Image(systemName: "suitcase.fill")
-                .font(.system(size: 56))
-                .foregroundStyle(ThemeTokens.textMuted)
+            Image(systemName: "airplane.departure")
+                .font(.system(size: 72, weight: .thin))
+                .foregroundStyle(ThemeTokens.accent.opacity(0.7))
+                .padding(.bottom, 28)
             Text("No trips yet")
-                .font(.title2.bold())
-            Text("Tap + to plan your first adventure.")
+                .font(.system(size: 26, weight: .bold, design: .rounded))
+                .foregroundStyle(ThemeTokens.textPrimary)
+                .padding(.bottom, 10)
+            Text("Plan your first adventure and invite\nyour travel crew to join.")
                 .font(.subheadline)
+                .multilineTextAlignment(.center)
                 .foregroundStyle(ThemeTokens.textSecondary)
-            Button("Create a Trip") { showCreate = true }
-                .buttonStyle(.borderedProminent)
-                .tint(ThemeTokens.accent)
+                .padding(.horizontal, 48)
+                .padding(.bottom, 32)
+            Button {
+                showCreate = true
+            } label: {
+                Label("Create Your First Trip", systemImage: "plus")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 28)
+                    .padding(.vertical, 14)
+                    .background(RoundedRectangle(cornerRadius: 14).fill(ThemeTokens.accent))
+            }
+            Spacer()
             Spacer()
         }
         .padding()

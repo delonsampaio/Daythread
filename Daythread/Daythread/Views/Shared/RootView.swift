@@ -16,6 +16,8 @@ struct RootView: View {
     @FetchRequest(sortDescriptors: [], predicate: NSPredicate(format: "isArchived == NO")) private var activeTrips: FetchedResults<Trip>
     @State private var cloudKit = CloudKitService()
     @State private var selectedTab: DaythreadTab = .timeline
+    @AppStorage("daythread.onboardingComplete") private var onboardingComplete = false
+    @State private var showOnboarding = false
 
     var body: some View {
         Group {
@@ -28,6 +30,12 @@ struct RootView: View {
         .onAppear {
             selectedTab = .timeline
             store.selectInitialTripIfNeeded(from: Array(activeTrips))
+        }
+        .onAppear {
+            if !onboardingComplete { showOnboarding = true }
+        }
+        .fullScreenCover(isPresented: $showOnboarding) {
+            OnboardingView(isPresented: $showOnboarding)
         }
         // Sync participants whenever the active shared trips change (e.g. a new
         // co-editor accepts) so avatar stacks update without opening GroupSync.
