@@ -38,13 +38,10 @@ struct ProPaywallView: View {
                     // Feature list
                     VStack(alignment: .leading, spacing: 16) {
                         proRow("✈️ Real-time co-editing", "Share trips with friends and family. Changes sync in seconds.")
-                        proRow("⏱ Running Late Mode", "ETA overlays on every event so the group always knows where you are.")
-                        proRow("💸 Expense Splitting", "Log, split, and settle trip costs. Smart calculations find the easiest way to settle up.")
+                        proRow("🔗 Group Sync", "Invite co-editors, control who sees what with per-event visibility.")
+                        proRow("💸 Expense Splitting", "Log costs, split fairly, and settle up with one tap.")
                         proRow("📎 Receipt Attachments", "Attach photos of receipts and invoices directly to expenses.")
                         proRow("📄 Unlimited Documents", "Free tier: 5 documents. Pro: unlimited passports, visas, PDFs.")
-                        proRow("🌤 Weather Overlays", "7-day forecast pinned to each day on your itinerary.")
-                        proRow("🛫 Live Flight Tracking", "Gate changes and delays pushed directly to your timeline.")
-                        proRow("🔗 Group Sync", "Invite co-editors, propose activities, vote on plans.")
                     }
                     .padding(.horizontal, 24)
 
