@@ -112,6 +112,9 @@ final class SharedSyncEngine {
             pendingFetch = false
             do {
                 let dbChanges = try await sharedDB.databaseChanges(since: nil)
+                for deletion in dbChanges.deletions {
+                    purgeZone(deletion.zoneID)
+                }
                 let zoneIDs = dbChanges.modifications.map(\.zoneID)
                 for zoneID in zoneIDs {
                     await fetchZone(zoneID, in: sharedDB, databaseScope: "shared")
@@ -139,6 +142,9 @@ final class SharedSyncEngine {
             pendingFetch = false
             do {
                 let dbChanges = try await privateDB.databaseChanges(since: nil)
+                for deletion in dbChanges.deletions where deletion.zoneID.zoneName.hasPrefix("Zone-") {
+                    purgeZone(deletion.zoneID)
+                }
                 let zoneIDs = dbChanges.modifications.map(\.zoneID)
                     .filter { $0.zoneName.hasPrefix("Zone-") }  // only our custom zones
                 for zoneID in zoneIDs {
@@ -186,11 +192,60 @@ final class SharedSyncEngine {
             daythreadLog.log("SharedSync: zone '\(zoneID.zoneName, privacy: .public)' merged \(records.count, privacy: .public) record(s), \(deletions.count, privacy: .public) deletion(s)")
             return records.count
         } catch let error as CKError where error.code == .zoneNotFound {
-            daythreadLog.error("SharedSync: zone '\(zoneID.zoneName, privacy: .public)' not found — will purge on next task")
+            daythreadLog.log("SharedSync: zone '\(zoneID.zoneName, privacy: .public)' deleted — purging local data")
+            purgeZone(zoneID)
             return 0
         } catch {
             daythreadLog.error("SharedSync zone '\(zoneID.zoneName, privacy: .public)' fetch failed: \(error.localizedDescription, privacy: .public)")
             return 0
+        }
+    }
+
+    // MARK: — Zone purge
+
+    /// Purges all shared-store objects belonging to `zoneID` and clears the
+    /// zone's SyncState tokens. Called when recordZoneChanges reports the zone
+    /// as deleted (owner stopped sharing or participant self-removed).
+    private func purgeZone(_ zoneID: CKRecordZone.ID) {
+        let context = PersistenceController.shared.viewContext
+        guard let sharedStore = Self.sharedStore(in: context) else { return }
+
+        // Find the Trip in the shared store whose zone matches this zoneID.
+        // Zone name is "Zone-<tripUUID>"; trip.id gives us the UUID.
+        let zoneName = zoneID.zoneName  // e.g. "Zone-550E8400-..."
+        let tripUUIDString = zoneName.hasPrefix("Zone-")
+            ? String(zoneName.dropFirst(5))
+            : nil
+
+        if let uuidStr = tripUUIDString, let tripID = UUID(uuidString: uuidStr) {
+            let request = Trip.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@", tripID as CVarArg)
+            request.affectedStores = [sharedStore]
+            request.fetchLimit = 1
+            if let trip = (try? context.fetch(request))?.first {
+                // Cascade delete removes days, events, members, documents, etc.
+                context.delete(trip)
+                daythreadLog.log("SharedSync purgeZone: deleted trip for zone \(zoneName, privacy: .public)")
+            }
+        } else {
+            // Fallback: delete all synced entities in the shared store that have
+            // a ckRecordName matching records from this zone. Since we don't have
+            // a direct zone→object index, just log and skip — the user will see
+            // the trip disappear on next launch's fresh fetch.
+            daythreadLog.log("SharedSync purgeZone: zone \(zoneName, privacy: .public) has no UUID prefix — skipping purge")
+        }
+
+        // Remove SyncState rows for this zone (both private and shared scope).
+        let stateRequest = SyncState.fetchRequest()
+        stateRequest.predicate = NSPredicate(format: "zoneName == %@", zoneID.zoneName)
+        stateRequest.affectedStores = [sharedStore]
+        if let rows = try? context.fetch(stateRequest) {
+            rows.forEach { context.delete($0) }
+        }
+
+        if context.hasChanges {
+            try? context.save()
+            NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
         }
     }
 
