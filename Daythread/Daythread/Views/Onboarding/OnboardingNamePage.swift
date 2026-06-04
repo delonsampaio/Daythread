@@ -61,8 +61,8 @@ struct OnboardingNamePage: View {
                 .padding(.horizontal, 32)
                 .padding(.bottom, 32)
 
-                // Name field
-                TextField("Your name", text: $nameInput)
+                // Name field — user taps to open keyboard, not auto-focused.
+                TextField("Tap to enter your name", text: $nameInput)
                     .textContentType(.name)
                     .autocorrectionDisabled()
                     .font(.system(size: 17))
@@ -70,11 +70,14 @@ struct OnboardingNamePage: View {
                     .background(RoundedRectangle(cornerRadius: 14).fill(ThemeTokens.backgroundCard))
                     .padding(.horizontal, 32)
                     .focused($focused)
+                    .submitLabel(.done)
+                    .onSubmit { focused = false }
 
                 Spacer().frame(height: 160)
             }
         }
-        .onAppear { focused = true }
+        // Dismiss keyboard when scrolling so the field stays visible.
+        .scrollDismissesKeyboard(.interactively)
         .onTapGesture { focused = false }
     }
 }

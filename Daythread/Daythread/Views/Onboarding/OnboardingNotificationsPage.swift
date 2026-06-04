@@ -1,11 +1,8 @@
 //  OnboardingNotificationsPage.swift
 
 import SwiftUI
-import UserNotifications
 
 struct OnboardingNotificationsPage: View {
-    @Binding var requested: Bool
-
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
@@ -28,22 +25,17 @@ struct OnboardingNotificationsPage: View {
                 .padding(.bottom, 48)
 
             VStack(spacing: 20) {
-                notifRow(icon: "alarm.fill",       color: .orange, text: "Event reminders at your chosen lead time")
-                notifRow(icon: "person.2.fill",    color: ThemeTokens.accent, text: "Alerts when co-editors add or change events")
-                notifRow(icon: "clock.badge.checkmark", color: .green, text: "Departure countdowns for flights and transit")
+                notifRow(icon: "alarm.fill",            color: .orange,          text: "Event reminders at your chosen lead time")
+                notifRow(icon: "person.2.fill",         color: ThemeTokens.accent, text: "Alerts when co-editors add or change events")
+                notifRow(icon: "clock.badge.checkmark", color: .green,           text: "Departure countdowns for flights and transit")
             }
             .padding(.horizontal, 40)
 
             Spacer()
             Spacer().frame(height: 160)
         }
-        // Tapping Continue in the parent calls advance() which calls finish() only on page==2.
-        // We fire the system prompt here when the page appears so it shows before "Let's Go".
-        .onAppear {
-            guard !requested else { return }
-            requested = true
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
-        }
+        // System notification prompt fires when the user taps "Let's Go" in the
+        // parent OnboardingView — not here — so they see this context screen first.
     }
 
     @ViewBuilder
