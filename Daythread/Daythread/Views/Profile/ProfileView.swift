@@ -121,10 +121,14 @@ struct ProfileView: View {
                     Section {
                         if store.isPro {
                             Button("Revoke Pro (beta)", role: .destructive) {
+                                // Set a flag so restorePurchases doesn't immediately
+                                // re-grant Pro from a valid StoreKit entitlement.
+                                UserDefaults.standard.set(true, forKey: "daythread.betaProRevoked")
                                 store.isPro = false
                             }
                         } else {
                             Button("Grant Pro (beta)") {
+                                UserDefaults.standard.set(false, forKey: "daythread.betaProRevoked")
                                 store.isPro = true
                             }
                             .foregroundStyle(ThemeTokens.accentPro)

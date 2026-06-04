@@ -53,6 +53,8 @@ final class StoreKitService {
     }
 
     func restorePurchases(store: TripStore) async {
+        // Skip restore if the beta tester has explicitly revoked Pro for testing.
+        if UserDefaults.standard.bool(forKey: "daythread.betaProRevoked") { return }
         for await result in Transaction.currentEntitlements {
             if case .verified(let transaction) = result,
                transaction.productID == Self.proProductID {

@@ -242,6 +242,13 @@ final class SharedSyncEngine {
     /// Purges all shared-store objects belonging to `zoneID` and clears the
     /// zone's SyncState tokens. Called when recordZoneChanges reports the zone
     /// as deleted (owner stopped sharing or participant self-removed).
+    ///
+    /// OWNER SAFETY: the owner deletes the zone intentionally when stopping sharing.
+    /// On their device the zone appears as a deletion in fetchAllOwnedZones, but the
+    /// trip should stay — it just becomes unshared again. We detect this by checking
+    /// whether the trip's cloudKitShareID matches the zone before deleting: if the
+    /// trip has already had its cloudKitShareID cleared by stopSharing(), skip the
+    /// delete. If it hasn't (e.g. a forced purge), clear the ID instead of deleting.
     private func purgeZone(_ zoneID: CKRecordZone.ID) {
         let context = PersistenceController.shared.viewContext
         guard let sharedStore = Self.sharedStore(in: context) else { return }
@@ -259,9 +266,24 @@ final class SharedSyncEngine {
             request.affectedStores = [sharedStore]
             request.fetchLimit = 1
             if let trip = (try? context.fetch(request))?.first {
-                // Cascade delete removes days, events, members, documents, etc.
-                context.delete(trip)
-                daythreadLog.log("SharedSync purgeZone: deleted trip for zone \(zoneName, privacy: .public)")
+                // Owner check: if the zone owner matches the current user, this is
+                // an owner-initiated stop-sharing — keep the trip, just clear its
+                // share metadata so it becomes a normal private trip again.
+                let myID = UserDefaults.standard.string(forKey: "daythread.currentUserCloudKitID")
+                let isOwnerZone = zoneID.ownerName == CKCurrentUserDefaultName
+                    || (myID != nil && zoneID.ownerName == myID)
+                if isOwnerZone {
+                    // Only clear the share ID if it still points to this zone's share.
+                    // stopSharing() already cleared it — avoid double-writes.
+                    if trip.cloudKitShareID != nil {
+                        trip.cloudKitShareID = nil
+                    }
+                    daythreadLog.log("SharedSync purgeZone: owner stopped sharing zone \(zoneName, privacy: .public) — trip retained")
+                } else {
+                    // Participant device: cascade delete removes the whole trip.
+                    context.delete(trip)
+                    daythreadLog.log("SharedSync purgeZone: deleted trip for zone \(zoneName, privacy: .public)")
+                }
             }
         } else {
             // Fallback: delete all synced entities in the shared store that have
