@@ -305,19 +305,16 @@ struct DocumentGridView: View {
 
     // MARK: — Visibility label
 
-    @ViewBuilder
     private func visibilityLabel(_ doc: TripDocument) -> some View {
-        let icon: String
-        let label: String
-        if doc.isShared {
-            icon = "person.2"; label = "Everyone"
-        } else if !doc.visibleToMemberIDs.isEmpty {
-            let count = doc.visibleToMemberIDs.split(separator: ",").count
-            icon = "person.badge.plus"; label = "\(count) person\(count == 1 ? "" : "s")"
-        } else {
-            icon = "lock.fill"; label = "Only me"
-        }
-        HStack(spacing: 3) {
+        let (icon, label): (String, String) = {
+            if doc.isShared { return ("person.2", "Everyone") }
+            if !doc.visibleToMemberIDs.isEmpty {
+                let count = doc.visibleToMemberIDs.split(separator: ",").count
+                return ("person.badge.plus", "\(count) person\(count == 1 ? "" : "s")")
+            }
+            return ("lock.fill", "Only me")
+        }()
+        return HStack(spacing: 3) {
             Image(systemName: icon).font(.system(size: 9))
             Text(label).font(.system(size: 9))
         }
