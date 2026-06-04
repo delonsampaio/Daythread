@@ -222,6 +222,9 @@ final class TripStoreMigrator {
         if clone.migration == .cloned {
             let sharing = SharedZoneSharing()
             let share = try await sharing.makeZoneShare(forTripID: tripID, title: title)
+            // Cache the share in SyncState immediately so existingShare() works
+            // synchronously on the next call without waiting for a pull-loop fetch.
+            cacheShare(share, forTripID: tripID, context: context)
             // Push the entire cloned graph to the new custom zone.
             try await uploadClone(clone, tripID: tripID, context: context)
             // Mark uploaded BEFORE purging — crash here leaves state .uploaded
@@ -372,6 +375,27 @@ final class TripStoreMigrator {
     }
 
     // MARK: — Helpers
+
+    /// Writes `share`'s system fields into the SyncState row for this trip's zone so
+    /// `CloudKitTripSharingBackend.cachedShare(forTripID:)` returns it immediately after
+    /// migration — without waiting for the 20s pull-loop to run `fetchZone`.
+    private func cacheShare(_ share: CKShare, forTripID tripID: UUID, context: NSManagedObjectContext) {
+        guard let store = sharedStore(in: context) else { return }
+        let zoneName = SharedZoneSharing.zoneID(for: tripID).zoneName
+        let request = SyncState.fetchRequest()
+        request.predicate = NSPredicate(format: "zoneName == %@ AND databaseScope == %@", zoneName, "private")
+        request.fetchLimit = 1
+        let state = (try? context.fetch(request))?.first ?? SyncState(context: context)
+        if state.objectID.isTemporaryID { context.assign(state, to: store) }
+        state.zoneName = zoneName
+        state.ownerName = share.recordID.zoneID.ownerName
+        state.databaseScope = "private"
+        let coder = NSKeyedArchiver(requiringSecureCoding: true)
+        share.encodeSystemFields(with: coder)
+        state.shareSystemFields = coder.encodedData
+        try? context.save()
+        daythreadLog.log("TripStoreMigrator: cached CKShare for \(zoneName, privacy: .public)")
+    }
 
     private func sharedStore(in context: NSManagedObjectContext) -> NSPersistentStore? {
         context.persistentStoreCoordinator?.persistentStores

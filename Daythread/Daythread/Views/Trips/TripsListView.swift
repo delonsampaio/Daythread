@@ -23,15 +23,34 @@ struct TripsListView: View {
     // trips to flip between sections mid-scroll if the clock ticks.
     @State private var now = Date()
 
-    private var currentTrips: [Trip]  { allTrips.filter { !$0.isArchived && $0.startDate <= now && $0.endDate >= now } }
-    private var upcomingTrips: [Trip] { allTrips.filter { !$0.isArchived && $0.startDate > now } }
-    private var pastTrips: [Trip]     { allTrips.filter { !$0.isArchived && $0.endDate < now } }
-    private var archivedTrips: [Trip] { allTrips.filter(\.isArchived) }
+    /// Deduplicated trip list. During the migration window NSPCKC can re-import
+    /// the original into the private store before its CloudKit deletion propagates,
+    /// producing two Trip objects with the same id (original + clone). Keep the
+    /// shared-store clone (.migration == .done) when both exist.
+    private var deduplicatedTrips: [Trip] {
+        var seen: [UUID: Trip] = [:]
+        for trip in allTrips {
+            guard let id = trip.id else { continue }
+            if let existing = seen[id] {
+                // Prefer the shared-store clone over any private-store duplicate.
+                let tripIsClone = trip.objectID.persistentStore?.url?.lastPathComponent == "shared.sqlite"
+                if tripIsClone { seen[id] = trip } else { _ = existing }
+            } else {
+                seen[id] = trip
+            }
+        }
+        return allTrips.filter { $0.id.map { seen[$0] === $0 } ?? false }
+    }
+
+    private var currentTrips: [Trip]  { deduplicatedTrips.filter { !$0.isArchived && $0.startDate <= now && $0.endDate >= now } }
+    private var upcomingTrips: [Trip] { deduplicatedTrips.filter { !$0.isArchived && $0.startDate > now } }
+    private var pastTrips: [Trip]     { deduplicatedTrips.filter { !$0.isArchived && $0.endDate < now } }
+    private var archivedTrips: [Trip] { deduplicatedTrips.filter(\.isArchived) }
 
     var body: some View {
         NavigationStack {
             Group {
-                if allTrips.filter({ !$0.isArchived }).isEmpty {
+                if deduplicatedTrips.filter({ !$0.isArchived }).isEmpty {
                     emptyState
                 } else {
                     ScrollView {
@@ -83,7 +102,7 @@ struct TripsListView: View {
                 now = Date()
                 // Sync participants for every shared trip so avatar stacks on
                 // trip cards populate without the user having to open GroupSync.
-                for trip in allTrips where trip.cloudKitShareID != nil {
+                for trip in deduplicatedTrips where trip.cloudKitShareID != nil {
                     cloudKit.syncParticipants(for: trip, context: context)
                 }
             }

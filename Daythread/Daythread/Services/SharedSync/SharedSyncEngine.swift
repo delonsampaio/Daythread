@@ -305,8 +305,15 @@ final class SharedSyncEngine {
         forZone zoneID: CKRecordZone.ID,
         in container: CKContainer
     ) -> CKDatabase {
-        if zoneID.zoneName.hasPrefix("Zone-") && zoneID.ownerName == CKCurrentUserDefaultName {
-            return container.privateCloudDatabase
+        // CKCurrentUserDefaultName ("__defaultOwner__") is the sentinel used when
+        // creating zones. After a fetch CloudKit returns the real owner record name
+        // in system fields — so we must also accept the cached real ID. Otherwise
+        // pushes after the first fetchAllOwnedZones would be routed to the shared DB.
+        if zoneID.zoneName.hasPrefix("Zone-") {
+            let myID = UserDefaults.standard.string(forKey: "daythread.currentUserCloudKitID")
+            if zoneID.ownerName == CKCurrentUserDefaultName || zoneID.ownerName == myID {
+                return container.privateCloudDatabase
+            }
         }
         return container.sharedCloudDatabase
     }
