@@ -13,6 +13,8 @@ struct ProfileView: View {
     @Environment(TripStore.self) private var store
     @State private var vm = ProfileViewModel()
     @State private var showPaywall = false
+    @State private var versionTapCount = 0
+    @State private var showBetaProToggle = false
     @AppStorage("daythread.userDisplayName") private var displayName = ""
 
     // Needed to detect whether the user is part of any shared trip.
@@ -104,6 +106,33 @@ struct ProfileView: View {
                         Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—")
                             .foregroundStyle(ThemeTokens.textMuted)
                             .font(ThemeTokens.monoCaption)
+                    }
+                    // Hidden beta tester toggle: tap version row 5 times.
+                    .onTapGesture {
+                        versionTapCount += 1
+                        if versionTapCount >= 5 {
+                            versionTapCount = 0
+                            showBetaProToggle = true
+                        }
+                    }
+                }
+
+                if showBetaProToggle {
+                    Section {
+                        if store.isPro {
+                            Button("Revoke Pro (beta)", role: .destructive) {
+                                store.isPro = false
+                            }
+                        } else {
+                            Button("Grant Pro (beta)") {
+                                store.isPro = true
+                            }
+                            .foregroundStyle(ThemeTokens.accentPro)
+                        }
+                    } header: {
+                        Text("Beta Testing")
+                    } footer: {
+                        Text("Tap version 5× again to dismiss.")
                     }
                 }
             }
