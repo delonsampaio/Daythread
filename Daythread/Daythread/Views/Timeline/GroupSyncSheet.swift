@@ -180,14 +180,16 @@ struct GroupSyncSheet: View {
                 // sees co-editors immediately (not just after they open the
                 // app themselves). Then register the current user's own entry.
                 cloudKit.syncParticipants(for: trip, context: context, fetchLive: true)
+                // Resolve the live clone in case `trip` is the zombie NSPCKC original
+                // (managedObjectContext == nil after Phase 3 purge). The zombie's
+                // cloudKitShareID returns nil, causing the guard below to exit early
+                // and skip the name prompt — the owner sees "Traveler" forever.
+                let liveTrip = resolvedLiveTrip() ?? trip
                 // Only register once the trip is actually shared.
-                guard trip.cloudKitShareID != nil else { return }
-                // Always register immediately — registerCurrentUserMembership falls
-                // back to the iCloud account name (same name shown in the system
-                // sharing sheet) when no profile name is set. This ensures the user
-                // appears in the member roster and Limit Visibility without having to
-                // explicitly enter a name first.
-                await registerMyMembership()
+                guard liveTrip.cloudKitShareID != nil else { return }
+                // Always register immediately using the live trip object so the
+                // owner's membership is written to the shared store, not a zombie.
+                await cloudKit.registerCurrentUserMembership(in: liveTrip, displayName: myName, context: context, store: store)
                 // After registering, offer a prompt to personalise the name only when
                 // the profile name is still empty — the user may want a different name
                 // than their iCloud account name, but it's non-blocking now.

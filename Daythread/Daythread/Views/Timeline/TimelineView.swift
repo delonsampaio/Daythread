@@ -317,6 +317,10 @@ private struct DayTimelineSection: View {
     /// import (.dayThreadRemoteChangeDidApply), and on any local context change —
     /// always reading current state straight from the store.
     @State private var fetchedEvents: [TripEvent] = []
+    /// Incremented on every remote change so isVisible re-evaluates even when
+    /// fetchedEvents contains the same NSManagedObject pointers (same objects,
+    /// but their visibleToMemberIDs attribute changed on the server).
+    @State private var visibilityVersion: Int = 0
 
     var body: some View {
         if !day.isAlive {
@@ -339,6 +343,10 @@ private struct DayTimelineSection: View {
         // Remote CloudKit imports post this after merging into the viewContext.
         .onReceive(NotificationCenter.default.publisher(for: .dayThreadRemoteChangeDidApply)) { _ in
             reload()
+            // Bump the version token so isVisible re-evaluates even when the
+            // same NSManagedObject pointers are returned (visibleToMemberIDs
+            // attribute changed but object identity is the same).
+            visibilityVersion &+= 1
         }
         // Local edits (add/edit/delete/drag) mutate the viewContext on the main
         // thread; re-fetch so this day stays in sync without @FetchRequest.
@@ -365,6 +373,10 @@ private struct DayTimelineSection: View {
 
     @ViewBuilder
     private var dayContent: some View {
+        // visibilityVersion is read here so SwiftUI marks this computed property
+        // as depending on it — guaranteeing re-evaluation after every remote change
+        // even when fetchedEvents contains identical NSManagedObject pointers.
+        let _ = visibilityVersion
         // Soft-filter: exclude pending-delete and private events the current
         // user isn't the originator of.
         let events = fetchedEvents
