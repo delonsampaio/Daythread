@@ -11,6 +11,7 @@ extension SyncState {
     @NSManaged public var changeTokenData: Data?
     @NSManaged public var lastSyncedAt: Date?
     @NSManaged public var databaseScope: String
+    @NSManaged public var shareSystemFields: Data?
 }
 
 extension SyncState: Identifiable {}

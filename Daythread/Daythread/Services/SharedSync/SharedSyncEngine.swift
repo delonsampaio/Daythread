@@ -171,14 +171,17 @@ final class SharedSyncEngine {
         let token = loadToken(zoneName: zoneID.zoneName, databaseScope: databaseScope, context: context)
         do {
             let changes = try await db.recordZoneChanges(inZoneWith: zoneID, since: token)
-            let records = changes.modificationResultsByID.values.compactMap { try? $0.get().record }
+            let allRecords = changes.modificationResultsByID.values.compactMap { try? $0.get().record }
+            // Separate the CKShare (system record, not a CD_ entity) from data records.
+            let share = allRecords.first(where: { $0.recordType == CKRecord.SystemType.share }) as? CKShare
+            let records = allRecords.filter { $0.recordType != CKRecord.SystemType.share }
             let deletions = changes.deletions.map(\.recordID)
-            guard !records.isEmpty || !deletions.isEmpty else { return 0 }
+            guard !records.isEmpty || !deletions.isEmpty || share != nil else { return 0 }
 
             suppressingPush {
                 CKRecordMapper.apply(modifications: records, deletions: deletions, into: context, sharedStore: sharedStore)
             }
-            saveToken(changes.changeToken, zoneName: zoneID.zoneName, ownerName: zoneID.ownerName, databaseScope: databaseScope, context: context)
+            saveToken(changes.changeToken, zoneName: zoneID.zoneName, ownerName: zoneID.ownerName, databaseScope: databaseScope, context: context, share: share)
             NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
             daythreadLog.log("SharedSync: zone '\(zoneID.zoneName, privacy: .public)' merged \(records.count, privacy: .public) record(s), \(deletions.count, privacy: .public) deletion(s)")
             return records.count
@@ -201,7 +204,14 @@ final class SharedSyncEngine {
         return try? NSKeyedUnarchiver.unarchivedObject(ofClass: CKServerChangeToken.self, from: data)
     }
 
-    private func saveToken(_ token: CKServerChangeToken, zoneName: String, ownerName: String, databaseScope: String, context: NSManagedObjectContext) {
+    private func saveToken(
+        _ token: CKServerChangeToken,
+        zoneName: String,
+        ownerName: String,
+        databaseScope: String,
+        context: NSManagedObjectContext,
+        share: CKShare? = nil
+    ) {
         let request = SyncState.fetchRequest()
         request.predicate = NSPredicate(format: "zoneName == %@ AND databaseScope == %@", zoneName, databaseScope)
         request.fetchLimit = 1
@@ -214,6 +224,11 @@ final class SharedSyncEngine {
         state.databaseScope = databaseScope
         state.changeTokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true)
         state.lastSyncedAt = Date()
+        if let share {
+            let coder = NSKeyedArchiver(requiringSecureCoding: true)
+            share.encodeSystemFields(with: coder)
+            state.shareSystemFields = coder.encodedData
+        }
         try? context.save()
     }
 

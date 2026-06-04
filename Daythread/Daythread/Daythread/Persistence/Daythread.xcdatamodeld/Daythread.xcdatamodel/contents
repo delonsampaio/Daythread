@@ -148,6 +148,7 @@
         <attribute name="changeTokenData" optional="YES" attributeType="Binary" syncable="NO"/>
         <attribute name="lastSyncedAt" optional="YES" attributeType="Date" usesScalarValueType="NO" syncable="NO"/>
         <attribute name="databaseScope" optional="NO" attributeType="String" defaultValueString="shared" syncable="NO"/>
+        <attribute name="shareSystemFields" optional="YES" attributeType="Binary" syncable="NO"/>
     </entity>
     <elements>
         <element name="LodgingInfo" positionX="0" positionY="0" width="128" height="134"/>
