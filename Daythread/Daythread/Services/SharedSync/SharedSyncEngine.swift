@@ -22,6 +22,7 @@ final class SharedSyncEngine {
 
     private let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
     private var sharedDB: CKDatabase { container.sharedCloudDatabase }
+    private var privateDB: CKDatabase { container.privateCloudDatabase }
     private var isSyncing = false
     /// Set when a push/poll requests a fetch while one is already running. The in-flight
     /// fetch loops once more on completion so bunched-up pushes are never dropped — the
@@ -45,6 +46,7 @@ final class SharedSyncEngine {
                 if Task.isCancelled { break }
                 daythreadLog.log("SharedSync poll tick (isSyncing=\(self.isSyncing, privacy: .public))")
                 await fetchAllSharedZones()
+                await fetchAllOwnedZones()
             }
         }
     }
@@ -112,10 +114,38 @@ final class SharedSyncEngine {
                 let dbChanges = try await sharedDB.databaseChanges(since: nil)
                 let zoneIDs = dbChanges.modifications.map(\.zoneID)
                 for zoneID in zoneIDs {
-                    await fetchZone(zoneID)
+                    await fetchZone(zoneID, in: sharedDB, databaseScope: "shared")
                 }
             } catch {
                 daythreadLog.error("SharedSync fetchAll failed: \(error.localizedDescription, privacy: .public)")
+            }
+        } while pendingFetch
+    }
+
+    /// Pull changes for all custom zones the owner created in their private DB.
+    /// Skips NSPCKC's built-in zone (com.apple.coredata.cloudkit.zone) — we only
+    /// care about the custom "Zone-<tripUUID>" zones created by the sharing engine.
+    func fetchAllOwnedZones() async {
+        guard PersistenceController.useCustomSharedSync else { return }
+        guard !isSyncing else {
+            pendingFetch = true
+            daythreadLog.log("SharedSync: owned-zone fetch queued (already syncing)")
+            return
+        }
+        isSyncing = true
+        defer { isSyncing = false }
+
+        repeat {
+            pendingFetch = false
+            do {
+                let dbChanges = try await privateDB.databaseChanges(since: nil)
+                let zoneIDs = dbChanges.modifications.map(\.zoneID)
+                    .filter { $0.zoneName.hasPrefix("Zone-") }  // only our custom zones
+                for zoneID in zoneIDs {
+                    await fetchZone(zoneID, in: privateDB, databaseScope: "private")
+                }
+            } catch {
+                daythreadLog.error("SharedSync fetchOwnedZones failed: \(error.localizedDescription, privacy: .public)")
             }
         } while pendingFetch
     }
@@ -125,7 +155,7 @@ final class SharedSyncEngine {
     func fetchJoinedZone(_ zoneID: CKRecordZone.ID) async {
         guard PersistenceController.useCustomSharedSync else { return }
         for attempt in 0..<6 {
-            let count = await fetchZone(zoneID)
+            let count = await fetchZone(zoneID, in: sharedDB, databaseScope: "shared")
             if count > 0 { return }
             daythreadLog.log("SharedSync: joined zone empty (attempt \(attempt, privacy: .public)), retrying")
             try? await Task.sleep(for: .seconds(1.5))
@@ -135,12 +165,12 @@ final class SharedSyncEngine {
     // MARK: — Per-zone fetch + map
 
     @discardableResult
-    private func fetchZone(_ zoneID: CKRecordZone.ID) async -> Int {
+    private func fetchZone(_ zoneID: CKRecordZone.ID, in db: CKDatabase, databaseScope: String) async -> Int {
         let context = PersistenceController.shared.viewContext
         guard let sharedStore = Self.sharedStore(in: context) else { return 0 }
-        let token = loadToken(zoneName: zoneID.zoneName, databaseScope: "shared", context: context)
+        let token = loadToken(zoneName: zoneID.zoneName, databaseScope: databaseScope, context: context)
         do {
-            let changes = try await sharedDB.recordZoneChanges(inZoneWith: zoneID, since: token)
+            let changes = try await db.recordZoneChanges(inZoneWith: zoneID, since: token)
             let records = changes.modificationResultsByID.values.compactMap { try? $0.get().record }
             let deletions = changes.deletions.map(\.recordID)
             guard !records.isEmpty || !deletions.isEmpty else { return 0 }
@@ -148,10 +178,13 @@ final class SharedSyncEngine {
             suppressingPush {
                 CKRecordMapper.apply(modifications: records, deletions: deletions, into: context, sharedStore: sharedStore)
             }
-            saveToken(changes.changeToken, zoneName: zoneID.zoneName, ownerName: zoneID.ownerName, databaseScope: "shared", context: context)
+            saveToken(changes.changeToken, zoneName: zoneID.zoneName, ownerName: zoneID.ownerName, databaseScope: databaseScope, context: context)
             NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
             daythreadLog.log("SharedSync: zone '\(zoneID.zoneName, privacy: .public)' merged \(records.count, privacy: .public) record(s), \(deletions.count, privacy: .public) deletion(s)")
             return records.count
+        } catch let error as CKError where error.code == .zoneNotFound {
+            daythreadLog.error("SharedSync: zone '\(zoneID.zoneName, privacy: .public)' not found — will purge on next task")
+            return 0
         } catch {
             daythreadLog.error("SharedSync zone '\(zoneID.zoneName, privacy: .public)' fetch failed: \(error.localizedDescription, privacy: .public)")
             return 0
