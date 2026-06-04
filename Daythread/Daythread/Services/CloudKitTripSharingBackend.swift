@@ -27,7 +27,7 @@ struct CloudKitTripSharingBackend: TripSharingBackend {
 
     func makeShare(for trip: Trip) async throws -> CKShare {
         guard let tripID = trip.id else { throw CocoaError(.fileNoSuchFile) }
-        let title = trip.name ?? ""
+        let title = trip.name
 
         // If already migrated and shared, return the cached/fetched share.
         if trip.migration == .done || trip.objectID.persistentStore?.url?.lastPathComponent == "shared.sqlite" {

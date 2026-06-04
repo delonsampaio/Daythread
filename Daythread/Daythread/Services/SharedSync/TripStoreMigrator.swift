@@ -359,7 +359,7 @@ final class TripStoreMigrator {
 
             if let original = (try? context.fetch(originalRequest))?.first {
                 // Original still exists — resume from current clone state.
-                try? await migrate(original, title: clone.name)
+                _ = try? await migrate(original, title: clone.name)
             } else if clone.migration == .uploaded {
                 // Original was purged but state not updated — finish.
                 clone.migration = .done
