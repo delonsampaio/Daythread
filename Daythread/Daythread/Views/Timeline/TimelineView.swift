@@ -345,6 +345,12 @@ private struct DayTimelineSection: View {
         .onReceive(NotificationCenter.default.publisher(for: .NSManagedObjectContextObjectsDidChange, object: context)) { _ in
             reload()
         }
+        // currentUserCloudKitID is set asynchronously at launch. Re-evaluate
+        // isVisible when it arrives so Limit Visibility filters correctly
+        // without requiring a manual refresh.
+        .onChange(of: store.currentUserCloudKitID) { _ , _ in
+            reload()
+        }
         }
     }
 

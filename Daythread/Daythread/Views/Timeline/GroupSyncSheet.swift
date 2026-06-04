@@ -28,6 +28,19 @@ struct GroupSyncSheet: View {
 
     @AppStorage("daythread.userDisplayName") private var myName = ""
 
+    /// Live fetch of this trip's real members so the list updates immediately
+    /// when registerMyMembership saves a new record — without waiting for the
+    /// @ObservedObject trip relationship cache to be invalidated.
+    @FetchRequest private var members: FetchedResults<TripMember>
+
+    init(trip: Trip) {
+        self.trip = trip
+        _members = FetchRequest(
+            sortDescriptors: [NSSortDescriptor(keyPath: \TripMember.joinedAt, ascending: true)],
+            predicate: NSPredicate(format: "trip == %@ AND isVirtual == NO", trip)
+        )
+    }
+
     @State private var cloudKit = CloudKitService()
     /// Non-nil while the UICloudSharingController sheet is presented.
     @State private var sharingSheet: IdentifiableShare? = nil
@@ -108,9 +121,9 @@ struct GroupSyncSheet: View {
                     }
                 }
 
-                // Only show real co-editors — virtual (expense-only) members
-                // are managed in the Vault split-expenses sheet, not here.
-                let members = trip.membersArray.filter { !$0.isVirtual }
+                // Live-fetched real co-editors (FetchRequest updates immediately
+                // when registerMyMembership saves, without waiting for the trip
+                // relationship cache to be invalidated).
                 if !members.isEmpty {
                     Section("Members (\(members.count))") {
                         ForEach(members) { member in
