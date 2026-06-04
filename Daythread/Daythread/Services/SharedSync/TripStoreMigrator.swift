@@ -14,6 +14,7 @@
 //  the already-uploaded custom-zone records.
 //
 
+import CloudKit
 import CoreData
 import os
 
@@ -196,6 +197,177 @@ final class TripStoreMigrator {
         // ckRecordName, ckSystemFields, and event are set by the caller.
     }
 
+    // MARK: — Phase 2 + 3: Upload + Purge
+
+    /// Full migration: clone → upload to custom zone → purge NSPCKC originals.
+    /// Returns the clone (now in the shared store with migration state .done).
+    /// Throws on any CloudKit failure — the clone remains in the shared store
+    /// with state .cloned or .uploaded so `resumeInterruptedMigrations()` can retry.
+    func migrate(_ trip: Trip, title: String) async throws -> Trip {
+        let context = PersistenceController.shared.viewContext
+        guard let tripID = trip.id else { throw MigrationError.missingTripID }
+
+        // Phase 1: Clone (if not already done from a previous interrupted run).
+        let clone: Trip
+        if let existing = findExistingClone(of: trip, in: context) {
+            daythreadLog.log("TripStoreMigrator: resuming migration for '\(trip.name, privacy: .public)' from state \(existing.migrationState, privacy: .public)")
+            clone = existing
+        } else {
+            clone = try cloneGraph(trip)
+        }
+
+        // Phase 2: Create zone + share, push the clone.
+        if clone.migration == .cloned {
+            let sharing = SharedZoneSharing()
+            let share = try await sharing.makeZoneShare(forTripID: tripID, title: title)
+            // Push the entire cloned graph to the new custom zone.
+            try await uploadClone(clone, tripID: tripID, context: context)
+            // Mark uploaded BEFORE purging — crash here leaves state .uploaded
+            // which resumeInterruptedMigrations will finish.
+            clone.migration = .uploaded
+            clone.cloudKitShareID = share.recordID.recordName
+            try context.save()
+        }
+
+        // Phase 3: Purge the NSPCKC originals (ONLY after confirmed upload).
+        if clone.migration == .uploaded {
+            try purgeNSPCKCOriginals(of: trip, context: context)
+            clone.migration = .done
+            try context.save()
+            daythreadLog.log("TripStoreMigrator: migration complete for '\(clone.name, privacy: .public)'")
+        }
+
+        return clone
+    }
+
+    /// Pushes all shared-store objects in the cloned graph directly via
+    /// CKModifyRecordsOperation to the private DB zone.
+    /// Does NOT use SharedSyncEngine.pushLocalChanges (which would fire the
+    /// echo-suppression path). Calls CKRecordMapper directly and awaits .success.
+    private func uploadClone(_ clone: Trip, tripID: UUID, context: NSManagedObjectContext) async throws {
+        // Collect all objects in the clone's graph (shared store only).
+        var objects: [NSManagedObject] = [clone]
+        objects += clone.daysArray as [NSManagedObject]
+        for day in clone.daysArray {
+            objects += day.eventsArray as [NSManagedObject]
+            for event in day.eventsArray {
+                if let td = event.transitDetails { objects.append(td) }
+            }
+        }
+        objects += clone.documentsArray as [NSManagedObject]
+        objects += clone.expensesArray as [NSManagedObject]
+        objects += clone.lodgingArray as [NSManagedObject]
+        objects += clone.membersArray as [NSManagedObject]
+        objects += clone.preTripTasksArray as [NSManagedObject]
+
+        // Sort parents before children so relationship recordNames are set first.
+        let ordered = objects.sorted { TripStoreMigrator.hierarchyRank($0) < TripStoreMigrator.hierarchyRank($1) }
+
+        // Build CKRecords. Since these are brand-new clones with no system fields
+        // yet, we set the zoneID explicitly by constructing each record directly.
+        let zoneID = SharedZoneSharing.zoneID(for: tripID)
+        let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
+        let privateDB = container.privateCloudDatabase
+
+        var records: [CKRecord] = []
+        for object in ordered {
+            guard let entityName = object.entity.name,
+                  CKRecordMapper.syncedEntities.contains(entityName) else { continue }
+            let recordName = (object.value(forKey: "ckRecordName") as? String) ?? UUID().uuidString
+            object.setValue(recordName, forKey: "ckRecordName")
+            let recordID = CKRecord.ID(recordName: recordName, zoneID: zoneID)
+            let record = CKRecord(recordType: "CD_\(entityName)", recordID: recordID)
+            CKRecordMapper.applyFields(of: object, to: record)
+            records.append(record)
+            // Store system fields back so future updates use the right change tag.
+            object.setValue(CKRecordMapper.encodedSystemFields(of: record), forKey: "ckSystemFields")
+        }
+
+        guard !records.isEmpty else { return }
+
+        daythreadLog.log("TripStoreMigrator: uploading \(records.count, privacy: .public) records to \(zoneID.zoneName, privacy: .public)")
+
+        // Upload — await confirmed success before proceeding.
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            let op = CKModifyRecordsOperation(recordsToSave: records, recordIDsToDelete: nil)
+            op.savePolicy = .allKeys   // new records — no change tag conflict possible
+            op.isAtomic = false        // upload whatever succeeds; partial success is better than none
+            op.qualityOfService = .userInitiated
+            op.modifyRecordsResultBlock = { result in
+                switch result {
+                case .success: cont.resume()
+                case .failure(let error): cont.resume(throwing: error)
+                }
+            }
+            privateDB.add(op)
+        }
+        daythreadLog.log("TripStoreMigrator: upload confirmed")
+        try context.save()   // persist updated ckSystemFields
+    }
+
+    /// Deletes the original Trip graph from the NSPCKC store.
+    /// ONLY called after uploadClone returns successfully.
+    /// SAFETY: only deletes objects whose store is NOT shared.sqlite.
+    private func purgeNSPCKCOriginals(of trip: Trip, context: NSManagedObjectContext) throws {
+        // Verify this trip is still in the NSPCKC store (not the shared store).
+        guard trip.objectID.persistentStore?.url?.lastPathComponent != "shared.sqlite" else {
+            daythreadLog.log("TripStoreMigrator: original already in shared store — skip purge")
+            return
+        }
+        daythreadLog.log("TripStoreMigrator: purging NSPCKC original '\(trip.name, privacy: .public)'")
+        // Cascade deletes handle all children (days → events → transitDetails,
+        // documents, expenses, lodging, members, preTripTasks).
+        context.delete(trip)
+        try context.save()
+        daythreadLog.log("TripStoreMigrator: NSPCKC original purged")
+    }
+
+    // MARK: — Interrupted-migration recovery
+
+    /// Find a clone of `trip` already in the shared store (from a previous interrupted run).
+    private func findExistingClone(of trip: Trip, in context: NSManagedObjectContext) -> Trip? {
+        guard let tripID = trip.id else { return nil }
+        let request = Trip.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@ AND migrationState > 0", tripID as CVarArg)
+        request.fetchLimit = 1
+        guard let store = sharedStore(in: context) else { return nil }
+        request.affectedStores = [store]
+        return (try? context.fetch(request))?.first
+    }
+
+    /// Call on launch to resume any migration interrupted by a crash.
+    func resumeInterruptedMigrations() async {
+        let context = PersistenceController.shared.viewContext
+        guard let store = sharedStore(in: context) else { return }
+
+        let request = Trip.fetchRequest()
+        request.predicate = NSPredicate(format: "migrationState > 0 AND migrationState < 3")
+        request.affectedStores = [store]
+        guard let interrupted = try? context.fetch(request), !interrupted.isEmpty else { return }
+
+        for clone in interrupted {
+            daythreadLog.log("TripStoreMigrator: resuming interrupted migration state=\(clone.migrationState, privacy: .public)")
+            // Find the NSPCKC original by trip ID to pass to migrate().
+            guard let tripID = clone.id else { continue }
+            let originalRequest = Trip.fetchRequest()
+            originalRequest.predicate = NSPredicate(format: "id == %@ AND migrationState == 0", tripID as CVarArg)
+            originalRequest.fetchLimit = 1
+            // Search only non-shared stores.
+            let privateStores = context.persistentStoreCoordinator?.persistentStores
+                .filter { $0.url?.lastPathComponent != "shared.sqlite" } ?? []
+            originalRequest.affectedStores = privateStores
+
+            if let original = (try? context.fetch(originalRequest))?.first {
+                // Original still exists — resume from current clone state.
+                try? await migrate(original, title: clone.name)
+            } else if clone.migration == .uploaded {
+                // Original was purged but state not updated — finish.
+                clone.migration = .done
+                try? context.save()
+            }
+        }
+    }
+
     // MARK: — Helpers
 
     private func sharedStore(in context: NSManagedObjectContext) -> NSPersistentStore? {
@@ -203,7 +375,18 @@ final class TripStoreMigrator {
             .first { $0.url?.lastPathComponent == "shared.sqlite" }
     }
 
+    private static func hierarchyRank(_ object: NSManagedObject) -> Int {
+        switch object.entity.name {
+        case "Trip": return 0
+        case "TripDay": return 1
+        case "TripEvent": return 2
+        case "TransitDetails": return 3
+        default: return 1
+        }
+    }
+
     enum MigrationError: Error {
         case sharedStoreNotFound
+        case missingTripID
     }
 }
