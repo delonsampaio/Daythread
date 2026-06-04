@@ -200,10 +200,11 @@ final class TripStoreMigrator {
     // MARK: — Phase 2 + 3: Upload + Purge
 
     /// Full migration: clone → upload to custom zone → purge NSPCKC originals.
-    /// Returns the clone (now in the shared store with migration state .done).
+    /// Returns (clone, share) where share is the live CKShare from makeZoneShare.
+    /// On a resumed migration (.uploaded), share is nil — caller should fetch it.
     /// Throws on any CloudKit failure — the clone remains in the shared store
     /// with state .cloned or .uploaded so `resumeInterruptedMigrations()` can retry.
-    func migrate(_ trip: Trip, title: String) async throws -> Trip {
+    func migrate(_ trip: Trip, title: String) async throws -> (Trip, CKShare?) {
         let context = PersistenceController.shared.viewContext
         guard let tripID = trip.id else { throw MigrationError.missingTripID }
 
@@ -217,6 +218,7 @@ final class TripStoreMigrator {
         }
 
         // Phase 2: Create zone + share, push the clone.
+        var freshShare: CKShare? = nil
         if clone.migration == .cloned {
             let sharing = SharedZoneSharing()
             let share = try await sharing.makeZoneShare(forTripID: tripID, title: title)
@@ -227,6 +229,7 @@ final class TripStoreMigrator {
             clone.migration = .uploaded
             clone.cloudKitShareID = share.recordID.recordName
             try context.save()
+            freshShare = share
         }
 
         // Phase 3: Purge the NSPCKC originals (ONLY after confirmed upload).
@@ -237,7 +240,7 @@ final class TripStoreMigrator {
             daythreadLog.log("TripStoreMigrator: migration complete for '\(clone.name, privacy: .public)'")
         }
 
-        return clone
+        return (clone, freshShare)
     }
 
     /// Pushes all shared-store objects in the cloned graph directly via
@@ -359,7 +362,7 @@ final class TripStoreMigrator {
 
             if let original = (try? context.fetch(originalRequest))?.first {
                 // Original still exists — resume from current clone state.
-                _ = try? await migrate(original, title: clone.name)
+                _ = try? await migrate(original, title: clone.name).0
             } else if clone.migration == .uploaded {
                 // Original was purged but state not updated — finish.
                 clone.migration = .done

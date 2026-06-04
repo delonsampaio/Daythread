@@ -101,18 +101,25 @@ struct SharedZoneSharing {
 
     /// Fetches the zone-wide CKShare from the private DB. Used when presenting
     /// UICloudSharingController for an already-shared trip.
-    func fetchShare(forTripID tripID: UUID) async throws -> CKShare? {
+    /// Retries up to `attempts` times with a short delay — the zone-wide share
+    /// record may not be immediately readable right after zone creation.
+    func fetchShare(forTripID tripID: UUID, attempts: Int = 1) async throws -> CKShare? {
         let zoneID = Self.zoneID(for: tripID)
-        // The zone-wide share record ID is always zoneID + CKRecordType.share.
         let shareRecordID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: zoneID)
-        do {
-            let results = try await privateDB.records(for: [shareRecordID])
-            if case .success(let record) = results[shareRecordID], let share = record as? CKShare {
-                return share
+        for attempt in 0..<max(1, attempts) {
+            do {
+                let results = try await privateDB.records(for: [shareRecordID])
+                if case .success(let record) = results[shareRecordID], let share = record as? CKShare {
+                    return share
+                }
+            } catch let error as CKError where error.code == .unknownItem {
+                // Zone exists but share record not yet visible — retry below.
+                daythreadLog.log("SharedZoneSharing: fetchShare unknownItem (attempt \(attempt + 1, privacy: .public)/\(attempts, privacy: .public))")
             }
-            return nil
-        } catch let error as CKError where error.code == .unknownItem {
-            return nil   // zone exists but share not found yet — caller can retry
+            if attempt < attempts - 1 {
+                try? await Task.sleep(for: .seconds(1.5))
+            }
         }
+        return nil
     }
 }
