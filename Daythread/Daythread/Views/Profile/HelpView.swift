@@ -314,7 +314,7 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "How do I upgrade to Pro?",
-                answer: "Go to the Profile tab and tap 'Upgrade to Pro'. The one-time $9.99 Lifetime purchase includes Family Sharing — everyone in your iCloud Family can use Pro features.",
+                answer: "Go to the Profile tab and tap 'Upgrade to Pro'. The one-time $4.99 Lifetime purchase includes Family Sharing — everyone in your iCloud Family can use Pro features.",
                 isPro: true
             )
             FAQRow(
@@ -385,7 +385,7 @@ struct HelpView: View {
         .init(section: "Co-editing & Sync", question: "Why do my co-editors show as 'Owner' instead of a name?", answer: "Apple's system sharing sheet only shows names for people in your Contacts. Set your name in Settings → Your Profile so co-editors see it in Daythread's own Members list, regardless of Contacts.", isPro: true),
         .init(section: "Co-editing & Sync", question: "How do I stop sharing a trip, or leave a shared trip?", answer: "Owner: open Group Sync, tap 'Trip is shared — Manage people & permissions', then choose 'Stop Sharing'. Participant: tap 'Trip is shared', then 'Stop Accessing'.", isPro: true),
         .init(section: "Pro Features", question: "What's included in Daythread Pro?", answer: "Pro unlocks: Unlimited document storage · Receipt photo attachments on expenses · Expense splitting with debt minimisation · Trip sharing & co-editing · ETA badges between events · Role-based permissions.", isPro: true),
-        .init(section: "Pro Features", question: "How do I upgrade to Pro?", answer: "Go to the Profile tab and tap 'Upgrade to Pro'. The one-time $9.99 Lifetime purchase includes Family Sharing.", isPro: true),
+        .init(section: "Pro Features", question: "How do I upgrade to Pro?", answer: "Go to the Profile tab and tap 'Upgrade to Pro'. The one-time $4.99 Lifetime purchase includes Family Sharing.", isPro: true),
         .init(section: "Pro Features", question: "How do I restore my Pro purchase on a new device?", answer: "Go to Profile → Settings and tap 'Restore Purchases'.", isPro: true),
         .init(section: "Pro Features", question: "What are ETA badges?", answer: "ETA badges appear between consecutive events on the same day and show the estimated travel time — for example, '12 min walk →'.", isPro: true),
         .init(section: "Pro Features", question: "I'm not receiving Pro features after purchasing. What should I do?", answer: "Try restoring purchases from Profile → Settings → Restore Purchases. If the issue persists, email delon.sampaio+daythread@gmail.com with your order number."),

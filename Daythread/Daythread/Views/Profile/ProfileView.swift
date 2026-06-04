@@ -73,7 +73,7 @@ struct ProfileView: View {
                             HStack {
                                 Image(systemName: "lock.open.fill")
                                     .foregroundStyle(ThemeTokens.accentPro)
-                                Text("Unlock Lifetime Pro — $9.99")
+                                Text("Unlock Lifetime Pro — $4.99")
                                     .foregroundStyle(ThemeTokens.accentPro)
                                     .fontWeight(.semibold)
                                 Spacer()

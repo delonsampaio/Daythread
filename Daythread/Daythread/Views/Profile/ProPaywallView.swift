@@ -75,7 +75,7 @@ struct ProPaywallView: View {
                             if vm.isFetchingProduct || vm.isPurchasing {
                                 ProgressView().tint(.white)
                             } else {
-                                Text("Unlock Lifetime Pro — \(vm.product?.displayPrice ?? "$9.99")")
+                                Text("Unlock Lifetime Pro — \(vm.product?.displayPrice ?? "$4.99")")
                                     .font(.system(size: 17, weight: .bold))
                             }
                         }
