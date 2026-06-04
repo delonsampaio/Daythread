@@ -33,7 +33,6 @@ struct DaythreadApp: App {
                     if localName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                        !kvsName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         UserDefaults.standard.set(kvsName, forKey: "daythread.userDisplayName")
-                        daythreadLog.log("KVS: restored display name from iCloud KVS")
                     }
                 }
                 // KVS: push any local name change up to iCloud so other devices pick it up.
