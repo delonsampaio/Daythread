@@ -167,18 +167,20 @@ struct GroupSyncSheet: View {
                 // sees co-editors immediately (not just after they open the
                 // app themselves). Then register the current user's own entry.
                 cloudKit.syncParticipants(for: trip, context: context)
-                // Only deal with the display name once the trip is actually shared.
-                // For an unshared trip the registration path early-returns anyway, and
-                // auto-prompting here put a name alert + keyboard on screen right as the
-                // user taps "Invite People" — pure clutter during the invite flow.
+                // Only register once the trip is actually shared.
                 guard trip.cloudKitShareID != nil else { return }
-                // Prompt for a display name if none is set — otherwise co-editors
-                // would see a neutral "Traveler" placeholder instead of a real name.
+                // Always register immediately — registerCurrentUserMembership falls
+                // back to the iCloud account name (same name shown in the system
+                // sharing sheet) when no profile name is set. This ensures the user
+                // appears in the member roster and Limit Visibility without having to
+                // explicitly enter a name first.
+                await registerMyMembership()
+                // After registering, offer a prompt to personalise the name only when
+                // the profile name is still empty — the user may want a different name
+                // than their iCloud account name, but it's non-blocking now.
                 if myName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     nameInput = ""
                     showNamePrompt = true
-                } else {
-                    await registerMyMembership()
                 }
             }
             .alert("Your name", isPresented: $showNamePrompt) {
@@ -255,31 +257,28 @@ struct GroupSyncSheet: View {
 
     /// Registers the current iCloud user as a real member of this shared trip so
     /// co-editors see real names + roles instead of Apple's Contacts-dependent
-    /// "Owner" label.
+    /// "Owner" label. Resolves the live clone when `trip` is a zombie (purged original).
     private func registerMyMembership() async {
-        await cloudKit.registerCurrentUserMembership(in: trip, displayName: myName, context: context, store: store)
+        let liveTrip = resolvedLiveTrip() ?? trip
+        await cloudKit.registerCurrentUserMembership(in: liveTrip, displayName: myName, context: context, store: store)
+    }
+
+    /// Returns the live Core Data object for this trip, resolving the shared-store
+    /// clone when the original has been purged (managedObjectContext == nil).
+    private func resolvedLiveTrip() -> Trip? {
+        guard trip.managedObjectContext == nil, let tripID = trip.id else { return nil }
+        let request = Trip.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", tripID as CVarArg)
+        request.fetchLimit = 1
+        return (try? context.fetch(request))?.first
     }
 
     /// Opens the system sharing sheet for the trip's EXISTING share so the user
     /// can manage participants and permissions without stopping sharing first.
     private func manageSharing() {
-        // The trip passed in may be the NSPCKC original that was purged during
-        // migration. Resolve the live object from the context by id before fetching
-        // the share so cachedShare(forTripID:) gets the right UUID.
-        let liveTrip: Trip
-        if trip.managedObjectContext == nil, let tripID = trip.id {
-            let request = Trip.fetchRequest()
-            request.predicate = NSPredicate(format: "id == %@ AND migrationState == 3", tripID as CVarArg)
-            request.fetchLimit = 1
-            if let resolved = (try? context.fetch(request))?.first {
-                liveTrip = resolved
-            } else {
-                // Clone not found yet — show an error rather than silently failing.
-                cloudKit.errorMessage = "Share is still being prepared. Please try again in a moment."
-                return
-            }
-        } else {
-            liveTrip = trip
+        guard let liveTrip = resolvedLiveTrip() ?? (trip.managedObjectContext != nil ? trip : nil) else {
+            cloudKit.errorMessage = "Share is still being prepared. Please try again in a moment."
+            return
         }
 
         isPreparing = true
