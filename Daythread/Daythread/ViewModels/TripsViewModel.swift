@@ -5,8 +5,9 @@
 //  Created by Delon Sampaio on 5/26/26.
 //
 
-import Foundation
+import CloudKit
 import CoreData
+import Foundation
 import Observation
 
 @Observable
@@ -57,10 +58,13 @@ final class TripsViewModel {
     }
 
     func deleteTrip(_ trip: Trip, context: NSManagedObjectContext) {
-        // Also delete any duplicate objects with the same id (e.g. the NSPCKC
-        // original that NSPCKC re-imports before its deletion export propagates,
-        // and the shared-store clone created during migration). Without this the
-        // trip reappears after a single delete because the survivor is still live.
+        // Delete the CloudKit zone so participants are notified and the zone
+        // doesn't become permanently orphaned in the owner's private database.
+        if trip.cloudKitShareID != nil, let tripID = trip.id {
+            let sharing = SharedZoneSharing()
+            Task { try? await sharing.deleteZone(forTripID: tripID) }
+        }
+        // Delete all copies with the same id (NSPCKC re-import + shared-store clone).
         if let tripID = trip.id {
             let request = Trip.fetchRequest()
             request.predicate = NSPredicate(format: "id == %@", tripID as CVarArg)

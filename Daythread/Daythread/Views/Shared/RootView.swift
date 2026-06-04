@@ -35,7 +35,7 @@ struct RootView: View {
         // synced CloudKit record) to avoid UUID bridging crashes during sync.
         .onChange(of: activeTrips.map(\.objectID)) { _, _ in
             for trip in activeTrips where trip.cloudKitShareID != nil {
-                cloudKit.syncParticipants(for: trip, context: context)
+                cloudKit.syncParticipants(for: trip, context: context, fetchLive: false)
             }
         }
         // Safety net for passive share revocation: when the share owner removes a
@@ -72,7 +72,7 @@ struct RootView: View {
                 // events because accepting a CKShare invite doesn't change the
                 // trip's objectID — only the CKShare's participant list in CloudKit.
                 for trip in activeTrips where trip.cloudKitShareID != nil && trip.isAlive {
-                    cloudKit.syncParticipants(for: trip, context: context)
+                    cloudKit.syncParticipants(for: trip, context: context, fetchLive: false)
                 }
                 // Reschedule notifications for all future timed events after a CloudKit
                 // import. Co-editors' event changes (time edits, day moves) arrive here

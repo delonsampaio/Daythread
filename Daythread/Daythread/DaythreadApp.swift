@@ -39,6 +39,7 @@ struct DaythreadApp: App {
                     SharedSyncEngine.shared.start()
                     await TripStoreMigrator.shared.resumeInterruptedMigrations()
                     await SharedSyncEngine.shared.fetchAllSharedZones()
+                    await SharedSyncEngine.shared.fetchAllOwnedZones()
                 }
                 // Pull on foreground, and poll while active (push alone is throttled
                 // by iOS and eventually stops delivering). Stop polling in the background.
@@ -51,6 +52,7 @@ struct DaythreadApp: App {
                             // no shares at cold launch.
                             await ck.seedIdentityIfNeeded(store: store)
                             await SharedSyncEngine.shared.fetchAllSharedZones()
+                            await SharedSyncEngine.shared.fetchAllOwnedZones()
                         }
                         SharedSyncEngine.shared.startPeriodicSync()
                     } else {

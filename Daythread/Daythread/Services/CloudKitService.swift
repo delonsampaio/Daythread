@@ -156,10 +156,17 @@ final class CloudKitService {
         let current = UserDefaults.standard.string(forKey: "daythread.userDisplayName") ?? ""
         guard current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
-        // Scan Zone-* shares in private DB first (owner zones), then shared DB
-        // (participant zones). Stop at the first nameComponents match.
-        let sharing = SharedZoneSharing()
+        // Try to resolve the name directly from the user's own iCloud identity —
+        // works even before any trip is shared.
         let formatter = PersonNameComponentsFormatter()
+        if let name = await fetchOwnICloudName(recordName: recordName, formatter: formatter) {
+            UserDefaults.standard.set(name, forKey: "daythread.userDisplayName")
+            daythreadLog.log("seedIdentity: seeded display name from iCloud identity '\(name, privacy: .public)'")
+            return
+        }
+
+        // Fallback: scan Zone-* shares (works after the first trip is shared/joined).
+        let sharing = SharedZoneSharing()
         for db in [backend.container.privateCloudDatabase, backend.container.sharedCloudDatabase] {
             guard let changes = try? await db.databaseChanges(since: nil) else { continue }
             for mod in changes.modifications where mod.zoneID.zoneName.hasPrefix("Zone-") {
@@ -174,13 +181,13 @@ final class CloudKitService {
                     let name = formatter.string(from: nc)
                     if !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         UserDefaults.standard.set(name, forKey: "daythread.userDisplayName")
-                        daythreadLog.log("seedIdentity: seeded display name '\(name, privacy: .public)'")
+                        daythreadLog.log("seedIdentity: seeded display name from share '\(name, privacy: .public)'")
                         return
                     }
                 }
             }
         }
-        daythreadLog.log("seedIdentity: no share found yet — will retry on next foreground")
+        daythreadLog.log("seedIdentity: no name available yet — will retry on next foreground")
     }
 
     /// Seeds the display name immediately from a known CKShare. Called right after
@@ -200,6 +207,21 @@ final class CloudKitService {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         UserDefaults.standard.set(name, forKey: "daythread.userDisplayName")
         daythreadLog.log("seedIdentity: seeded name '\(name, privacy: .public)' from share")
+    }
+
+    /// Resolves the current user's own iCloud display name via
+    /// `discoverUserIdentity(withUserRecordID:)`. This works for the signed-in
+    /// user's own record without Contacts permission or an existing share.
+    /// Returns nil when CloudKit is unavailable or nameComponents is empty.
+    private func fetchOwnICloudName(recordName: String, formatter: PersonNameComponentsFormatter) async -> String? {
+        let recordID = CKRecord.ID(recordName: recordName)
+        return await withCheckedContinuation { cont in
+            backend.container.discoverUserIdentity(withUserRecordID: recordID) { identity, _ in
+                guard let nc = identity?.nameComponents else { cont.resume(returning: nil); return }
+                let name = formatter.string(from: nc)
+                cont.resume(returning: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : name)
+            }
+        }
     }
 
     /// True when the current user owns the trip's CKShare (vs. a participant).
@@ -227,15 +249,12 @@ final class CloudKitService {
     ///
     /// Uses the live CloudKit share so nameComponents reflect the current
     /// accepted-participant list, not the stale SyncState cache snapshot.
-    func syncParticipants(for trip: Trip, context: NSManagedObjectContext) {
+    func syncParticipants(for trip: Trip, context: NSManagedObjectContext, fetchLive: Bool = false) {
         Task {
-            // Fetch live from CloudKit — the cached SyncState share was encoded at
-            // zone-creation time and has no accepted participants yet.
             let share: CKShare?
-            if let live = await fetchLiveShare(for: trip) {
+            if fetchLive, let live = await fetchLiveShare(for: trip) {
                 share = live
             } else {
-                // Fall back to cache so we have something to work with offline.
                 share = try? backend.existingShare(for: trip)
             }
             guard let share else { return }

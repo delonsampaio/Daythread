@@ -23,12 +23,10 @@ final class SharedSyncEngine {
     private let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
     private var sharedDB: CKDatabase { container.sharedCloudDatabase }
     private var privateDB: CKDatabase { container.privateCloudDatabase }
-    private var isSyncing = false
-    /// Set when a push/poll requests a fetch while one is already running. The in-flight
-    /// fetch loops once more on completion so bunched-up pushes are never dropped — the
-    /// old "SKIPPED — already syncing" early-return silently lost co-editor changes that
-    /// arrived mid-sync (only a relaunch's fetch-since-token recovered them).
-    private var pendingFetch = false
+    private var isSyncingShared = false
+    private var pendingFetchShared = false
+    private var isSyncingPrivate = false
+    private var pendingFetchPrivate = false
     private var pollTask: Task<Void, Never>?
 
     private init() {}
@@ -44,7 +42,7 @@ final class SharedSyncEngine {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(20))
                 if Task.isCancelled { break }
-                daythreadLog.log("SharedSync poll tick (isSyncing=\(self.isSyncing, privacy: .public))")
+                daythreadLog.log("SharedSync poll tick")
                 await fetchAllSharedZones()
                 await fetchAllOwnedZones()
             }
@@ -98,20 +96,21 @@ final class SharedSyncEngine {
         }
         // A fetch is already running — flag that another pass is needed and let the
         // in-flight loop pick it up. This is what keeps mid-sync pushes from being lost.
-        guard !isSyncing else {
-            pendingFetch = true
+        guard !isSyncingShared else {
+            pendingFetchShared = true
             daythreadLog.log("SharedSync: fetch requested while syncing — queued for re-run")
             return
         }
-        isSyncing = true
-        defer { isSyncing = false }
+        isSyncingShared = true
+        defer { isSyncingShared = false }
 
         // Loop until no fetch was requested mid-pass. Per-zone change tokens make extra
         // passes cheap (they fetch only genuinely new records), so this never busy-loops.
         repeat {
-            pendingFetch = false
+            pendingFetchShared = false
             do {
-                let dbChanges = try await sharedDB.databaseChanges(since: nil)
+                let dbChanges = try await sharedDB.databaseChanges(since: loadDatabaseToken(scope: "shared"))
+                saveDatabaseToken(dbChanges.changeToken, scope: "shared")
                 for deletion in dbChanges.deletions {
                     purgeZone(deletion.zoneID)
                 }
@@ -122,7 +121,7 @@ final class SharedSyncEngine {
             } catch {
                 daythreadLog.error("SharedSync fetchAll failed: \(error.localizedDescription, privacy: .public)")
             }
-        } while pendingFetch
+        } while pendingFetchShared
     }
 
     /// Pull changes for all custom zones the owner created in their private DB.
@@ -130,18 +129,19 @@ final class SharedSyncEngine {
     /// care about the custom "Zone-<tripUUID>" zones created by the sharing engine.
     func fetchAllOwnedZones() async {
         guard PersistenceController.useCustomSharedSync else { return }
-        guard !isSyncing else {
-            pendingFetch = true
+        guard !isSyncingPrivate else {
+            pendingFetchPrivate = true
             daythreadLog.log("SharedSync: owned-zone fetch queued (already syncing)")
             return
         }
-        isSyncing = true
-        defer { isSyncing = false }
+        isSyncingPrivate = true
+        defer { isSyncingPrivate = false }
 
         repeat {
-            pendingFetch = false
+            pendingFetchPrivate = false
             do {
-                let dbChanges = try await privateDB.databaseChanges(since: nil)
+                let dbChanges = try await privateDB.databaseChanges(since: loadDatabaseToken(scope: "private"))
+                saveDatabaseToken(dbChanges.changeToken, scope: "private")
                 for deletion in dbChanges.deletions where deletion.zoneID.zoneName.hasPrefix("Zone-") {
                     purgeZone(deletion.zoneID)
                 }
@@ -153,7 +153,7 @@ final class SharedSyncEngine {
             } catch {
                 daythreadLog.error("SharedSync fetchOwnedZones failed: \(error.localizedDescription, privacy: .public)")
             }
-        } while pendingFetch
+        } while pendingFetchPrivate
     }
 
     /// Fetch a specific just-joined zone, retrying briefly: immediately after
@@ -327,6 +327,16 @@ final class SharedSyncEngine {
         try? context.save()
     }
 
+    private func loadDatabaseToken(scope: String) -> CKServerChangeToken? {
+        guard let data = UserDefaults.standard.data(forKey: "SharedSync.dbToken.\(scope)") else { return nil }
+        return try? NSKeyedUnarchiver.unarchivedObject(ofClass: CKServerChangeToken.self, from: data)
+    }
+
+    private func saveDatabaseToken(_ token: CKServerChangeToken, scope: String) {
+        let data = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true)
+        UserDefaults.standard.set(data, forKey: "SharedSync.dbToken.\(scope)")
+    }
+
     nonisolated private static func sharedStore(in context: NSManagedObjectContext) -> NSPersistentStore? {
         context.persistentStoreCoordinator?.persistentStores
             .first { $0.url?.lastPathComponent == "shared.sqlite" }
@@ -362,8 +372,15 @@ final class SharedSyncEngine {
 
         var records: [CKRecord] = []
         var objectByName: [String: NSManagedObject] = [:]
+        var tempAssetURLs: [URL] = []
         for object in ordered {
             guard let record = CKRecordMapper.ckRecord(for: object) else { continue }
+            // Collect CKAsset URLs for cleanup after upload.
+            for key in record.allKeys() {
+                if let asset = record[key] as? CKAsset, let url = asset.fileURL {
+                    tempAssetURLs.append(url)
+                }
+            }
             records.append(record)
             objectByName[record.recordID.recordName] = object
         }
@@ -430,6 +447,8 @@ final class SharedSyncEngine {
 
         suppressingPush { try? context.save() }
         daythreadLog.log("SharedSync push: \(records.count, privacy: .public) saved, \(recordIDs.count, privacy: .public) deleted")
+        // Clean up temp files written by CKRecordMapper.writeTempAsset.
+        for url in tempAssetURLs { try? FileManager.default.removeItem(at: url) }
     }
 
     /// Persist the saved record's identity + change tag back onto the local object.

@@ -166,7 +166,7 @@ struct GroupSyncSheet: View {
                 // Sync all accepted share participants first so the owner
                 // sees co-editors immediately (not just after they open the
                 // app themselves). Then register the current user's own entry.
-                cloudKit.syncParticipants(for: trip, context: context)
+                cloudKit.syncParticipants(for: trip, context: context, fetchLive: true)
                 // Only register once the trip is actually shared.
                 guard trip.cloudKitShareID != nil else { return }
                 // Always register immediately — registerCurrentUserMembership falls

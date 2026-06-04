@@ -39,7 +39,7 @@ struct TripsListView: View {
                 seen[id] = trip
             }
         }
-        return allTrips.filter { trip in trip.id.map { seen[$0] === trip } ?? false }
+        return allTrips.filter { trip in trip.id.map { seen[$0]?.objectID == trip.objectID } ?? false }
     }
 
     private var currentTrips: [Trip]  { deduplicatedTrips.filter { !$0.isArchived && $0.startDate <= now && $0.endDate >= now } }

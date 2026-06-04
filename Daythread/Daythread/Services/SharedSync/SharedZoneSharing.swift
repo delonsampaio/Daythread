@@ -70,7 +70,20 @@ struct SharedZoneSharing {
                 case .success:
                     cont.resume(returning: share)
                 case .failure(let error):
-                    cont.resume(throwing: error)
+                    if let ckError = error as? CKError,
+                       ckError.code == .serverRecordChanged || ckError.code == .partialFailure {
+                        // Share already exists (interrupted migration retry) — fetch it.
+                        let shareRecordID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: zoneID)
+                        self.privateDB.fetch(withRecordID: shareRecordID) { record, fetchError in
+                            if let existing = record as? CKShare {
+                                cont.resume(returning: existing)
+                            } else {
+                                cont.resume(throwing: fetchError ?? error)
+                            }
+                        }
+                    } else {
+                        cont.resume(throwing: error)
+                    }
                 }
             }
             privateDB.add(op)

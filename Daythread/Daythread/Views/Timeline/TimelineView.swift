@@ -31,7 +31,7 @@ struct TimelineView: View {
                 seen[id] = trip
             }
         }
-        return trips.filter { trip in trip.id.map { seen[$0] === trip } ?? false }
+        return trips.filter { trip in trip.id.map { seen[$0]?.objectID == trip.objectID } ?? false }
     }
 
     private var days: [TripDay] {

@@ -127,8 +127,11 @@ enum CKRecordMapper {
 
         for (relName, rel) in object.entity.relationshipsByName where !rel.isToMany {
             if let parent = object.value(forKey: relName) as? NSManagedObject,
-               let parentName = parent.value(forKey: "ckRecordName") as? String {
+               let parentName = parent.value(forKey: "ckRecordName") as? String,
+               !parentName.isEmpty {
                 out["CD_\(relName)"] = parentName as CKRecordValue
+            } else {
+                out["CD_\(relName)"] = nil
             }
         }
     }
