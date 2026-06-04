@@ -10,6 +10,7 @@ extension SyncState {
     @NSManaged public var ownerName: String?
     @NSManaged public var changeTokenData: Data?
     @NSManaged public var lastSyncedAt: Date?
+    @NSManaged public var databaseScope: String
 }
 
 extension SyncState: Identifiable {}

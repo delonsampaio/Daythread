@@ -23,6 +23,11 @@ final class SharedSyncEngine {
     private let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
     private var sharedDB: CKDatabase { container.sharedCloudDatabase }
     private var isSyncing = false
+    /// Set when a push/poll requests a fetch while one is already running. The in-flight
+    /// fetch loops once more on completion so bunched-up pushes are never dropped — the
+    /// old "SKIPPED — already syncing" early-return silently lost co-editor changes that
+    /// arrived mid-sync (only a relaunch's fetch-since-token recovered them).
+    private var pendingFetch = false
     private var pollTask: Task<Void, Never>?
 
     private init() {}
@@ -89,22 +94,30 @@ final class SharedSyncEngine {
             await runDiagnosticFetch()   // flag off: read-only, no Core Data writes
             return
         }
+        // A fetch is already running — flag that another pass is needed and let the
+        // in-flight loop pick it up. This is what keeps mid-sync pushes from being lost.
         guard !isSyncing else {
-            daythreadLog.log("SharedSync: fetchAllSharedZones SKIPPED — already syncing (possible stuck flag)")
+            pendingFetch = true
+            daythreadLog.log("SharedSync: fetch requested while syncing — queued for re-run")
             return
         }
         isSyncing = true
         defer { isSyncing = false }
 
-        do {
-            let dbChanges = try await sharedDB.databaseChanges(since: nil)
-            let zoneIDs = dbChanges.modifications.map(\.zoneID)
-            for zoneID in zoneIDs {
-                await fetchZone(zoneID)
+        // Loop until no fetch was requested mid-pass. Per-zone change tokens make extra
+        // passes cheap (they fetch only genuinely new records), so this never busy-loops.
+        repeat {
+            pendingFetch = false
+            do {
+                let dbChanges = try await sharedDB.databaseChanges(since: nil)
+                let zoneIDs = dbChanges.modifications.map(\.zoneID)
+                for zoneID in zoneIDs {
+                    await fetchZone(zoneID)
+                }
+            } catch {
+                daythreadLog.error("SharedSync fetchAll failed: \(error.localizedDescription, privacy: .public)")
             }
-        } catch {
-            daythreadLog.error("SharedSync fetchAll failed: \(error.localizedDescription, privacy: .public)")
-        }
+        } while pendingFetch
     }
 
     /// Fetch a specific just-joined zone, retrying briefly: immediately after
@@ -125,7 +138,7 @@ final class SharedSyncEngine {
     private func fetchZone(_ zoneID: CKRecordZone.ID) async -> Int {
         let context = PersistenceController.shared.viewContext
         guard let sharedStore = Self.sharedStore(in: context) else { return 0 }
-        let token = loadToken(zoneName: zoneID.zoneName, context: context)
+        let token = loadToken(zoneName: zoneID.zoneName, databaseScope: "shared", context: context)
         do {
             let changes = try await sharedDB.recordZoneChanges(inZoneWith: zoneID, since: token)
             let records = changes.modificationResultsByID.values.compactMap { try? $0.get().record }
@@ -135,7 +148,7 @@ final class SharedSyncEngine {
             suppressingPush {
                 CKRecordMapper.apply(modifications: records, deletions: deletions, into: context, sharedStore: sharedStore)
             }
-            saveToken(changes.changeToken, zoneName: zoneID.zoneName, ownerName: zoneID.ownerName, context: context)
+            saveToken(changes.changeToken, zoneName: zoneID.zoneName, ownerName: zoneID.ownerName, databaseScope: "shared", context: context)
             NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
             daythreadLog.log("SharedSync: zone '\(zoneID.zoneName, privacy: .public)' merged \(records.count, privacy: .public) record(s), \(deletions.count, privacy: .public) deletion(s)")
             return records.count
@@ -147,17 +160,17 @@ final class SharedSyncEngine {
 
     // MARK: — Change-token persistence (SyncState, local to shared.sqlite)
 
-    private func loadToken(zoneName: String, context: NSManagedObjectContext) -> CKServerChangeToken? {
+    private func loadToken(zoneName: String, databaseScope: String, context: NSManagedObjectContext) -> CKServerChangeToken? {
         let request = SyncState.fetchRequest()
-        request.predicate = NSPredicate(format: "zoneName == %@", zoneName)
+        request.predicate = NSPredicate(format: "zoneName == %@ AND databaseScope == %@", zoneName, databaseScope)
         request.fetchLimit = 1
         guard let data = (try? context.fetch(request))?.first?.changeTokenData else { return nil }
         return try? NSKeyedUnarchiver.unarchivedObject(ofClass: CKServerChangeToken.self, from: data)
     }
 
-    private func saveToken(_ token: CKServerChangeToken, zoneName: String, ownerName: String, context: NSManagedObjectContext) {
+    private func saveToken(_ token: CKServerChangeToken, zoneName: String, ownerName: String, databaseScope: String, context: NSManagedObjectContext) {
         let request = SyncState.fetchRequest()
-        request.predicate = NSPredicate(format: "zoneName == %@", zoneName)
+        request.predicate = NSPredicate(format: "zoneName == %@ AND databaseScope == %@", zoneName, databaseScope)
         request.fetchLimit = 1
         let state = (try? context.fetch(request))?.first ?? SyncState(context: context)
         if let store = Self.sharedStore(in: context), state.objectID.isTemporaryID {
@@ -165,6 +178,7 @@ final class SharedSyncEngine {
         }
         state.zoneName = zoneName
         state.ownerName = ownerName
+        state.databaseScope = databaseScope
         state.changeTokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true)
         state.lastSyncedAt = Date()
         try? context.save()
