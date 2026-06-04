@@ -224,11 +224,25 @@ final class SharedSyncEngine {
 
     // MARK: — Push (local participant edits → shared zone)
 
+    /// Records in zones named "Zone-<uuid>" with ownerName == CKCurrentUserDefaultName
+    /// live in the owner's private DB. Everything else (participant-joined zones) lives
+    /// in the shared DB.
+    nonisolated private static func database(
+        forZone zoneID: CKRecordZone.ID,
+        in container: CKContainer
+    ) -> CKDatabase {
+        if zoneID.zoneName.hasPrefix("Zone-") && zoneID.ownerName == CKCurrentUserDefaultName {
+            return container.privateCloudDatabase
+        }
+        return container.sharedCloudDatabase
+    }
+
     fileprivate func pushLocalChanges(saveObjectIDs: [NSManagedObjectID], toDelete recordIDs: [CKRecord.ID]) async {
         let context = PersistenceController.shared.viewContext
         let objects = saveObjectIDs.compactMap { try? context.existingObject(with: $0) }
         // Parents first so newly-created parents get recordNames before children encode.
         let ordered = objects.sorted { Self.hierarchyRank($0) < Self.hierarchyRank($1) }
+
         var records: [CKRecord] = []
         var objectByName: [String: NSManagedObject] = [:]
         for object in ordered {
@@ -238,41 +252,67 @@ final class SharedSyncEngine {
         }
         guard !records.isEmpty || !recordIDs.isEmpty else { return }
 
-        do {
-            let (saveResults, _) = try await sharedDB.modifyRecords(
-                saving: records, deleting: recordIDs,
-                savePolicy: .ifServerRecordUnchanged, atomically: false
-            )
-            var conflicts: [CKRecord] = []
-            for (recordID, result) in saveResults {
-                switch result {
-                case .success(let saved):
-                    writeBack(saved, to: objectByName[recordID.recordName])
-                case .failure(let error):
-                    if let ckError = error as? CKError, ckError.code == .serverRecordChanged,
-                       let server = ckError.serverRecord, let object = objectByName[recordID.recordName] {
-                        CKRecordMapper.applyFields(of: object, to: server)  // client trumps
-                        conflicts.append(server)
-                    } else {
-                        daythreadLog.error("SharedSync push failed \(recordID.recordName, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                    }
-                }
-            }
-            // Retry merged conflicts once against the now-current server records.
-            if !conflicts.isEmpty {
-                let (retry, _) = try await sharedDB.modifyRecords(
-                    saving: conflicts, deleting: [],
+        // Group saves and deletes by their target database.
+        var savesByDB: [ObjectIdentifier: (CKDatabase, [CKRecord])] = [:]
+        for record in records {
+            let db = Self.database(forZone: record.recordID.zoneID, in: container)
+            let key = ObjectIdentifier(db)
+            if savesByDB[key] == nil { savesByDB[key] = (db, []) }
+            savesByDB[key]!.1.append(record)
+        }
+
+        var deletesByDB: [ObjectIdentifier: (CKDatabase, [CKRecord.ID])] = [:]
+        for recordID in recordIDs {
+            let db = Self.database(forZone: recordID.zoneID, in: container)
+            let key = ObjectIdentifier(db)
+            if deletesByDB[key] == nil { deletesByDB[key] = (db, []) }
+            deletesByDB[key]!.1.append(recordID)
+        }
+
+        // Collect all database keys involved.
+        let allKeys = Set(savesByDB.keys).union(deletesByDB.keys)
+        for key in allKeys {
+            let db = savesByDB[key]?.0 ?? deletesByDB[key]!.0
+            let toSave = savesByDB[key]?.1 ?? []
+            let toDelete = deletesByDB[key]?.1 ?? []
+
+            do {
+                let (saveResults, _) = try await db.modifyRecords(
+                    saving: toSave, deleting: toDelete,
                     savePolicy: .ifServerRecordUnchanged, atomically: false
                 )
-                for (recordID, result) in retry {
-                    if case .success(let saved) = result { writeBack(saved, to: objectByName[recordID.recordName]) }
+                var conflicts: [CKRecord] = []
+                for (recordID, result) in saveResults {
+                    switch result {
+                    case .success(let saved):
+                        writeBack(saved, to: objectByName[recordID.recordName])
+                    case .failure(let error):
+                        if let ckError = error as? CKError, ckError.code == .serverRecordChanged,
+                           let server = ckError.serverRecord, let object = objectByName[recordID.recordName] {
+                            CKRecordMapper.applyFields(of: object, to: server)  // client trumps
+                            conflicts.append(server)
+                        } else {
+                            daythreadLog.error("SharedSync push failed \(recordID.recordName, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                        }
+                    }
                 }
+                // Retry merged conflicts once against the now-current server records.
+                if !conflicts.isEmpty {
+                    let (retry, _) = try await db.modifyRecords(
+                        saving: conflicts, deleting: [],
+                        savePolicy: .ifServerRecordUnchanged, atomically: false
+                    )
+                    for (recordID, result) in retry {
+                        if case .success(let saved) = result { writeBack(saved, to: objectByName[recordID.recordName]) }
+                    }
+                }
+            } catch {
+                daythreadLog.error("SharedSync push op failed: \(error.localizedDescription, privacy: .public)")
             }
-            suppressingPush { try? context.save() }
-            daythreadLog.log("SharedSync push: \(records.count, privacy: .public) saved, \(recordIDs.count, privacy: .public) deleted")
-        } catch {
-            daythreadLog.error("SharedSync push op failed: \(error.localizedDescription, privacy: .public)")
         }
+
+        suppressingPush { try? context.save() }
+        daythreadLog.log("SharedSync push: \(records.count, privacy: .public) saved, \(recordIDs.count, privacy: .public) deleted")
     }
 
     /// Persist the saved record's identity + change tag back onto the local object.
