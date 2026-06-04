@@ -97,7 +97,10 @@ struct TimelineView: View {
             }
         }
         .sheet(isPresented: $showPaywall) {
-            ProPaywallView()
+            ProPaywallView {
+                // After purchase: open GroupSync immediately without a second tap.
+                showGroupSync = true
+            }
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

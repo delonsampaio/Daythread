@@ -42,7 +42,11 @@ enum TripMemberRegistry {
             m.trip = trip            // link before first save (zone-hopping rule)
             return m
         }()
-        member.displayName = displayName
+        // Don't overwrite a real name with a placeholder. "Traveler" is only a
+        // last-resort default; if the member already has a real name, keep it.
+        if displayName != "Traveler" || member.displayName.isEmpty {
+            member.displayName = displayName
+        }
         // Never downgrade a role. syncParticipants may correctly assign .admin
         // and then registerMyMembership may overwrite with .editor when
         // fetchShares temporarily returns nil (e.g. during initial sync).

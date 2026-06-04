@@ -9,6 +9,10 @@ import SwiftUI
 import StoreKit
 
 struct ProPaywallView: View {
+    /// Called after a successful purchase, before the sheet dismisses.
+    /// Use this to open a follow-up flow (e.g. GroupSyncSheet) that requires Pro.
+    var onPurchaseSuccess: (() -> Void)? = nil
+
     @Environment(TripStore.self) private var store
     @State private var vm = ProfileViewModel()
     @Environment(\.dismiss) private var dismiss
@@ -109,7 +113,10 @@ struct ProPaywallView: View {
             }
         }
         .onChange(of: store.isPro) { _, isPro in
-            if isPro { dismiss() }
+            if isPro {
+                onPurchaseSuccess?()
+                dismiss()
+            }
         }
         .task { await vm.syncProStatus(store: store) }
     }

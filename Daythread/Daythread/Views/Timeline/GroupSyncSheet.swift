@@ -263,8 +263,27 @@ struct GroupSyncSheet: View {
     /// Opens the system sharing sheet for the trip's EXISTING share so the user
     /// can manage participants and permissions without stopping sharing first.
     private func manageSharing() {
+        // The trip passed in may be the NSPCKC original that was purged during
+        // migration. Resolve the live object from the context by id before fetching
+        // the share so cachedShare(forTripID:) gets the right UUID.
+        let liveTrip: Trip
+        if trip.managedObjectContext == nil, let tripID = trip.id {
+            let request = Trip.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@ AND migrationState == 3", tripID as CVarArg)
+            request.fetchLimit = 1
+            if let resolved = (try? context.fetch(request))?.first {
+                liveTrip = resolved
+            } else {
+                // Clone not found yet — show an error rather than silently failing.
+                cloudKit.errorMessage = "Share is still being prepared. Please try again in a moment."
+                return
+            }
+        } else {
+            liveTrip = trip
+        }
+
         isPreparing = true
-        let share = cloudKit.existingShare(for: trip)
+        let share = cloudKit.existingShare(for: liveTrip)
         // Capture owner status BEFORE showing the sheet — UICloudSharingController
         // deletes the CKShare before cloudSharingControllerDidStopSharing fires,
         // so checking inside the callback always returns false.
@@ -272,6 +291,19 @@ struct GroupSyncSheet: View {
         isPreparing = false
         if let share {
             sharingSheet = IdentifiableShare(share: share)
+        } else {
+            // Cache miss — the SyncState row may not have been written yet.
+            // Fetch the share asynchronously and open the sheet when it arrives.
+            isPreparing = true
+            Task {
+                if let share = try? await CloudKitTripSharingBackend().makeShare(for: liveTrip) {
+                    isOwnerBeforeSheetOpen = share.currentUserParticipant?.role == .owner
+                    sharingSheet = IdentifiableShare(share: share)
+                } else {
+                    cloudKit.errorMessage = "Could not load sharing details."
+                }
+                isPreparing = false
+            }
         }
     }
 }
