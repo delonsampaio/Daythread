@@ -26,6 +26,13 @@ struct AddDocumentSheet: View {
     @State private var hasExpiry: Bool = false
     @State private var isShared: Bool = false
     @State private var isLocked: Bool = true
+    /// IDs of specific members (besides the originator) who can see this doc.
+    @State private var sharedWithMemberIDs: Set<String> = []
+
+    private var otherMembers: [TripMember] {
+        let myID = store.currentUserCloudKitID ?? ""
+        return (trip.membersArray).filter { !$0.appleUserID.isEmpty && $0.appleUserID != myID && !$0.isVirtual }
+    }
 
     @State private var showSourcePicker = false
     @State private var showFilePicker = false
@@ -62,15 +69,78 @@ struct AddDocumentSheet: View {
                         DatePicker("Expiry", selection: $expiryDate, displayedComponents: .date)
                     }
                 }
-                Section {
-                    Toggle("Share with trip members", isOn: $isShared)
-                } footer: {
-                    if trip.cloudKitShareID != nil {
-                        Text(isShared
-                            ? "Co-editors can view this document."
-                            : "Only you can see this document. Toggle on to share it.")
-                    } else {
-                        Text("If you share this trip later, co-editors will be able to see this document.")
+                if trip.cloudKitShareID != nil {
+                    Section("Visibility") {
+                        Button {
+                            isShared = true
+                            sharedWithMemberIDs = []
+                        } label: {
+                            HStack {
+                                Label("Everyone on the trip", systemImage: "person.2")
+                                Spacer()
+                                if isShared { Image(systemName: "checkmark").foregroundStyle(ThemeTokens.accent) }
+                            }
+                        }
+                        .foregroundStyle(ThemeTokens.textPrimary)
+                        .buttonStyle(.plain)
+
+                        Button {
+                            isShared = false
+                            sharedWithMemberIDs = []
+                        } label: {
+                            HStack {
+                                Label("Only me", systemImage: "person")
+                                Spacer()
+                                if !isShared && sharedWithMemberIDs.isEmpty {
+                                    Image(systemName: "checkmark").foregroundStyle(ThemeTokens.accent)
+                                }
+                            }
+                        }
+                        .foregroundStyle(ThemeTokens.textPrimary)
+                        .buttonStyle(.plain)
+
+                        if !otherMembers.isEmpty {
+                            Button {
+                                isShared = false
+                                if sharedWithMemberIDs.isEmpty {
+                                    sharedWithMemberIDs = Set(otherMembers.map(\.appleUserID))
+                                }
+                            } label: {
+                                HStack {
+                                    Label("Specific people", systemImage: "person.badge.plus")
+                                    Spacer()
+                                    if !isShared && !sharedWithMemberIDs.isEmpty {
+                                        Image(systemName: "checkmark").foregroundStyle(ThemeTokens.accent)
+                                    }
+                                }
+                            }
+                            .foregroundStyle(ThemeTokens.textPrimary)
+                            .buttonStyle(.plain)
+
+                            if !isShared && !sharedWithMemberIDs.isEmpty {
+                                ForEach(otherMembers) { member in
+                                    let id = member.appleUserID
+                                    Button {
+                                        if sharedWithMemberIDs.contains(id) {
+                                            sharedWithMemberIDs.remove(id)
+                                        } else {
+                                            sharedWithMemberIDs.insert(id)
+                                        }
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: sharedWithMemberIDs.contains(id)
+                                                  ? "checkmark.circle.fill" : "circle")
+                                                .foregroundStyle(sharedWithMemberIDs.contains(id)
+                                                                 ? ThemeTokens.accent : ThemeTokens.textMuted)
+                                            Text(member.displayName.isEmpty ? "Traveler" : member.displayName)
+                                                .foregroundStyle(ThemeTokens.textPrimary)
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                    .padding(.leading, 20)
+                                }
+                            }
+                        }
                     }
                 }
                 Section {
@@ -130,9 +200,13 @@ struct AddDocumentSheet: View {
 
     private func save() {
         guard let data = selectedData else { return }
+        let memberIDs = (!isShared && !sharedWithMemberIDs.isEmpty)
+            ? sharedWithMemberIDs.sorted().joined(separator: ",")
+            : ""
         vm.addDocument(title: title, data: data, mimeType: mimeType,
                        notes: notes,
                        isShared: isShared,
+                       visibleToMemberIDs: memberIDs,
                        isLocked: isLocked,
                        addedByAppleUserID: store.currentUserCloudKitID ?? "",
                        to: trip, isPro: store.isPro, context: context)

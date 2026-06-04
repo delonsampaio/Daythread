@@ -23,6 +23,7 @@ final class VaultViewModel {
         mimeType: String,
         notes: String = "",
         isShared: Bool = false,
+        visibleToMemberIDs: String = "",
         isLocked: Bool = true,
         addedByAppleUserID: String = "",
         to trip: Trip,
@@ -40,6 +41,7 @@ final class VaultViewModel {
         doc.mimeType = mimeType
         doc.notes = notes
         doc.isShared = isShared
+        doc.visibleToMemberIDs = visibleToMemberIDs
         doc.isLocked = isLocked
         doc.addedByAppleUserID = addedByAppleUserID
         doc.addedAt = Date()

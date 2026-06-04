@@ -54,9 +54,16 @@ struct DocumentGridView: View {
 
     private func isVisible(_ doc: TripDocument) -> Bool {
         guard trip.cloudKitShareID != nil else { return true }
-        guard let id = myID else { return true }
-        if doc.addedByAppleUserID.isEmpty { return isOwnerDevice || doc.isShared }
-        return doc.isShared || doc.addedByAppleUserID == id
+        // Originator always sees their own doc.
+        if isOriginator(doc) { return true }
+        // Shared with everyone.
+        if doc.isShared { return true }
+        // Shared with specific members — check visibleToMemberIDs.
+        let id = myID ?? ""
+        if !id.isEmpty, !doc.visibleToMemberIDs.isEmpty {
+            return doc.visibleToMemberIDs.split(separator: ",").contains(id[...])
+        }
+        return false
     }
 
     @State private var showAdd = false
@@ -211,6 +218,9 @@ struct DocumentGridView: View {
                     .foregroundStyle(ThemeTokens.textPrimary)
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
+                if trip.cloudKitShareID != nil {
+                    visibilityLabel(doc)
+                }
             }
         }
         .buttonStyle(.plain)
@@ -291,6 +301,27 @@ struct DocumentGridView: View {
                 )
             }
         }
+    }
+
+    // MARK: — Visibility label
+
+    @ViewBuilder
+    private func visibilityLabel(_ doc: TripDocument) -> some View {
+        let icon: String
+        let label: String
+        if doc.isShared {
+            icon = "person.2"; label = "Everyone"
+        } else if !doc.visibleToMemberIDs.isEmpty {
+            let count = doc.visibleToMemberIDs.split(separator: ",").count
+            icon = "person.badge.plus"; label = "\(count) person\(count == 1 ? "" : "s")"
+        } else {
+            icon = "lock.fill"; label = "Only me"
+        }
+        HStack(spacing: 3) {
+            Image(systemName: icon).font(.system(size: 9))
+            Text(label).font(.system(size: 9))
+        }
+        .foregroundStyle(ThemeTokens.textMuted)
     }
 
     // MARK: — Expiry indicators

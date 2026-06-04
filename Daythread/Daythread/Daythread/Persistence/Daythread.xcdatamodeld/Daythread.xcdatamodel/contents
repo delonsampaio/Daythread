@@ -111,6 +111,7 @@
         <attribute name="notes" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
         <attribute name="mimeType" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
         <attribute name="title" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="visibleToMemberIDs" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
         <relationship name="trip" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Trip" inverseName="documents" inverseEntity="Trip" syncable="YES"/>
     </entity>
     <entity name="TripExpense" representedClassName="TripExpense" syncable="YES">

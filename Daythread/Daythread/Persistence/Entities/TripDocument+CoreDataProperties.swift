@@ -27,6 +27,9 @@ extension TripDocument {
     /// CloudKit user record name of the person who added this document.
     /// Used to show the owner their own private docs regardless of isShared.
     @NSManaged public var addedByAppleUserID: String
+    /// Comma-separated appleUserIDs of members who can see this document when
+    /// isShared is false. Empty = only the originator. Mirrors TripEvent.visibleToMemberIDs.
+    @NSManaged public var visibleToMemberIDs: String
     @NSManaged public var trip: Trip?
 }
 
