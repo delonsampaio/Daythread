@@ -37,7 +37,7 @@ struct GroupSyncSheet: View {
         self.trip = trip
         _members = FetchRequest(
             sortDescriptors: [NSSortDescriptor(keyPath: \TripMember.joinedAt, ascending: true)],
-            predicate: NSPredicate(format: "trip == %@ AND isVirtual == NO", trip)
+            predicate: NSPredicate(format: "trip == %@ AND appleUserID != ''", trip)
         )
     }
 
