@@ -328,6 +328,33 @@ final class CloudKitService {
         sharedDB.add(op)
     }
 
+    /// Registers a silent-push subscription on the PRIVATE database so the owner
+    /// receives pushes when participants edit records in the owner's custom share zones.
+    nonisolated func ensurePrivateDatabaseSubscription() {
+        let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
+        let privateDB = container.privateCloudDatabase
+
+        let subscription = CKDatabaseSubscription(subscriptionID: "com.delonsampaio.daythread.private.subscription")
+        let info = CKSubscription.NotificationInfo()
+        info.shouldSendContentAvailable = true
+        subscription.notificationInfo = info
+
+        let op = CKModifySubscriptionsOperation(
+            subscriptionsToSave: [subscription],
+            subscriptionIDsToDelete: nil
+        )
+        op.qualityOfService = .utility
+        op.modifySubscriptionsResultBlock = { result in
+            switch result {
+            case .success:
+                daythreadLog.log("private-DB silent-push subscription registered")
+            case .failure(let error):
+                daythreadLog.error("private-DB subscription FAILED: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        privateDB.add(op)
+    }
+
     /// DIAGNOSTIC: logs whether the shared database has any push subscriptions.
     nonisolated func verifySharedDatabaseSubscription() {
         let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
