@@ -177,6 +177,10 @@ struct TimelineView: View {
     }
 
     private func dateRange(for trip: Trip) -> String {
+        // Guard against the brief window when the NSPCKC original is deleted
+        // during migration Phase 3 — the zombie's @NSManaged Date properties
+        // return nil and bridge-crash before store.activeTrip updates to the clone.
+        guard trip.isAlive else { return "" }
         let start = trip.startDate.formatted(.dateTime.month(.abbreviated).day())
         let end   = trip.endDate.formatted(.dateTime.month(.abbreviated).day())
         return "\(start) – \(end)"

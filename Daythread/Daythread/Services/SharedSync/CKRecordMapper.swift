@@ -16,7 +16,8 @@ enum CKRecordMapper {
 
     /// Device-local / engine-internal attributes that must never be imported or pushed.
     nonisolated private static let skippedAttributes: Set<String> = [
-        "ckRecordName", "ckSystemFields", "ekEventIdentifier", "hasReminder", "showInCalendar"
+        "ckRecordName", "ckSystemFields", "ekEventIdentifier", "hasReminder", "showInCalendar",
+        "migrationState"   // device-local migration phase flag; must never reach CloudKit
     ]
 
     // MARK: — Read path (CKRecord → Core Data)

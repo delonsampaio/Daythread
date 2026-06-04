@@ -244,7 +244,11 @@ final class SharedSyncEngine {
         }
 
         if context.hasChanges {
-            try? context.save()
+            // Wrap save in suppressingPush: the deleted objects are being removed
+            // because their zone was already deleted server-side, so pushing those
+            // deletes back to CloudKit would either fail (zone gone) or corrupt
+            // another user's data. Suppress the echo entirely.
+            suppressingPush { try? context.save() }
             NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
         }
     }
