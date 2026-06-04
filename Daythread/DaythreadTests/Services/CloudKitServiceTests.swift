@@ -17,6 +17,7 @@ import CoreData
 private final class StubSharingBackend: TripSharingBackend {
     var makeShareCallCount = 0
     var existingShareCallCount = 0
+    var deleteShareCallCount = 0
     var shareToReturn: CKShare
     var existingShareToReturn: CKShare?
     var errorToThrow: Error?
@@ -35,6 +36,10 @@ private final class StubSharingBackend: TripSharingBackend {
         existingShareCallCount += 1
         if let existingShareError { throw existingShareError }
         return existingShareToReturn
+    }
+
+    func deleteShare(for trip: Trip) async throws {
+        deleteShareCallCount += 1
     }
 }
 
@@ -79,11 +84,14 @@ final class CloudKitServiceTests: XCTestCase {
         let share = makeShare()
         let backend = StubSharingBackend(share: share)
         let service = CloudKitService(backend: backend)
+        // Pre-insert a "clone" record in the same context so the post-migrate fetch finds it.
         let trip = makeTrip(shareID: nil)
+        let clone = makeTrip(shareID: share.recordID.recordName)
+        clone.migration = .done
 
         let result = await service.shareTrip(trip, modelContext: ctx)
 
-        XCTAssertEqual(trip.cloudKitShareID, share.recordID.recordName)
+        XCTAssertEqual(clone.cloudKitShareID, share.recordID.recordName)
         XCTAssertEqual(result?.recordID.recordName, share.recordID.recordName)
         XCTAssertTrue(service.isSharing)
         XCTAssertNil(service.errorMessage)
@@ -93,6 +101,7 @@ final class CloudKitServiceTests: XCTestCase {
         let backend = StubSharingBackend(share: makeShare())
         let service = CloudKitService(backend: backend)
         let trip = makeTrip(shareID: "existing-share-id")
+        trip.migration = .done   // fully migrated → skip backend call
 
         _ = await service.shareTrip(trip, modelContext: ctx)
 

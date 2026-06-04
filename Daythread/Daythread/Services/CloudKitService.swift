@@ -30,12 +30,15 @@ protocol TripSharingBackend {
     /// UICloudSharingController when presenting the system invite sheet.
     var container: CKContainer { get }
 
-    /// Creates (or returns) a CKShare for `trip`. Throws on any CloudKit failure.
+    /// Migrates the trip to the custom store and creates its zone-wide CKShare.
+    /// Returns the new CKShare. On second call (trip already migrated), returns existing share.
     func makeShare(for trip: Trip) async throws -> CKShare
 
-    /// Returns the existing CKShare for an already-shared trip (for participant
-    /// management), or nil if the trip has no share. Throws on lookup failure.
+    /// Returns the existing CKShare for an already-shared trip, or nil.
     func existingShare(for trip: Trip) throws -> CKShare?
+
+    /// Deletes the custom zone (stop sharing). Participants detect zone deletion.
+    func deleteShare(for trip: Trip) async throws
 }
 
 // MARK: — Orchestration (testable)
@@ -56,40 +59,38 @@ final class CloudKitService {
     /// to UICloudSharingController alongside the CKShare.
     var container: CKContainer { backend.container }
 
-    /// Creates a real CKShare for `trip` (or returns nil and reuses the existing
-    /// share if the trip is already shared). On success, stamps the share's
-    /// record name onto `trip.cloudKitShareID` and persists it. On failure,
-    /// sets `errorMessage` and leaves the trip unshared.
+    /// Migrates `trip` to the custom shared store, creates its zone-wide CKShare,
+    /// and returns it so the UI can present UICloudSharingController. On a second
+    /// call (trip already migrated), returns the existing share from CloudKit.
+    /// On failure, sets `errorMessage` and returns nil.
     @discardableResult
     func shareTrip(_ trip: Trip, modelContext: NSManagedObjectContext) async -> CKShare? {
-        // Already shared — caller should fetch the existing share to present.
-        guard trip.cloudKitShareID == nil else {
+        // If already fully migrated and shared, just open the share UI.
+        if trip.cloudKitShareID != nil && trip.migration == .done {
             isSharing = true
             return nil
         }
-        // NSPCKC's share() deadlocks if it grabs the store lock while an export is
-        // mid-flight (the export needs the main thread that share() blocks). Pause our
-        // own sync traffic and wait for the container to go idle before sharing, then
-        // resume. This is the fix for the "Invite People" freeze.
-        SharedSyncEngine.shared.stopPeriodicSync()
-        let idle = await PersistenceController.shared.waitForExportQuiescence()
-        defer { SharedSyncEngine.shared.startPeriodicSync() }
-        guard idle else {
-            // Container never went quiet — calling share() now would deadlock the main
-            // thread against an in-flight export. Bail out responsively; the user can
-            // retry once CloudKit settles (typically a few seconds after launch).
-            errorMessage = "iCloud is still syncing. Please try sharing again in a few seconds."
-            return nil
-        }
+
         do {
             let share = try await backend.makeShare(for: trip)
-            trip.cloudKitShareID = share.recordID.recordName
-            try modelContext.save()
+            // The clone (returned from migrate) has the cloudKitShareID set already.
+            // Find the live clone to update the model context if trip was replaced.
+            if trip.cloudKitShareID == nil {
+                // trip may now be the NSPCKC original (purged) — find the clone
+                // by looking up by share record name.
+                let request = Trip.fetchRequest()
+                request.predicate = NSPredicate(format: "cloudKitShareID == %@", share.recordID.recordName)
+                request.fetchLimit = 1
+                if let clone = (try? modelContext.fetch(request))?.first {
+                    clone.cloudKitShareID = share.recordID.recordName
+                    try? modelContext.save()
+                }
+            }
             isSharing = true
             errorMessage = nil
             return share
         } catch {
-            errorMessage = "Could not create share: \(error.localizedDescription)"
+            errorMessage = "Could not share trip: \(error.localizedDescription)"
             return nil
         }
     }
@@ -117,6 +118,9 @@ final class CloudKitService {
         }
         try? modelContext.save()
         isSharing = false
+        Task {
+            try? await backend.deleteShare(for: trip)
+        }
     }
 
     // MARK: — Current-user identity (for the named member roster)

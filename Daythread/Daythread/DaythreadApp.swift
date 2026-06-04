@@ -33,6 +33,7 @@ struct DaythreadApp: App {
                     // Path A: start the local-edit push observer, then pull shared-zone
                     // changes at launch (or log-only when the flag is off).
                     SharedSyncEngine.shared.start()
+                    await TripStoreMigrator.shared.resumeInterruptedMigrations()
                     await SharedSyncEngine.shared.fetchAllSharedZones()
                 }
                 // Pull on foreground, and poll while active (push alone is throttled
