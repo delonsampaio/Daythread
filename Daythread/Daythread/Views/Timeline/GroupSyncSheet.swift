@@ -9,6 +9,16 @@ import SwiftUI
 import CoreData
 import CloudKit
 
+// MARK: — Identifiable CKShare wrapper (needed for .sheet(item:))
+// CKShare inherits Identifiable from NSObject (id: ObjectIdentifier), which
+// cannot be overridden with a @retroactive extension. Wrapping gives us a
+// stable String-based identity keyed on the record name.
+
+private struct IdentifiableShare: Identifiable {
+    let share: CKShare
+    var id: String { share.recordID.recordName }
+}
+
 struct GroupSyncSheet: View {
     @ObservedObject var trip: Trip
 
@@ -19,9 +29,10 @@ struct GroupSyncSheet: View {
     @AppStorage("daythread.userDisplayName") private var myName = ""
 
     @State private var cloudKit = CloudKitService()
-    @State private var pendingShare: CKShare?
-    @State private var showShareSheet = false
-    @State private var isPreparingShare = false
+    /// Non-nil while the UICloudSharingController sheet is presented.
+    @State private var sharingSheet: IdentifiableShare? = nil
+    /// True while the trip share is being prepared (migration in progress).
+    @State private var isPreparing = false
     @State private var showNamePrompt = false
     @State private var nameInput = ""
     /// Captured before the system sheet opens while the CKShare still exists.
@@ -33,6 +44,20 @@ struct GroupSyncSheet: View {
         LiveContent(isDead: !trip.isAlive) {
         NavigationStack {
             List {
+                // Migration-in-progress banner — blocks interaction while the
+                // trip is being cloned / uploaded to the shared custom zone.
+                if trip.migration == .cloned || trip.migration == .uploaded {
+                    Section {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Preparing Share…")
+                                .font(.subheadline)
+                                .foregroundStyle(ThemeTokens.textSecondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+
                 // Share status
                 Section("Co-editing") {
                     if trip.cloudKitShareID != nil {
@@ -53,7 +78,7 @@ struct GroupSyncSheet: View {
                                         .foregroundStyle(ThemeTokens.textSecondary)
                                 }
                                 Spacer()
-                                if isPreparingShare {
+                                if isPreparing {
                                     ProgressView()
                                 } else {
                                     Image(systemName: "chevron.right")
@@ -62,21 +87,24 @@ struct GroupSyncSheet: View {
                                 }
                             }
                         }
-                        .disabled(isPreparingShare)
+                        .disabled(isPreparing)
                     } else {
-                        Button {
-                            inviteePeople()
-                        } label: {
-                            HStack {
+                        if isPreparing {
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                Text("Preparing Share…")
+                                    .foregroundStyle(ThemeTokens.textSecondary)
+                            }
+                            .padding(.vertical, 4)
+                        } else {
+                            Button {
+                                inviteePeople()
+                            } label: {
                                 Label("Invite People to This Trip", systemImage: "person.badge.plus")
                                     .foregroundStyle(ThemeTokens.accent)
-                                if isPreparingShare {
-                                    Spacer()
-                                    ProgressView()
-                                }
                             }
+                            .disabled(trip.migration != .none && trip.migration != .done)
                         }
-                        .disabled(isPreparingShare)
                     }
                 }
 
@@ -116,13 +144,13 @@ struct GroupSyncSheet: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .sheet(isPresented: $showShareSheet) {
-                if let share = pendingShare {
-                    CloudSharingControllerView(
-                        share: share,
-                        container: cloudKit.container,
-                        title: trip.name,
-                        onStopSharing: {
+            .sheet(item: $sharingSheet) { identifiable in
+                CloudSharingControllerView(
+                    share: identifiable.share,
+                    container: cloudKit.container,
+                    title: trip.name,
+                    onStopSharing: {
+                        sharingSheet = nil
                         cloudKit.stopSharing(trip, modelContext: context)
                         // Participants: navigate away before NSPersistentCloudKitContainer
                         // purges the shared zone. Owners: trip stays in the private
@@ -131,9 +159,8 @@ struct GroupSyncSheet: View {
                             store.activeTrip = nil
                         }
                     }
-                    )
-                    .ignoresSafeArea()
-                }
+                )
+                .ignoresSafeArea()
             }
             .task {
                 // Sync all accepted share participants first so the owner
@@ -212,15 +239,14 @@ struct GroupSyncSheet: View {
     /// On the simulator this surfaces an error via cloudKit.errorMessage rather
     /// than presenting, since CloudKit is unavailable there.
     private func inviteePeople() {
-        isPreparingShare = true
+        isPreparing = true
         // Creator is always the owner when starting a new share.
         isOwnerBeforeSheetOpen = true
         Task {
             let share = await cloudKit.shareTrip(trip, modelContext: context)
-            isPreparingShare = false
+            isPreparing = false
             if let share {
-                pendingShare = share
-                showShareSheet = true
+                sharingSheet = IdentifiableShare(share: share)
                 // Register the owner immediately so they appear in the roster.
                 await registerMyMembership()
             }
@@ -237,16 +263,15 @@ struct GroupSyncSheet: View {
     /// Opens the system sharing sheet for the trip's EXISTING share so the user
     /// can manage participants and permissions without stopping sharing first.
     private func manageSharing() {
-        isPreparingShare = true
+        isPreparing = true
         let share = cloudKit.existingShare(for: trip)
         // Capture owner status BEFORE showing the sheet — UICloudSharingController
         // deletes the CKShare before cloudSharingControllerDidStopSharing fires,
         // so checking inside the callback always returns false.
         isOwnerBeforeSheetOpen = share?.currentUserParticipant?.role == .owner
-        isPreparingShare = false
+        isPreparing = false
         if let share {
-            pendingShare = share
-            showShareSheet = true
+            sharingSheet = IdentifiableShare(share: share)
         }
     }
 }
