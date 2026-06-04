@@ -136,6 +136,50 @@ final class CloudKitService {
         }
     }
 
+    /// Resolves the current iCloud user's record ID at launch and caches it in
+    /// `store.currentUserCloudKitID`. This must run before any shared-trip fetch
+    /// so that `isVisible` filtering works on the first render without waiting
+    /// for the user to open GroupSync.
+    ///
+    /// Also pre-populates `daythread.userDisplayName` with the iCloud name from
+    /// the first live Zone-* share found (private or shared DB). Only writes when
+    /// the profile name is still empty — never overwrites a manual edit.
+    @MainActor
+    func seedIdentityIfNeeded(store: TripStore) async {
+        guard let recordName = await currentUserRecordName() else { return }
+        store.currentUserCloudKitID = recordName
+        daythreadLog.log("seedIdentity: currentUserCloudKitID set")
+
+        // Skip name seeding if user already has a profile name.
+        guard UserDefaults.standard.string(forKey: "daythread.userDisplayName")?
+                .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false else { return }
+
+        // Try to find a name from any Zone-* share in either database.
+        let sharing = SharedZoneSharing()
+        let formatter = PersonNameComponentsFormatter()
+        for db in [backend.container.privateCloudDatabase, backend.container.sharedCloudDatabase] {
+            guard let changes = try? await db.databaseChanges(since: nil) else { continue }
+            for mod in changes.modifications where mod.zoneID.zoneName.hasPrefix("Zone-") {
+                let zoneUUIDStr = String(mod.zoneID.zoneName.dropFirst(5))
+                guard let tripID = UUID(uuidString: zoneUUIDStr),
+                      let share = try? await sharing.fetchShare(forTripID: tripID)
+                else { continue }
+                // Find ourselves in the participant list.
+                let me = share.participants.first {
+                    $0.userIdentity.userRecordID?.recordName == recordName
+                }
+                if let nc = me?.userIdentity.nameComponents {
+                    let name = formatter.string(from: nc)
+                    if !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        UserDefaults.standard.set(name, forKey: "daythread.userDisplayName")
+                        daythreadLog.log("seedIdentity: seeded display name from share")
+                        return
+                    }
+                }
+            }
+        }
+    }
+
     /// True when the current user owns the trip's CKShare (vs. a participant).
     /// Checks the live share so the role is correct even before the SyncState
     /// cache is updated by the pull loop.

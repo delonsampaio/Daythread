@@ -30,6 +30,10 @@ struct DaythreadApp: App {
                     ck.ensureSharedDatabaseSubscription()
                     ck.ensurePrivateDatabaseSubscription()
                     ck.verifySharedDatabaseSubscription()
+                    // Resolve iCloud identity at launch: sets currentUserCloudKitID so
+                    // Limit Visibility filtering works immediately, and pre-populates
+                    // the profile display name from iCloud if not yet set.
+                    await ck.seedIdentityIfNeeded(store: store)
                     // Path A: start the local-edit push observer, then pull shared-zone
                     // changes at launch (or log-only when the flag is off).
                     SharedSyncEngine.shared.start()
