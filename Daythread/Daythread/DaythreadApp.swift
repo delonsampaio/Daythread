@@ -22,6 +22,27 @@ struct DaythreadApp: App {
         WindowGroup {
             RootView()
                 .task { NotificationService.shared.registerCategories() }
+                // iCloud KVS: pull the user's display name from KVS on launch so it
+                // populates silently on any second device without the user re-entering it.
+                .task {
+                    NSUbiquitousKeyValueStore.default.synchronize()
+                    let kvsName = NSUbiquitousKeyValueStore.default
+                        .string(forKey: "daythread.userDisplayName") ?? ""
+                    let localName = UserDefaults.standard
+                        .string(forKey: "daythread.userDisplayName") ?? ""
+                    if localName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                       !kvsName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        UserDefaults.standard.set(kvsName, forKey: "daythread.userDisplayName")
+                        daythreadLog.log("KVS: restored display name from iCloud KVS")
+                    }
+                }
+                // KVS: push any local name change up to iCloud so other devices pick it up.
+                .onChange(of: userDisplayName) { _, newName in
+                    let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { return }
+                    NSUbiquitousKeyValueStore.default.set(trimmed, forKey: "daythread.userDisplayName")
+                    NSUbiquitousKeyValueStore.default.synchronize()
+                }
                 // NSPersistentCloudKitContainer often fails to create the silent-push
                 // subscription on the SHARED database, so participants only sync at
                 // launch. Create it explicitly (idempotent) and log the current state.

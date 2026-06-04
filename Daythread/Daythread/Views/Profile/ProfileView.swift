@@ -6,19 +6,34 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct ProfileView: View {
+    @Environment(\.managedObjectContext) private var context
     @Environment(TripStore.self) private var store
     @State private var vm = ProfileViewModel()
     @State private var showPaywall = false
     @AppStorage("daythread.userDisplayName") private var displayName = ""
 
+    // Needed to detect whether the user is part of any shared trip.
+    @FetchRequest(
+        sortDescriptors: [],
+        predicate: NSPredicate(format: "cloudKitShareID != nil")
+    ) private var sharedTrips: FetchedResults<Trip>
+
+    /// Show the inline name prompt only to users who are Pro or already in a shared
+    /// trip — solo users who never share have no need for a co-editor display name.
+    private var shouldShowNamePrompt: Bool {
+        displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && (store.isPro || !sharedTrips.isEmpty)
+    }
+
     var body: some View {
         NavigationStack {
             List {
-                // Inline name field — shown whenever the profile name is empty so
-                // the user sees it without needing to dig into Settings.
-                if displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                // Inline name field — only shown to Pro users or members of a shared
+                // trip who haven't set a name yet. Disappears once a name is entered.
+                if shouldShowNamePrompt {
                     Section {
                         VStack(alignment: .leading, spacing: 6) {
                             TextField("Your name", text: $displayName)
