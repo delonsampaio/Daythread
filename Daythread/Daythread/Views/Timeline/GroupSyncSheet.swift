@@ -249,6 +249,9 @@ struct GroupSyncSheet: View {
             isPreparing = false
             if let share {
                 sharingSheet = IdentifiableShare(share: share)
+                // Seed the owner's profile name from their participant entry —
+                // this is the first moment nameComponents is available for them.
+                cloudKit.seedNameFromShare(share, store: store)
                 // Register the owner immediately so they appear in the roster.
                 await registerMyMembership()
             }

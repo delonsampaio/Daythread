@@ -136,25 +136,28 @@ final class CloudKitService {
         }
     }
 
-    /// Resolves the current iCloud user's record ID at launch and caches it in
-    /// `store.currentUserCloudKitID`. This must run before any shared-trip fetch
-    /// so that `isVisible` filtering works on the first render without waiting
-    /// for the user to open GroupSync.
+    /// Resolves the current iCloud user's record ID and caches it in
+    /// `store.currentUserCloudKitID`. Call at every foreground activation so
+    /// `isVisible` filtering works even before GroupSync is opened.
     ///
-    /// Also pre-populates `daythread.userDisplayName` with the iCloud name from
-    /// the first live Zone-* share found (private or shared DB). Only writes when
-    /// the profile name is still empty — never overwrites a manual edit.
+    /// When the profile name (`daythread.userDisplayName`) is still empty, scans
+    /// Zone-* shares in both private and shared databases and seeds the name from
+    /// `currentUserParticipant.userIdentity.nameComponents` — the same iCloud name
+    /// shown in the system sharing sheet. Re-runs on every call until a name is
+    /// found, so first-install devices with no shares yet are covered once a trip
+    /// is shared or joined. Never overwrites a name the user has manually set.
     @MainActor
     func seedIdentityIfNeeded(store: TripStore) async {
         guard let recordName = await currentUserRecordName() else { return }
         store.currentUserCloudKitID = recordName
         daythreadLog.log("seedIdentity: currentUserCloudKitID set")
 
-        // Skip name seeding if user already has a profile name.
-        guard UserDefaults.standard.string(forKey: "daythread.userDisplayName")?
-                .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false else { return }
+        // Skip name seeding once a non-empty profile name exists.
+        let current = UserDefaults.standard.string(forKey: "daythread.userDisplayName") ?? ""
+        guard current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
-        // Try to find a name from any Zone-* share in either database.
+        // Scan Zone-* shares in private DB first (owner zones), then shared DB
+        // (participant zones). Stop at the first nameComponents match.
         let sharing = SharedZoneSharing()
         let formatter = PersonNameComponentsFormatter()
         for db in [backend.container.privateCloudDatabase, backend.container.sharedCloudDatabase] {
@@ -164,7 +167,6 @@ final class CloudKitService {
                 guard let tripID = UUID(uuidString: zoneUUIDStr),
                       let share = try? await sharing.fetchShare(forTripID: tripID)
                 else { continue }
-                // Find ourselves in the participant list.
                 let me = share.participants.first {
                     $0.userIdentity.userRecordID?.recordName == recordName
                 }
@@ -172,12 +174,32 @@ final class CloudKitService {
                     let name = formatter.string(from: nc)
                     if !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         UserDefaults.standard.set(name, forKey: "daythread.userDisplayName")
-                        daythreadLog.log("seedIdentity: seeded display name from share")
+                        daythreadLog.log("seedIdentity: seeded display name '\(name, privacy: .public)'")
                         return
                     }
                 }
             }
         }
+        daythreadLog.log("seedIdentity: no share found yet — will retry on next foreground")
+    }
+
+    /// Seeds the display name immediately from a known CKShare. Called right after
+    /// `makeZoneShare` (owner) or `fetchJoinedZone` (participant) so the name is
+    /// populated without waiting for the next foreground activation.
+    @MainActor
+    func seedNameFromShare(_ share: CKShare, store: TripStore) {
+        let current = UserDefaults.standard.string(forKey: "daythread.userDisplayName") ?? ""
+        guard current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard let recordName = store.currentUserCloudKitID else { return }
+        let me = share.participants.first {
+            $0.userIdentity.userRecordID?.recordName == recordName
+        }
+        guard let nc = me?.userIdentity.nameComponents else { return }
+        let formatter = PersonNameComponentsFormatter()
+        let name = formatter.string(from: nc)
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        UserDefaults.standard.set(name, forKey: "daythread.userDisplayName")
+        daythreadLog.log("seedIdentity: seeded name '\(name, privacy: .public)' from share")
     }
 
     /// True when the current user owns the trip's CKShare (vs. a participant).

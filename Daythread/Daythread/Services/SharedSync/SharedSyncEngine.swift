@@ -188,6 +188,10 @@ final class SharedSyncEngine {
                 CKRecordMapper.apply(modifications: records, deletions: deletions, into: context, sharedStore: sharedStore)
             }
             saveToken(changes.changeToken, zoneName: zoneID.zoneName, ownerName: zoneID.ownerName, databaseScope: databaseScope, context: context, share: share)
+            // Deduplicate members after every sync. Two devices may independently
+            // create a TripMember for the same participant before each other's record
+            // arrives — this collapses them to one without a round-trip to GroupSync.
+            deduplicateMembersForZone(zoneID.zoneName, in: context, sharedStore: sharedStore)
             NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
             daythreadLog.log("SharedSync: zone '\(zoneID.zoneName, privacy: .public)' merged \(records.count, privacy: .public) record(s), \(deletions.count, privacy: .public) deletion(s)")
             return records.count
@@ -199,6 +203,38 @@ final class SharedSyncEngine {
             daythreadLog.error("SharedSync zone '\(zoneID.zoneName, privacy: .public)' fetch failed: \(error.localizedDescription, privacy: .public)")
             return 0
         }
+    }
+
+    /// Deduplicates TripMember records for the trip whose zone matches `zoneName`.
+    /// Two devices can independently register the same participant before the other's
+    /// record syncs in — this collapses duplicates by appleUserID, keeping the
+    /// highest-privilege record, so the roster never shows the same person twice.
+    private func deduplicateMembersForZone(_ zoneName: String, in context: NSManagedObjectContext, sharedStore: NSPersistentStore) {
+        let uuidStr = zoneName.hasPrefix("Zone-") ? String(zoneName.dropFirst(5)) : nil
+        guard let uuidStr, let tripID = UUID(uuidString: uuidStr) else { return }
+        let request = Trip.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", tripID as CVarArg)
+        request.affectedStores = [sharedStore]
+        request.fetchLimit = 1
+        guard let trip = (try? context.fetch(request))?.first else { return }
+
+        let memberRequest = TripMember.fetchRequest()
+        memberRequest.predicate = NSPredicate(format: "trip == %@ AND appleUserID != ''", trip)
+        guard let members = try? context.fetch(memberRequest), members.count > 1 else { return }
+
+        var seen: [String: TripMember] = [:]
+        for m in members {
+            let uid = m.appleUserID
+            if let existing = seen[uid] {
+                let keepNew = m.role.privilege > existing.role.privilege
+                    || (m.role == existing.role && m.joinedAt < existing.joinedAt)
+                suppressingPush { context.delete(keepNew ? existing : m) }
+                if keepNew { seen[uid] = m }
+            } else {
+                seen[uid] = m
+            }
+        }
+        if context.hasChanges { suppressingPush { try? context.save() } }
     }
 
     // MARK: — Zone purge

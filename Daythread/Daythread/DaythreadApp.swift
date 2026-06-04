@@ -44,7 +44,14 @@ struct DaythreadApp: App {
                 // by iOS and eventually stops delivering). Stop polling in the background.
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active {
-                        Task { await SharedSyncEngine.shared.fetchAllSharedZones() }
+                        Task {
+                            let ck = CloudKitService()
+                            // Retry identity seeding every foreground until the profile
+                            // name is populated — covers first-install devices that had
+                            // no shares at cold launch.
+                            await ck.seedIdentityIfNeeded(store: store)
+                            await SharedSyncEngine.shared.fetchAllSharedZones()
+                        }
                         SharedSyncEngine.shared.startPeriodicSync()
                     } else {
                         SharedSyncEngine.shared.stopPeriodicSync()
@@ -61,6 +68,9 @@ struct DaythreadApp: App {
                 store.pendingJoinShareRecordName = recordName
                 let trips = (try? persistence.viewContext.fetch(Trip.fetchRequest())) ?? []
                 store.resolvePendingJoin(in: trips)
+                // Participant just joined a share — retry name seeding now that a
+                // zone-wide share with their nameComponents exists.
+                Task { await CloudKitService().seedIdentityIfNeeded(store: store) }
             }
             // Display name is set manually in Profile → Settings.
             // Auto-population via CKUserIdentity was removed — the API was
