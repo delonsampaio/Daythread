@@ -24,6 +24,7 @@ extension Trip {
     @NSManaged public var isArchived: Bool
     @NSManaged public var createdAt: Date
     @NSManaged public var gradientSeed: Int
+    @NSManaged public var migrationState: Int16
     @NSManaged public var days: NSSet?
     @NSManaged public var members: NSSet?
     @NSManaged public var documents: NSSet?
@@ -33,3 +34,19 @@ extension Trip {
 }
 
 extension Trip: Identifiable {}
+
+// MARK: - Migration State
+
+enum TripMigrationState: Int16 {
+    case none = 0      // lives in NSPCKC store, never shared via custom engine
+    case cloned = 1    // graph duplicated into shared store, not yet uploaded
+    case uploaded = 2  // pushed to custom zone, NSPCKC originals not yet purged
+    case done = 3      // fully on the custom store
+}
+
+extension Trip {
+    var migration: TripMigrationState {
+        get { TripMigrationState(rawValue: migrationState) ?? .none }
+        set { migrationState = newValue.rawValue }
+    }
+}
