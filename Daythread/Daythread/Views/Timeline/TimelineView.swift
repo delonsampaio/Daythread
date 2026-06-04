@@ -17,6 +17,23 @@ struct TimelineView: View {
         predicate: NSPredicate(format: "isArchived == NO")
     ) private var trips: FetchedResults<Trip>
 
+    /// Deduplicated trip list for the picker — same logic as TripsListView.
+    /// Prevents the trip picker from showing the NSPCKC original AND the
+    /// shared-store clone during the migration window.
+    private var deduplicatedTrips: [Trip] {
+        var seen: [UUID: Trip] = [:]
+        for trip in trips {
+            guard let id = trip.id else { continue }
+            if let existing = seen[id] {
+                let isClone = trip.objectID.persistentStore?.url?.lastPathComponent == "shared.sqlite"
+                if isClone { seen[id] = trip } else { _ = existing }
+            } else {
+                seen[id] = trip
+            }
+        }
+        return trips.filter { $0.id.map { seen[$0] === $0 } ?? false }
+    }
+
     private var days: [TripDay] {
         store.activeTrip?.daysArray ?? []
     }
@@ -139,12 +156,12 @@ struct TimelineView: View {
 
     @ViewBuilder
     private var tripPickerTitle: some View {
-        if trips.isEmpty {
+        if deduplicatedTrips.isEmpty {
             Text("Timeline")
                 .font(.headline)
         } else {
             Menu {
-                ForEach(trips) { trip in
+                ForEach(deduplicatedTrips) { trip in
                     Button {
                         store.activeTrip = trip
                     } label: {

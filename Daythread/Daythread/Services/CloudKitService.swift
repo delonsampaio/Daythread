@@ -137,18 +137,48 @@ final class CloudKitService {
     }
 
     /// True when the current user owns the trip's CKShare (vs. a participant).
-    /// Used to register the owner as admin and joiners as editors.
-    func currentUserIsOwner(of trip: Trip) -> Bool {
-        guard let share = try? backend.existingShare(for: trip) else { return false }
-        return share.currentUserParticipant?.role == .owner
+    /// Checks the live share so the role is correct even before the SyncState
+    /// cache is updated by the pull loop.
+    func currentUserIsOwner(of trip: Trip, liveShare: CKShare? = nil) -> Bool {
+        let share = liveShare ?? (try? backend.existingShare(for: trip))
+        return share?.currentUserParticipant?.role == .owner
+    }
+
+    /// Fetches the live CKShare from CloudKit for an already-shared trip.
+    /// Unlike `existingShare(for:)` which reads a stale SyncState cache snapshot,
+    /// this returns the current participant list (needed for name resolution).
+    /// Best-effort — returns nil on any error or when the trip has no share.
+    func fetchLiveShare(for trip: Trip) async -> CKShare? {
+        guard let tripID = trip.id else { return nil }
+        let sharing = SharedZoneSharing()
+        return try? await sharing.fetchShare(forTripID: tripID)
     }
 
     /// Syncs all accepted CKShare participants into TripMember records so the
     /// owner sees co-editors immediately after they accept — without waiting for
     /// each person to open GroupSyncSheet themselves. Called when GroupSyncSheet
     /// appears; device-only and best-effort.
+    ///
+    /// Uses the live CloudKit share so nameComponents reflect the current
+    /// accepted-participant list, not the stale SyncState cache snapshot.
     func syncParticipants(for trip: Trip, context: NSManagedObjectContext) {
-        guard let share = try? backend.existingShare(for: trip) else { return }
+        Task {
+            // Fetch live from CloudKit — the cached SyncState share was encoded at
+            // zone-creation time and has no accepted participants yet.
+            let share: CKShare?
+            if let live = await fetchLiveShare(for: trip) {
+                share = live
+            } else {
+                // Fall back to cache so we have something to work with offline.
+                share = try? backend.existingShare(for: trip)
+            }
+            guard let share else { return }
+            applyParticipants(from: share, to: trip, context: context)
+        }
+    }
+
+    /// Applies the participant list from `share` to TripMember records.
+    private func applyParticipants(from share: CKShare, to trip: Trip, context: NSManagedObjectContext) {
         let formatter = PersonNameComponentsFormatter()
         for participant in share.participants
         where participant.acceptanceStatus == .accepted {
@@ -271,17 +301,25 @@ final class CloudKitService {
         guard trip.cloudKitShareID != nil else { return }
         guard let uid = await currentUserRecordName() else { return }
         store?.currentUserCloudKitID = uid
-        let role: MemberRole = currentUserIsOwner(of: trip) ? .admin : .editor
+
+        // Fetch the live share once — used for both role and name resolution.
+        // The SyncState cache was encoded at zone-creation time (before participants
+        // accepted), so currentUserParticipant is nil in the cached version.
+        let liveShare = await fetchLiveShare(for: trip)
+        let role: MemberRole = currentUserIsOwner(of: trip, liveShare: liveShare) ? .admin : .editor
+
         let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         let effectiveName: String
         if !trimmed.isEmpty {
             effectiveName = trimmed
-        } else if let share = existingShare(for: trip),
-                  let nc = share.currentUserParticipant?.userIdentity.nameComponents,
-                  !PersonNameComponentsFormatter().string(from: nc).isEmpty {
-            effectiveName = PersonNameComponentsFormatter().string(from: nc)
         } else {
-            effectiveName = "Traveler"
+            let share = liveShare ?? existingShare(for: trip)
+            if let nc = share?.currentUserParticipant?.userIdentity.nameComponents,
+               !PersonNameComponentsFormatter().string(from: nc).isEmpty {
+                effectiveName = PersonNameComponentsFormatter().string(from: nc)
+            } else {
+                effectiveName = "Traveler"
+            }
         }
         TripMemberRegistry.upsertCurrentUser(
             in: trip,

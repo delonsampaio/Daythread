@@ -57,7 +57,18 @@ final class TripsViewModel {
     }
 
     func deleteTrip(_ trip: Trip, context: NSManagedObjectContext) {
-        context.delete(trip)
+        // Also delete any duplicate objects with the same id (e.g. the NSPCKC
+        // original that NSPCKC re-imports before its deletion export propagates,
+        // and the shared-store clone created during migration). Without this the
+        // trip reappears after a single delete because the survivor is still live.
+        if let tripID = trip.id {
+            let request = Trip.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@", tripID as CVarArg)
+            let all = (try? context.fetch(request)) ?? []
+            all.forEach { context.delete($0) }
+        } else {
+            context.delete(trip)
+        }
         try? context.save()
     }
 
