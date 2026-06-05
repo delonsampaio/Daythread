@@ -29,13 +29,26 @@ struct CloudKitTripSharingBackend: TripSharingBackend {
         guard let tripID = trip.id else { throw CocoaError(.fileNoSuchFile) }
         let title = trip.name
 
-        // If already migrated and shared, fetch the existing share from the server.
-        // This path is hit when managing/stopping an existing share.
-        if trip.migration == .done || trip.objectID.persistentStore?.url?.lastPathComponent == "shared.sqlite" {
-            // Try cache first, then fall back to a network fetch.
+        // Trip is already in shared.sqlite and still has an active share — fetch it.
+        if (trip.migration == .done || trip.objectID.persistentStore?.url?.lastPathComponent == "shared.sqlite")
+            && trip.cloudKitShareID != nil {
             if let cached = cachedShare(forTripID: tripID) { return cached }
             if let fetched = try await sharing.fetchShare(forTripID: tripID) { return fetched }
             throw CocoaError(.fileNoSuchFile)
+        }
+
+        // Trip is in shared.sqlite but cloudKitShareID is nil — this happens when
+        // the owner stopped sharing and then wants to re-share the same trip.
+        // The object graph is already in the shared store; we just need a new zone+share.
+        // Reset migration to .cloned so migrate() re-runs Phase 2 (create zone + upload).
+        if trip.objectID.persistentStore?.url?.lastPathComponent == "shared.sqlite",
+           trip.cloudKitShareID == nil {
+            trip.migration = .cloned
+            // Clear stale system fields so uploadClone assigns the new zone's IDs.
+            let context = PersistenceController.shared.viewContext
+            clearSystemFields(for: trip, context: context)
+            try? context.save()
+            daythreadLog.log("CloudKitTripSharingBackend: re-sharing existing shared-store trip — reset to .cloned")
         }
 
         // New share: migrate the trip and use the share returned directly from
@@ -62,6 +75,30 @@ struct CloudKitTripSharingBackend: TripSharingBackend {
     func deleteShare(for trip: Trip) async throws {
         guard let tripID = trip.id else { return }
         try await sharing.deleteZone(forTripID: tripID)
+    }
+
+    // MARK: — Re-share helpers
+
+    /// Clears ckSystemFields on all objects in `trip`'s graph so uploadClone
+    /// builds fresh CKRecords in the new zone rather than reusing stale ones
+    /// pointing at the deleted zone.
+    private func clearSystemFields(for trip: Trip, context: NSManagedObjectContext) {
+        var objects: [NSManagedObject] = [trip]
+        for day in trip.daysArray {
+            objects.append(day)
+            for event in day.eventsArray {
+                objects.append(event)
+                if let td = event.transitDetails { objects.append(td) }
+            }
+        }
+        objects += trip.documentsArray as [NSManagedObject]
+        objects += trip.expensesArray  as [NSManagedObject]
+        objects += trip.lodgingArray   as [NSManagedObject]
+        objects += trip.membersArray   as [NSManagedObject]
+        objects += trip.preTripTasksArray as [NSManagedObject]
+        for obj in objects {
+            obj.setValue(nil, forKey: "ckSystemFields")
+        }
     }
 
     // MARK: — Cache lookup
