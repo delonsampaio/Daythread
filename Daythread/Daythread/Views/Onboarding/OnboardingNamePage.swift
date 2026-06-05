@@ -94,7 +94,5 @@ struct OnboardingNamePage: View {
         }
         .animation(.easeInOut(duration: 0.2), value: focused)
         .onTapGesture { focused = false }
-        // Let the VStack resize when the keyboard appears rather than being pushed up.
-        .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 }

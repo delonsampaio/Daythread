@@ -46,6 +46,11 @@ final class VaultViewModel {
         doc.addedByAppleUserID = addedByAppleUserID
         doc.addedAt = Date()
         doc.trip = trip
+        // Ensure the new document lands in the same persistent store as the trip
+        // (shared.sqlite for shared trips) so SharedSyncEngine can push it.
+        if let tripStore = trip.objectID.persistentStore {
+            context.assign(doc, to: tripStore)
+        }
         try? context.save()
     }
 
@@ -57,8 +62,10 @@ final class VaultViewModel {
     // MARK: — Expenses
 
     func addExpense(_ expense: TripExpense, to trip: Trip, context: NSManagedObjectContext) {
-        // expense is already created with `context` by the caller; just link + save.
         expense.trip = trip
+        if let tripStore = trip.objectID.persistentStore {
+            context.assign(expense, to: tripStore)
+        }
         try? context.save()
     }
 
@@ -77,6 +84,9 @@ final class VaultViewModel {
         member.role = .editor
         member.joinedAt = Date()
         member.trip = trip
+        if let tripStore = trip.objectID.persistentStore {
+            context.assign(member, to: tripStore)
+        }
         try? context.save()
     }
 

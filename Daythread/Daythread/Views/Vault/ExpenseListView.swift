@@ -56,7 +56,7 @@ struct ExpenseListView: View {
     }
 
     private var totalsByCurrency: [String: Double] {
-        expenses.reduce(into: [:]) { acc, e in
+        expenses.filter { !$0.isSettlement }.reduce(into: [:]) { acc, e in
             acc[e.currencyCode, default: 0] += e.amount
         }
     }
