@@ -56,6 +56,8 @@ struct OnboardingView: View {
                 .padding(.horizontal, 24)
             }
             .padding(.bottom, 48)
+            // Ride above the keyboard so the Continue button is always reachable.
+            .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         .background(ThemeTokens.backgroundPrimary.ignoresSafeArea())
     }
