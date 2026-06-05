@@ -115,7 +115,6 @@ struct PersistenceController {
     // MARK: — Observers
 
     private func setupObservers() {
-        let viewContext = container.viewContext
         let container = container
 
         // CloudKit import finished: the data is committed and (via auto-merge) present
@@ -136,9 +135,12 @@ struct PersistenceController {
             } else {
                 daythreadLog.log("CloudKit \(Self.kindString(event.type), privacy: .public) \(state, privacy: .public)")
             }
-            guard event.type == .import, event.endDate != nil else { return }
+            guard event.type == .import, event.endDate != nil, event.succeeded else { return }
             MainActor.assumeIsolated {
-                viewContext.refreshAllObjects()
+                // automaticallyMergesChangesFromParent already applied the changes
+                // into viewContext; just signal views to re-evaluate relationship
+                // arrays. refreshAllObjects() is intentionally omitted — it blocks
+                // the main thread proportional to the number of tracked objects.
                 NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
                 daythreadLog.log("import applied — UI refresh posted")
             }
