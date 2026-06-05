@@ -94,7 +94,7 @@ struct VaultView: View {
                     // The chevron is an overlay (via alignmentGuide) so it doesn't
                     // widen the name's layout frame — that keeps the date below
                     // centered under the trip name text, not under name + chevron.
-                    Text(store.activeTrip?.name ?? "Select Trip")
+                    Text(store.activeTrip?.isAlive == true ? store.activeTrip!.name : "Select Trip")
                         .font(.headline)
                         .foregroundStyle(ThemeTokens.textPrimary)
                         .overlay(alignment: .trailing) {
@@ -103,7 +103,7 @@ struct VaultView: View {
                                 .foregroundStyle(ThemeTokens.textSecondary)
                                 .alignmentGuide(.trailing) { d in d[.leading] - 4 }
                         }
-                    if let trip = store.activeTrip {
+                    if let trip = store.activeTrip, trip.isAlive {
                         Text(dateRange(for: trip))
                             .font(.caption2)
                             .foregroundStyle(ThemeTokens.textMuted)
