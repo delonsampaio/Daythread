@@ -83,7 +83,7 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "What categories of events can I add?",
-                answer: "Daythread supports: Flight, Train, Bus, Ferry (transit), Hotel, Rental Property, Restaurant, Café, Bar, Museum, Attraction, Tour, Show, Activity, Sport, Hike, Shopping, and Other. Transit categories open an extended form for carrier, flight/train number, PNR, and seat."
+                answer: "Daythread supports: Flight, Train, Bus, Ferry (transit), Hotel, Rental Property, Restaurant, Café, Bar, Museum, Attraction, Tour, Show, Activity, Sport, Hike, Shopping, and Other. Transit categories open an extended form for carrier, flight/train number, Confirmation #, and seat."
             )
             FAQRow(
                 question: "How do I reorder events in my day?",
@@ -97,6 +97,10 @@ struct HelpView: View {
                 question: "What happens if I add an event that overlaps another?",
                 answer: "When you save a timed event whose start–end window overlaps another timed event on the same day, Daythread shows an alert naming the conflicting event(s). You can tap \"Adjust Time\" to return to the form and fix the times, or \"Save Anyway\" to keep the overlap — for example, when two people are splitting up for part of the day."
             )
+            FAQRow(
+                question: "Can I use Daythread without an internet connection?",
+                answer: "Yes. Once a trip is loaded on your device, you can view your timeline and documents offline. Any edits or expenses you log will sync automatically the next time you have a connection."
+            )
         }
     }
 
@@ -104,7 +108,7 @@ struct HelpView: View {
         Section("Timeline") {
             FAQRow(
                 question: "What is a Time-Locked event?",
-                answer: "A Time-Locked event is anchored to its time slot. It cannot be dragged, and other events cannot be dragged past it — if you try, the card snaps back with a warning vibration. When you set a start time on a new event the lock is suggested automatically. A padlock icon (amber) appears on the card, and an amber warning badge appears if the event is currently out of order."
+                answer: "A Time-Locked event is anchored to its time slot so it can't be accidentally moved. If you try to drag another event past it, it snaps back. You'll see an amber padlock icon on locked events, and an amber warning if the event is out of chronological order."
             )
             FAQRow(
                 question: "What does the lodging banner at the top show?",
@@ -112,7 +116,7 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "How are transit events different from regular events?",
-                answer: "Flight, Train, Bus, and Ferry events show a detailed card with carrier name, flight or train number, booking code, terminal and gate, seat number, baggage claim, and timezone-corrected times. Fill in the transit details form after choosing one of these categories."
+                answer: "Flight, Train, Bus, and Ferry events show a detailed card with carrier name, flight or train number, Confirmation #, Airport Code, terminal and gate, seat number, baggage claim, and local times. Fill in the transit details form after choosing one of these categories."
             )
             FAQRow(
                 question: "Can I add notes to an event?",
@@ -120,7 +124,11 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "How do I add lodging to a trip?",
-                answer: "From the Timeline, tap the + button and choose Hotel or Rental Property. Alternatively, go to Trips, tap your trip, and use the Lodging section. Enter check-in and check-out dates and a confirmation number. Lodging covers the whole trip, not a single day."
+                answer: "From the Timeline, tap the + button and choose Hotel or Rental Property. Alternatively, go to Trips, tap your trip, and use the Lodging section. Enter check-in and check-out dates and a Confirmation #. Lodging covers the whole trip, not a single day."
+            )
+            FAQRow(
+                question: "How does Daythread handle time zones?",
+                answer: "Events are locked to the local time at your destination — if you schedule dinner at 7:00 PM in Paris, it stays at 7:00 PM wherever you're viewing from. Flight and transit events automatically display both departure and arrival times in their respective local time zones."
             )
         }
     }
@@ -137,15 +145,15 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "Can I exclude a specific event from Apple Calendar?",
-                answer: "Yes. Open the Add/Edit Event sheet for the event and turn off the \"Add to Apple Calendar\" toggle. The event stays in Daythread but is removed from (or never added to) Apple Calendar. This is a per-device setting — other co-editors on the trip control their own calendars independently."
+                answer: "Yes. Open the Add/Edit Event sheet for the event and turn off the \"Add to Apple Calendar\" toggle. The event stays in Daythread but is removed from (or never added to) Apple Calendar. This only applies to your device — other co-editors control their own calendars independently."
             )
             FAQRow(
                 question: "Can I get reminders before my events?",
-                answer: "Yes. Enable event reminders in Profile → Settings → Notifications and choose your lead time: 15 minutes, 30 minutes, 1 hour, or 1 day before. Two reminders are sent: a Daythread app notification and an Apple Calendar alarm. The lead time applies to both."
+                answer: "Yes. You can turn on reminders in Settings → Notifications and choose your lead time (15 min, 30 min, 1 hour, or 1 day). You'll receive both a Daythread alert and an Apple Calendar alarm."
             )
             FAQRow(
                 question: "What can I do from a reminder notification?",
-                answer: "Each event reminder has two quick actions: \"Snooze 15 min\" (fires another reminder 15 minutes later without opening the app) and \"View Itinerary\" (opens Daythread directly to the trip timeline). Reminders group by trip on your lock screen so they don't clutter it."
+                answer: "Tap 'Snooze 15 min' to get another alert later without opening the app, or 'View Itinerary' to jump straight into your Daythread timeline. Reminders group by trip on your lock screen so they don't clutter it."
             )
             FAQRow(
                 question: "Daythread notifications are not coming through during Focus mode. Why?",
@@ -199,7 +207,7 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "Can I edit a document after adding it?",
-                answer: "Yes — if you are the originator or the document is unlocked. Long-press any document tile and tap Edit Details to change the title, notes, or expiry date. Documents are locked by default so only you can edit them; unlock from the same sheet to let others edit. The file itself cannot be replaced — delete and re-add it to swap the file."
+                answer: "Yes — if you added the document or if it's unlocked. Long-press any document tile and tap Edit Details to change the title, notes, or expiry date. Documents are locked by default so only you can edit them; unlock from the same sheet to let others edit. The file itself cannot be replaced — delete and re-add it to swap the file."
             )
             FAQRow(
                 question: "Can I switch between a grid and a list view for documents?",
@@ -211,7 +219,7 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "Can I prevent others from editing my documents?",
-                answer: "Yes. Every document has a Lock toggle (on by default). When locked, only the person who added the document can change its title or expiry date — the Edit Details option is hidden for everyone else. As the originator you can unlock it at any time from Edit Details. The lock only controls editing; it does not affect who can view the document."
+                answer: "Yes. Every document has a Lock toggle (on by default). When locked, only the person who added the document can edit it — the Edit Details option is hidden for everyone else. You can unlock it at any time from Edit Details. The lock only controls editing; it does not affect who can view the document."
             )
             FAQRow(
                 question: "Can I control who sees my documents?",
@@ -232,11 +240,11 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "How do I log an expense?",
-                answer: "Go to Vault → Expenses tab and tap +. Enter the amount, currency, category (Food, Transport, Lodging, Activity, Shopping, or Other), date, and who paid. If participants are set up for the trip, selecting a payer is required. The Expenses tab shows a running total per currency."
+                answer: "Go to Vault → Expenses tab and tap +. Enter the amount, currency, category (Food, Transport, Lodging, Activity, Shopping, or Other), date, and who paid. If you've added people to your trip, you'll need to specify who paid. The Expenses tab shows a running total per currency."
             )
             FAQRow(
                 question: "Can I attach a receipt to an expense?",
-                answer: "Yes — Pro users can attach a receipt photo to any expense. When adding or editing an expense, tap \"Attach Receipt Photo\" to take a photo with your camera or choose one from your library. A thumbnail appears on the expense row; tap it to view the full receipt.",
+                answer: "Yes — Pro users can attach a receipt photo to any expense. When adding or editing an expense, tap \"Attach Receipt\" to take a photo with your camera or choose one from your library. A thumbnail appears on the expense row; tap it to view the full receipt.",
                 isPro: true
             )
             FAQRow(
@@ -294,12 +302,17 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "What happens to co-editors when I stop sharing?",
-                answer: "When you stop sharing, the trip is removed from all co-editors' devices immediately — the same way stopping a shared Apple Note works. Co-editors lose access to the trip and its events, documents, and expenses. Before stopping, let them know so they can take note of anything they need.",
+                answer: "When you stop sharing, the trip is removed from all co-editors' devices immediately. They lose access to the trip and its events, documents, and expenses. Before stopping, let them know so they can take note of anything they need.",
                 isPro: true
             )
             FAQRow(
                 question: "How do I stop sharing a trip, or leave a shared trip?",
                 answer: "Owner: open Group Sync, tap 'Trip is shared — Manage people & permissions', then choose 'Stop Sharing'. Co-editors will lose access immediately.\n\nParticipant: open Group Sync and tap 'Trip is shared', then choose 'Stop Accessing' in the system sheet to remove yourself from the trip.",
+                isPro: true
+            )
+            FAQRow(
+                question: "Can I hide a specific event from my travel group?",
+                answer: "Yes. When adding or editing an event, look for the 'Limit visibility' option. You can make it visible to Everyone, Only you, or Specific people — perfect for surprise dinners or keeping personal errands private.",
                 isPro: true
             )
         }
@@ -340,21 +353,21 @@ struct HelpView: View {
         .init(section: "Getting Started", question: "How do I create my first trip?", answer: "Tap the Trips tab, then tap the + button. Fill in the trip name, destination, start and end dates, and an optional cover photo — all on one screen. Tap Save and the app switches to your new trip in the Timeline."),
         .init(section: "Getting Started", question: "How do I switch between trips?", answer: "Tap the trip name in the centre of the Timeline navigation bar — it shows a dropdown of all your active trips. The current trip's date range appears just below the name so you always know which trip you're viewing."),
         .init(section: "Getting Started", question: "How do I add an event to my itinerary?", answer: "In the Timeline, tap the blue + button in the bottom-right corner to open the Add Event sheet. Choose a category (Flight, Hotel, Restaurant, Museum, Activity, etc.), fill in the details, and save."),
-        .init(section: "Getting Started", question: "What categories of events can I add?", answer: "Daythread supports: Flight, Train, Bus, Ferry (transit), Hotel, Rental Property, Restaurant, Café, Bar, Museum, Attraction, Tour, Show, Activity, Sport, Hike, Shopping, and Other. Transit categories open an extended form for carrier, flight/train number, booking code, and seat."),
+        .init(section: "Getting Started", question: "What categories of events can I add?", answer: "Daythread supports: Flight, Train, Bus, Ferry (transit), Hotel, Rental Property, Restaurant, Café, Bar, Museum, Attraction, Tour, Show, Activity, Sport, Hike, Shopping, and Other. Transit categories open an extended form for carrier, flight/train number, Confirmation #, and seat."),
         .init(section: "Getting Started", question: "How do I reorder events in my day?", answer: "Long-press and drag any event card to reorder it. You can also drag events between days. Two things can block a drag: time-locked events, and time conflicts with existing timed events on the target day."),
         .init(section: "Calendar & Notifications", question: "Does Daythread sync my events to Apple Calendar?", answer: "Yes. Events are added to a Daythread: [trip name] calendar in Apple Calendar. Toggle off globally in Settings → Calendar or per-event in the Add/Edit Event sheet."),
         .init(section: "Calendar & Notifications", question: "Why is there a Daythread calendar in Apple Calendar?", answer: "Daythread creates one calendar per trip to keep your itinerary separate from personal events."),
-        .init(section: "Calendar & Notifications", question: "Can I exclude a specific event from Apple Calendar?", answer: "Yes. Turn off the 'Add to Apple Calendar' toggle in the Add/Edit Event sheet. Device-local — co-editors control their own calendars independently."),
-        .init(section: "Calendar & Notifications", question: "Can I get reminders before my events?", answer: "Yes. Enable in Settings → Notifications and choose 15 min, 30 min, 1 hour, or 1 day before. Sends both a Daythread app notification and an Apple Calendar alarm."),
-        .init(section: "Calendar & Notifications", question: "What can I do from a reminder notification?", answer: "Snooze 15 min (background, no app launch) or View Itinerary (opens Daythread). Notifications group by trip on the lock screen."),
+        .init(section: "Calendar & Notifications", question: "Can I exclude a specific event from Apple Calendar?", answer: "Yes. Turn off the 'Add to Apple Calendar' toggle in the Add/Edit Event sheet. This only applies to your device — co-editors control their own calendars independently."),
+        .init(section: "Calendar & Notifications", question: "Can I get reminders before my events?", answer: "Yes. Turn on reminders in Settings → Notifications and choose 15 min, 30 min, 1 hour, or 1 day. You'll get both a Daythread alert and an Apple Calendar alarm."),
+        .init(section: "Calendar & Notifications", question: "What can I do from a reminder notification?", answer: "Tap 'Snooze 15 min' to get another alert later without opening the app, or 'View Itinerary' to open your timeline. Notifications group by trip on the lock screen."),
         .init(section: "Calendar & Notifications", question: "Daythread notifications not coming through during Focus mode?", answer: "Daythread sends time-sensitive notifications designed to break through Focus. Check iOS Settings → Focus → your Focus → Apps → Allow Daythread."),
         .init(section: "Calendar & Notifications", question: "Does Daythread look different on iPad?", answer: "Yes. On iPad the four sections appear in a collapsible sidebar. On iPhone and narrow windows the standard bottom tab bar is used."),
         .init(section: "Getting Started", question: "How do I edit or delete an event?", answer: "Swipe left on any event card to reveal three actions: Edit, Lock/Unlock, and Delete. Tap the action you want, or swipe right to dismiss. Time-Locked events show Unlock instead of Lock."),
         .init(section: "Timeline", question: "What is a Time-Locked event?", answer: "A Time-Locked event is anchored to its time slot. It cannot be dragged, and other events cannot be dragged past it — if you try, the card snaps back with a warning vibration. When you set a start time on a new event the lock is suggested automatically. A padlock icon (amber) appears on the card, and an amber warning badge appears if the event is currently out of order."),
         .init(section: "Timeline", question: "What does the lodging banner at the top show?", answer: "If you've added lodging that covers today's date, a banner appears at the top of the Timeline showing your current accommodation. It updates automatically as your check-in and check-out dates change."),
-        .init(section: "Timeline", question: "How are transit events different from regular events?", answer: "Flight, Train, Bus, and Ferry events show a detailed card with carrier name, flight or train number, booking code, terminal and gate, seat number, baggage claim, and timezone-corrected times."),
+        .init(section: "Timeline", question: "How are transit events different from regular events?", answer: "Flight, Train, Bus, and Ferry events show a detailed card with carrier name, flight or train number, Confirmation #, Airport Code, terminal and gate, seat number, baggage claim, and local times."),
         .init(section: "Timeline", question: "Can I add notes to an event?", answer: "Yes. The Add/Edit Event sheet has a notes field where you can save anything relevant — confirmation numbers, meeting points, dress codes, etc."),
-        .init(section: "Timeline", question: "How do I add lodging to a trip?", answer: "From the Timeline, tap the + button and choose Hotel or Rental Property. Alternatively, go to Trips, tap your trip, and use the Lodging section. Enter check-in and check-out dates and a confirmation number."),
+        .init(section: "Timeline", question: "How do I add lodging to a trip?", answer: "From the Timeline, tap the + button and choose Hotel or Rental Property. Alternatively, go to Trips, tap your trip, and use the Lodging section. Enter check-in and check-out dates and a Confirmation #."),
         .init(section: "Trips", question: "How are trips organised?", answer: "The Trips tab groups your trips into Current, Upcoming, Past, and Archived. A trip is 'Current' if today falls within its start and end dates."),
         .init(section: "Trips", question: "How do I edit a trip?", answer: "Long-press any trip card in the Trips list and tap Edit. You can change the name, destination, cover photo, and dates. Shortening the date range shows a warning if events would be removed."),
         .init(section: "Trips", question: "How do I archive a trip?", answer: "Long-press any trip card in the Trips list and tap Archive. Archived trips are hidden from the Timeline trip picker and the Vault, but remain accessible in the Archived section of the Trips tab."),
@@ -363,16 +376,16 @@ struct HelpView: View {
         .init(section: "Trips", question: "Can I add a cover photo to a trip?", answer: "Yes. The trip creation form has a Cover Photo section where you can pick one from your photo library. You can also change or remove it later via the Edit option in the trip card's long-press menu."),
         .init(section: "Vault (Documents & Expenses)", question: "What can I store in the Vault?", answer: "The Vault holds Documents (passports, visas, insurance cards, boarding passes — as PDFs or images) and Expenses (a running log of what you've spent per trip)."),
         .init(section: "Vault (Documents & Expenses)", question: "How do I add a document?", answer: "Go to Vault → Documents tab and tap +. Import from Files, take a photo, or pick from your library. Give it a title, an optional note, and an optional expiry date."),
-        .init(section: "Vault (Documents & Expenses)", question: "Can I edit a document after adding it?", answer: "Yes — if you are the originator or the document is unlocked. Long-press the tile and tap Edit Details to change the title, notes, or expiry date. Documents are locked by default so only you can edit them; unlock from the same sheet to let others edit. To replace the file, delete the document and re-add it."),
+        .init(section: "Vault (Documents & Expenses)", question: "Can I edit a document after adding it?", answer: "Yes — if you added the document or if it's unlocked. Long-press the tile and tap Edit Details to change the title, notes, or expiry date. Documents are locked by default so only you can edit them; unlock from the same sheet to let others edit. To replace the file, delete the document and re-add it."),
         .init(section: "Vault (Documents & Expenses)", question: "Can I switch between a grid and a list view for documents?", answer: "Yes. Tap the grid/list toggle icon in the top-right toolbar. The list view shows each document's thumbnail, title, notes, and expiry date at a glance."),
         .init(section: "Vault (Documents & Expenses)", question: "How do I sort documents?", answer: "Tap the sort icon (↑↓ arrows) in the Documents toolbar to choose: Expiry soonest first, Name A–Z, Date added newest, or Date added oldest."),
-        .init(section: "Vault (Documents & Expenses)", question: "Can I prevent others from editing my documents?", answer: "Yes. Every document has a Lock toggle (on by default). When locked, only the person who added the document can edit its title, notes, or expiry date. As the originator you can unlock it at any time from Edit Details."),
+        .init(section: "Vault (Documents & Expenses)", question: "Can I prevent others from editing my documents?", answer: "Yes. Every document has a Lock toggle (on by default). When locked, only the person who added the document can edit it. You can unlock it at any time from Edit Details."),
         .init(section: "Vault (Documents & Expenses)", question: "Can I control who sees my documents?", answer: "Yes. Use the Visibility picker when adding or editing a document: Everyone on the trip, Specific people, or Only you (default). Only the originator can change this setting.", isPro: true),
         .init(section: "Vault (Documents & Expenses)", question: "How do I share a document?", answer: "Tap the tile to open the viewer, then tap the share icon in the top-left to send via Messages, email, AirDrop, or any other app."),
         .init(section: "Vault (Documents & Expenses)", question: "What does the expiry badge on a document tile mean?", answer: "Red means expired or expiring within 30 days. Amber means expiring within 90 days — time to act before international entry requirements kick in."),
         .init(section: "Vault (Documents & Expenses)", question: "How many documents can I store for free?", answer: "Free users can store up to 5 documents per trip. Upgrade to Pro for unlimited document storage."),
-        .init(section: "Vault (Documents & Expenses)", question: "How do I log an expense?", answer: "Go to Vault → Expenses tab and tap +. Enter the amount, currency, category, date, and who paid. Payer is required when participants are set up."),
-        .init(section: "Vault (Documents & Expenses)", question: "Can I attach a receipt to an expense?", answer: "Yes — Pro users can attach a receipt photo to any expense. Tap 'Attach Receipt Photo' to use your camera or photo library. A thumbnail appears on the expense row; tap it to view full screen.", isPro: true),
+        .init(section: "Vault (Documents & Expenses)", question: "How do I log an expense?", answer: "Go to Vault → Expenses tab and tap +. Enter the amount, currency, category, date, and who paid. If you've added people to the trip, you'll need to specify who paid."),
+        .init(section: "Vault (Documents & Expenses)", question: "Can I attach a receipt to an expense?", answer: "Yes — Pro users can attach a receipt photo to any expense. Tap 'Attach Receipt' to use your camera or photo library. A thumbnail appears on the expense row; tap it to view full screen.", isPro: true),
         .init(section: "Vault (Documents & Expenses)", question: "How do I split expenses with my travel group?", answer: "In the Vault → Expenses tab, tap the ↻ icon in the top-right toolbar (Pro). Add participant names, choose who paid each expense, and the app calculates the easiest way to settle debts with the fewest transactions. An orange warning appears for expenses with no payer — tap it to assign payers. Settlement payments appear in the expense list with a Settlement badge.", isPro: true),
         .init(section: "Vault (Documents & Expenses)", question: "Can I settle a partial amount or overpay?", answer: "Yes. Tap Settle on any debt row and edit the pre-filled amount. Overpayments automatically flip the balance in the ledger.", isPro: true),
         .init(section: "Vault (Documents & Expenses)", question: "What happens if I edit an expense after settling?", answer: "Daythread warns you that existing settlements may no longer be accurate if you change the amount, currency, payer, or split after settlements exist. To clean up, swipe to delete the outdated settlement in the expense list.", isPro: true),
@@ -389,6 +402,9 @@ struct HelpView: View {
         .init(section: "Pro Features", question: "How do I restore my Pro purchase on a new device?", answer: "Go to Profile → Settings and tap 'Restore Purchases'.", isPro: true),
         .init(section: "Pro Features", question: "What are ETA badges?", answer: "ETA badges appear between consecutive events on the same day and show the estimated travel time — for example, '12 min walk →'.", isPro: true),
         .init(section: "Pro Features", question: "I'm not receiving Pro features after purchasing. What should I do?", answer: "Try restoring purchases from Profile → Settings → Restore Purchases. If the issue persists, email delon.sampaio+daythread@gmail.com with your order number."),
+        .init(section: "Co-editing & Sync", question: "Can I hide a specific event from my travel group?", answer: "Yes. Use the 'Limit visibility' option when adding or editing an event: Everyone, Only you, or Specific people.", isPro: true),
+        .init(section: "Timeline", question: "How does Daythread handle time zones?", answer: "Events are locked to the local time at your destination. Flight and transit events show both departure and arrival times in their local time zones."),
+        .init(section: "Getting Started", question: "Can I use Daythread without an internet connection?", answer: "Yes. Your timeline and documents are available offline. Edits sync automatically when you reconnect."),
     ]
 }
 
