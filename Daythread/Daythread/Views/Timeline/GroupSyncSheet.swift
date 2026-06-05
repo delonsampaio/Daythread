@@ -320,11 +320,11 @@ struct GroupSyncSheet: View {
         if let share {
             sharingSheet = IdentifiableShare(share: share)
         } else {
-            // Cache miss — the SyncState row may not have been written yet.
-            // Fetch the share asynchronously and open the sheet when it arrives.
+            // Cache miss — fetch asynchronously.
             isPreparing = true
             Task {
-                if let share = try? await CloudKitTripSharingBackend().makeShare(for: liveTrip) {
+                let share = await fetchShareForManagement(liveTrip)
+                if let share {
                     isOwnerBeforeSheetOpen = share.currentUserParticipant?.role == .owner
                     sharingSheet = IdentifiableShare(share: share)
                 } else {
@@ -332,6 +332,35 @@ struct GroupSyncSheet: View {
                 }
                 isPreparing = false
             }
+        }
+    }
+
+    /// Fetches the CKShare for the management sheet using the correct database.
+    /// Owners fetch from their private DB; participants must use the shared DB
+    /// because the zone lives in the owner's private DB (not the participant's).
+    private func fetchShareForManagement(_ trip: Trip) async -> CKShare? {
+        guard let tripID = trip.id else { return nil }
+        let zoneName = "Zone-\(tripID.uuidString)"
+
+        // Check whether this device is a participant by looking at the stored
+        // databaseScope in SyncState. Participants have "shared"; owners have "private".
+        let stateRequest = SyncState.fetchRequest()
+        stateRequest.predicate = NSPredicate(format: "zoneName == %@", zoneName)
+        stateRequest.fetchLimit = 1
+        let state = (try? context.fetch(stateRequest))?.first
+
+        if state?.databaseScope == "shared",
+           let ownerName = state?.ownerName, !ownerName.isEmpty {
+            // Participant: the zone-wide share is in the owner's private DB zone,
+            // accessible to participants through the shared database. The ownerName
+            // from SyncState is the actual CloudKit record name of the zone owner.
+            let zoneID = CKRecordZone.ID(zoneName: zoneName, ownerName: ownerName)
+            let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: zoneID)
+            let results = try? await cloudKit.container.sharedCloudDatabase.records(for: [shareID])
+            return results?[shareID].flatMap { try? $0.get() } as? CKShare
+        } else {
+            // Owner: go through the normal backend path which handles migration/re-share.
+            return try? await CloudKitTripSharingBackend().makeShare(for: trip)
         }
     }
 }

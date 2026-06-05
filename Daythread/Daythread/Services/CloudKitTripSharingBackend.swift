@@ -107,8 +107,13 @@ struct CloudKitTripSharingBackend: TripSharingBackend {
         let context = PersistenceController.shared.viewContext
         let zoneID = SharedZoneSharing.zoneID(for: tripID)
         let request = SyncState.fetchRequest()
-        request.predicate = NSPredicate(format: "zoneName == %@ AND databaseScope == %@",
-                                        zoneID.zoneName, "private")
+        // Owners have databaseScope "private"; participants have "shared" (the zone
+        // lives in the owner's private DB and is accessible to participants via the
+        // shared DB). Both need to be checked so the cache works for participants too.
+        request.predicate = NSPredicate(
+            format: "zoneName == %@ AND (databaseScope == %@ OR databaseScope == %@)",
+            zoneID.zoneName, "private", "shared"
+        )
         request.fetchLimit = 1
         guard let data = (try? context.fetch(request))?.first?.shareSystemFields else { return nil }
         guard let share = try? NSKeyedUnarchiver.unarchivedObject(ofClass: CKShare.self, from: data) else { return nil }

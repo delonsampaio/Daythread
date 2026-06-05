@@ -95,7 +95,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         options: UIScene.ConnectionOptions
     ) -> UISceneConfiguration {
         let config = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
-        config.delegateClass = ShareSceneDelegate.self
+        // Only set a custom delegate when the system is routing a CloudKit share
+        // acceptance into this scene. For normal launches, leaving delegateClass nil
+        // lets SwiftUI install its own internal scene delegate, which creates the
+        // UIWindow. Always overriding it replaces SwiftUI's delegate and prevents
+        // the window from being created on a cold process launch from Xcode.
+        if options.cloudKitShareMetadata != nil {
+            config.delegateClass = ShareSceneDelegate.self
+        }
         return config
     }
 }
