@@ -115,8 +115,15 @@ final class SharedSyncEngine {
                     purgeZone(deletion.zoneID)
                 }
                 let zoneIDs = dbChanges.modifications.map(\.zoneID)
+                var anyChanges = false
                 for zoneID in zoneIDs {
-                    await fetchZone(zoneID, in: sharedDB, databaseScope: "shared")
+                    let n = await fetchZone(zoneID, in: sharedDB, databaseScope: "shared")
+                    if n > 0 { anyChanges = true }
+                }
+                // Post once after all zones — avoids N×sections synchronous reload()
+                // calls on the main thread when multiple zones change in one pass.
+                if anyChanges {
+                    NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
                 }
             } catch {
                 daythreadLog.error("SharedSync fetchAll failed: \(error.localizedDescription, privacy: .public)")
@@ -147,8 +154,13 @@ final class SharedSyncEngine {
                 }
                 let zoneIDs = dbChanges.modifications.map(\.zoneID)
                     .filter { $0.zoneName.hasPrefix("Zone-") }  // only our custom zones
+                var anyChanges = false
                 for zoneID in zoneIDs {
-                    await fetchZone(zoneID, in: privateDB, databaseScope: "private")
+                    let n = await fetchZone(zoneID, in: privateDB, databaseScope: "private")
+                    if n > 0 { anyChanges = true }
+                }
+                if anyChanges {
+                    NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
                 }
             } catch {
                 daythreadLog.error("SharedSync fetchOwnedZones failed: \(error.localizedDescription, privacy: .public)")
@@ -162,7 +174,10 @@ final class SharedSyncEngine {
         guard PersistenceController.useCustomSharedSync else { return }
         for attempt in 0..<6 {
             let count = await fetchZone(zoneID, in: sharedDB, databaseScope: "shared")
-            if count > 0 { return }
+            if count > 0 {
+                NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
+                return
+            }
             daythreadLog.log("SharedSync: joined zone empty (attempt \(attempt, privacy: .public)), retrying")
             try? await Task.sleep(for: .seconds(1.5))
         }
@@ -174,7 +189,7 @@ final class SharedSyncEngine {
     private func fetchZone(_ zoneID: CKRecordZone.ID, in db: CKDatabase, databaseScope: String) async -> Int {
         let context = PersistenceController.shared.viewContext
         guard let sharedStore = Self.sharedStore(in: context) else { return 0 }
-        let token = loadToken(zoneName: zoneID.zoneName, databaseScope: databaseScope, context: context)
+        let token = loadToken(zoneName: zoneID.zoneName, databaseScope: databaseScope)
         do {
             let changes = try await db.recordZoneChanges(inZoneWith: zoneID, since: token)
             let allRecords = changes.modificationResultsByID.values.compactMap { try? $0.get().record }
@@ -184,17 +199,28 @@ final class SharedSyncEngine {
             let deletions = changes.deletions.map(\.recordID)
             guard !records.isEmpty || !deletions.isEmpty || share != nil else { return 0 }
 
-            suppressingPush {
-                CKRecordMapper.apply(modifications: records, deletions: deletions, into: context, sharedStore: sharedStore)
+            // CKRecordMapper.apply is the expensive part: it iterates and inserts/updates
+            // potentially hundreds of records. Run it on a background context so the main
+            // thread is never blocked. Token + dedup are lightweight (single-row fetch) and
+            // stay on viewContext where @MainActor-isolated NSManagedObject APIs are safe.
+            let bgContext = PersistenceController.shared.container.newBackgroundContext()
+            bgContext.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
+            await bgContext.perform {
+                guard let bgStore = Self.sharedStore(in: bgContext) else { return }
+                // Push observer only watches viewContext — no suppressingPush needed here.
+                CKRecordMapper.apply(modifications: records, deletions: deletions, into: bgContext, sharedStore: bgStore, autoSave: true)
             }
-            saveToken(changes.changeToken, zoneName: zoneID.zoneName, ownerName: zoneID.ownerName, databaseScope: databaseScope, context: context, share: share)
-            // Deduplicate members after every sync. Two devices may independently
-            // create a TripMember for the same participant before each other's record
-            // arrives — this collapses them to one without a round-trip to GroupSync.
+
+            // Lightweight main-thread work: persist the change token and collapse any
+            // duplicate TripMember rows that arrived before each device's record synced.
+            saveToken(changes.changeToken, zoneName: zoneID.zoneName, ownerName: zoneID.ownerName, databaseScope: databaseScope, share: share)
             deduplicateMembersForZone(zoneID.zoneName, in: context, sharedStore: sharedStore)
-            NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
+            if context.hasChanges { suppressingPush { try? context.save() } }
+            // Notification is posted by the caller (fetchAllSharedZones/fetchAllOwnedZones/
+            // fetchJoinedZone) once after ALL zones finish, not once per zone, to avoid
+            // N×sections synchronous reload() calls on the main thread per poll tick.
             daythreadLog.log("SharedSync: zone '\(zoneID.zoneName, privacy: .public)' merged \(records.count, privacy: .public) record(s), \(deletions.count, privacy: .public) deletion(s)")
-            return records.count
+            return records.count + deletions.count
         } catch let error as CKError where error.code == .zoneNotFound {
             daythreadLog.log("SharedSync: zone '\(zoneID.zoneName, privacy: .public)' deleted — purging local data")
             purgeZone(zoneID)
@@ -234,7 +260,7 @@ final class SharedSyncEngine {
                 seen[uid] = m
             }
         }
-        if context.hasChanges { suppressingPush { try? context.save() } }
+        // Caller saves — see fetchZone's single batched save.
     }
 
     // MARK: — Zone purge
@@ -293,12 +319,11 @@ final class SharedSyncEngine {
             daythreadLog.log("SharedSync purgeZone: zone \(zoneName, privacy: .public) has no UUID prefix — skipping purge")
         }
 
-        // Remove SyncState rows for this zone (both private and shared scope).
-        let stateRequest = SyncState.fetchRequest()
-        stateRequest.predicate = NSPredicate(format: "zoneName == %@", zoneID.zoneName)
-        stateRequest.affectedStores = [sharedStore]
-        if let rows = try? context.fetch(stateRequest) {
-            rows.forEach { context.delete($0) }
+        // Remove zone tokens from UserDefaults (tokens are no longer stored in Core Data).
+        for scope in ["shared", "private"] {
+            UserDefaults.standard.removeObject(forKey: "SharedSync.zoneToken.\(zoneID.zoneName).\(scope)")
+            UserDefaults.standard.removeObject(forKey: "SharedSync.zoneOwner.\(zoneID.zoneName).\(scope)")
+            UserDefaults.standard.removeObject(forKey: "SharedSync.zoneShare.\(zoneID.zoneName).\(scope)")
         }
 
         if context.hasChanges {
@@ -311,13 +336,12 @@ final class SharedSyncEngine {
         }
     }
 
-    // MARK: — Change-token persistence (SyncState, local to shared.sqlite)
+    // MARK: — Change-token persistence (UserDefaults — no PSC lock, no main-thread Core Data I/O)
+    // Zone tokens mirror the database-level token pattern (loadDatabaseToken/saveDatabaseToken).
+    // SyncState Core Data entity is no longer written; existing rows are harmless orphans.
 
-    private func loadToken(zoneName: String, databaseScope: String, context: NSManagedObjectContext) -> CKServerChangeToken? {
-        let request = SyncState.fetchRequest()
-        request.predicate = NSPredicate(format: "zoneName == %@ AND databaseScope == %@", zoneName, databaseScope)
-        request.fetchLimit = 1
-        guard let data = (try? context.fetch(request))?.first?.changeTokenData else { return nil }
+    private func loadToken(zoneName: String, databaseScope: String) -> CKServerChangeToken? {
+        guard let data = UserDefaults.standard.data(forKey: "SharedSync.zoneToken.\(zoneName).\(databaseScope)") else { return nil }
         return try? NSKeyedUnarchiver.unarchivedObject(ofClass: CKServerChangeToken.self, from: data)
     }
 
@@ -326,27 +350,16 @@ final class SharedSyncEngine {
         zoneName: String,
         ownerName: String,
         databaseScope: String,
-        context: NSManagedObjectContext,
         share: CKShare? = nil
     ) {
-        let request = SyncState.fetchRequest()
-        request.predicate = NSPredicate(format: "zoneName == %@ AND databaseScope == %@", zoneName, databaseScope)
-        request.fetchLimit = 1
-        let state = (try? context.fetch(request))?.first ?? SyncState(context: context)
-        if let store = Self.sharedStore(in: context), state.objectID.isTemporaryID {
-            context.assign(state, to: store)
-        }
-        state.zoneName = zoneName
-        state.ownerName = ownerName
-        state.databaseScope = databaseScope
-        state.changeTokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true)
-        state.lastSyncedAt = Date()
+        let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true)
+        UserDefaults.standard.set(tokenData, forKey: "SharedSync.zoneToken.\(zoneName).\(databaseScope)")
+        UserDefaults.standard.set(ownerName, forKey: "SharedSync.zoneOwner.\(zoneName).\(databaseScope)")
         if let share {
             let coder = NSKeyedArchiver(requiringSecureCoding: true)
             share.encodeSystemFields(with: coder)
-            state.shareSystemFields = coder.encodedData
+            UserDefaults.standard.set(coder.encodedData, forKey: "SharedSync.zoneShare.\(zoneName).\(databaseScope)")
         }
-        try? context.save()
     }
 
     private func loadDatabaseToken(scope: String) -> CKServerChangeToken? {

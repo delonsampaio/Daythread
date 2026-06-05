@@ -7,6 +7,7 @@
 
 import SwiftUI
 import CoreData
+import Combine
 
 struct TimelineView: View {
     @Environment(TripStore.self) private var store
@@ -58,10 +59,8 @@ struct TimelineView: View {
         NavigationStack {
         Group {
             if let trip = store.activeTrip, trip.isAlive {
-                // TripTimelineList observes `trip` so adding/removing whole days
-                // repaints the list; each day section observes its TripDay so
-                // event add/edit/delete/reorder repaints live (the @Query→
-                // @FetchRequest migration otherwise loses this auto-refresh).
+                // TripTimelineList uses `let trip` (no KVO) and reloads days via
+                // notifications. DayTimelineSection does the same for events.
                 TripTimelineList(
                     trip: trip,
                     vm: vm,
@@ -245,12 +244,17 @@ struct TimelineView: View {
     }
 }
 
-// MARK: — Trip day list (observes the trip)
+// MARK: — Trip day list
 
-/// Renders the scrolling list of day sections for one trip. Holds the trip as
-/// `@ObservedObject` so inserting or deleting a whole TripDay repaints the list.
+/// Renders the scrolling list of day sections for one trip.
+/// Uses `let trip` (not @ObservedObject) so NSPCKC's background-thread write-backs
+/// of ckSystemFields/ckRecordName during export cycles do NOT fire objectWillChange.send()
+/// from a non-main thread. That was the source of "Publishing changes from background
+/// threads" warnings and the resulting 2-second main-thread re-render batches.
+/// Day inserts/deletes are caught via dayThreadRemoteChangeDidApply (custom sync) and
+/// the throttled NSManagedObjectContextObjectsDidChange observer (NSPCKC import).
 private struct TripTimelineList: View {
-    @ObservedObject var trip: Trip
+    let trip: Trip
     let vm: TimelineViewModel
     @Binding var dragTargetEventID: UUID?
     @Binding var endDropTargetDayID: UUID?
@@ -258,18 +262,17 @@ private struct TripTimelineList: View {
     @Binding var editingEvent: TripEvent?
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.managedObjectContext) private var context
+
+    @State private var days: [TripDay] = []
 
     var body: some View {
-        // When the trip is deleted (locally or via CloudKit sync), its
-        // objectWillChange fires and this view re-renders for one pass before the
-        // parent swaps to the empty state. Reading the deleted graph would trap, so
-        // bail out early.
         if !trip.isAlive {
             Color.clear
         } else {
         ScrollView {
             LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                ForEach(Array(trip.daysArray.enumerated()), id: \.element.id) { index, day in
+                ForEach(Array(days.enumerated()), id: \.element.id) { index, day in
                     DayTimelineSection(
                         day: day,
                         dayNumber: index + 1,
@@ -286,7 +289,26 @@ private struct TripTimelineList: View {
             .padding(.bottom, horizontalSizeClass == .regular ? 80 : 140)
         }
         .refreshable { await PersistenceController.shared.manualRefresh() }
+        .onAppear { reloadDays() }
+        .onReceive(NotificationCenter.default.publisher(for: .dayThreadRemoteChangeDidApply)) { _ in
+            reloadDays()
         }
+        .onReceive(
+            NotificationCenter.default
+                .publisher(for: .NSManagedObjectContextObjectsDidChange, object: context)
+                .throttle(for: .milliseconds(250), scheduler: DispatchQueue.main, latest: true)
+        ) { _ in
+            reloadDays()
+        }
+        }
+    }
+
+    private func reloadDays() {
+        guard trip.isAlive else { return }
+        let request = TripDay.fetchRequest()
+        request.predicate = NSPredicate(format: "trip == %@", trip)
+        request.sortDescriptors = [NSSortDescriptor(keyPath: \TripDay.sortOrder, ascending: true)]
+        days = ((try? context.fetch(request)) ?? []).filter { $0.isAlive }
     }
 }
 
@@ -298,7 +320,7 @@ private struct TripTimelineList: View {
 /// relationship NSSet cache on TripDay is NOT updated when mergeChanges inserts
 /// a new event as a fault — causing day.eventsArray to return a stale set.
 private struct DayTimelineSection: View {
-    @ObservedObject var day: TripDay
+    let day: TripDay
     let dayNumber: Int
     let vm: TimelineViewModel
     @Binding var dragTargetEventID: UUID?
@@ -350,7 +372,13 @@ private struct DayTimelineSection: View {
         }
         // Local edits (add/edit/delete/drag) mutate the viewContext on the main
         // thread; re-fetch so this day stays in sync without @FetchRequest.
-        .onReceive(NotificationCenter.default.publisher(for: .NSManagedObjectContextObjectsDidChange, object: context)) { _ in
+        // Throttled: NSPCKC write-backs after exports fire this N-times-per-second
+        // across all visible day sections simultaneously; throttle coalesces bursts.
+        .onReceive(
+            NotificationCenter.default
+                .publisher(for: .NSManagedObjectContextObjectsDidChange, object: context)
+                .throttle(for: .milliseconds(250), scheduler: DispatchQueue.main, latest: true)
+        ) { _ in
             reload()
         }
         // currentUserCloudKitID is set asynchronously at launch. Re-evaluate

@@ -29,19 +29,35 @@ enum CKRecordMapper {
         modifications: [CKRecord],
         deletions: [CKRecord.ID],
         into context: NSManagedObjectContext,
-        sharedStore: NSPersistentStore
+        sharedStore: NSPersistentStore,
+        autoSave: Bool = true
     ) {
         let records = modifications.filter { $0.recordType.hasPrefix("CD_") }
 
-        // Pass 1 — upsert objects + attributes; build recordName → object.
+        // Batch-prefetch existing objects: one query per entity type instead of one
+        // per incoming record. Reduces O(N) individual queries to O(entity types) ≈ 5.
         var byRecordName: [String: NSManagedObject] = [:]
+        let recordsByEntity = Dictionary(grouping: records, by: { String($0.recordType.dropFirst(3)) })
+        for (entityName, entityRecords) in recordsByEntity {
+            guard syncedEntities.contains(entityName) else { continue }
+            let names = entityRecords.map { $0.recordID.recordName }
+            let req = NSFetchRequest<NSManagedObject>(entityName: entityName)
+            req.predicate = NSPredicate(format: "ckRecordName IN %@", names)
+            for obj in (try? context.fetch(req)) ?? [] {
+                if let name = obj.value(forKey: "ckRecordName") as? String {
+                    byRecordName[name] = obj
+                }
+            }
+        }
+
+        // Pass 1 — upsert objects + attributes; build recordName → object.
         for record in records {
             let entityName = String(record.recordType.dropFirst(3)) // strip "CD_"
             guard syncedEntities.contains(entityName) else { continue }
             let recordName = record.recordID.recordName
 
             let object: NSManagedObject
-            if let existing = existingObject(entityName: entityName, recordName: recordName, in: context) {
+            if let existing = byRecordName[recordName] {
                 object = existing
             } else {
                 object = NSEntityDescription.insertNewObject(forEntityName: entityName, into: context)
@@ -70,12 +86,18 @@ enum CKRecordMapper {
             }
         }
 
-        // Deletions — match by ckRecordName across synced entities.
-        for recordID in deletions {
-            deleteObject(recordName: recordID.recordName, in: context)
+        // Batch-fetch deletions: one query per entity type instead of N×9 individual
+        // lookups. Reduces O(deletions × entity types) queries to O(entity types).
+        if !deletions.isEmpty {
+            let deletionNames = deletions.map { $0.recordName }
+            for entityName in syncedEntities {
+                let req = NSFetchRequest<NSManagedObject>(entityName: entityName)
+                req.predicate = NSPredicate(format: "ckRecordName IN %@", deletionNames)
+                for obj in (try? context.fetch(req)) ?? [] { context.delete(obj) }
+            }
         }
 
-        if context.hasChanges { try? context.save() }
+        if autoSave && context.hasChanges { try? context.save() }
     }
 
     // MARK: — Write path (Core Data → CKRecord)
@@ -218,12 +240,4 @@ enum CKRecordMapper {
         return (try? context.fetch(request))?.first
     }
 
-    nonisolated private static func deleteObject(recordName: String, in context: NSManagedObjectContext) {
-        for entityName in syncedEntities {
-            if let object = existingObject(entityName: entityName, recordName: recordName, in: context) {
-                context.delete(object)
-                return
-            }
-        }
-    }
 }

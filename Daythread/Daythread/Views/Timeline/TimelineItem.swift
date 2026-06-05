@@ -14,9 +14,7 @@ import CoreData
 /// is out of chronological order with its timed neighbours. The left column shows
 /// an amber warning badge and the connector is tinted amber to draw attention.
 struct TimelineItem<Content: View>: View {
-    // @ObservedObject so the left-column time/icon repaints when the event's
-    // startTime or category is edited.
-    @ObservedObject var event: TripEvent
+    let event: TripEvent
     let isLast: Bool
     var isTimeViolated: Bool = false
     /// True when this unlocked timed event's visual position contradicts its

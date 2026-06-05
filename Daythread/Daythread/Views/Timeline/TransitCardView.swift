@@ -9,10 +9,8 @@ import SwiftUI
 import CoreData
 
 struct TransitCardView: View {
-    // @ObservedObject so live edits to the event or its transit details
-    // (carrier, times, gate…) repaint the card immediately.
-    @ObservedObject var event: TripEvent
-    @ObservedObject var details: TransitDetails
+    let event: TripEvent
+    let details: TransitDetails
 
     private var departureTZ: TimeZone {
         TimeZone(identifier: details.departureTZIdentifier) ?? .current

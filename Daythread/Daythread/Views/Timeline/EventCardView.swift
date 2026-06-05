@@ -9,9 +9,7 @@ import SwiftUI
 import CoreData
 
 struct EventCardView: View {
-    // @ObservedObject so edits to the event's fields (title, time, location…)
-    // repaint the card live instead of only after a cold relaunch.
-    @ObservedObject var event: TripEvent
+    let event: TripEvent
 
     var body: some View {
         LiveContent(isDead: !event.isAlive) {
