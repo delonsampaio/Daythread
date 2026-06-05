@@ -257,17 +257,28 @@ struct GroupSyncSheet: View {
     /// than presenting, since CloudKit is unavailable there.
     private func inviteePeople() {
         isPreparing = true
-        // Creator is always the owner when starting a new share.
         isOwnerBeforeSheetOpen = true
+        // Capture the trip ID now — before the Task runs — so we can recover
+        // the live clone even if `trip` becomes a zombie during migration.
+        let capturedTripID = trip.id
         Task {
-            let share = await cloudKit.shareTrip(trip, modelContext: context)
+            // Resolve the live trip. During migration the NSPCKC original is purged;
+            // trip.id returns nil on the zombie so we use the captured ID to find
+            // the clone in shared.sqlite before calling shareTrip.
+            let liveTrip: Trip
+            if let id = capturedTripID {
+                let request = Trip.fetchRequest()
+                request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+                request.fetchLimit = 1
+                liveTrip = (try? context.fetch(request))?.first ?? trip
+            } else {
+                liveTrip = trip
+            }
+            let share = await cloudKit.shareTrip(liveTrip, modelContext: context)
             isPreparing = false
             if let share {
                 sharingSheet = IdentifiableShare(share: share)
-                // Seed the owner's profile name from their participant entry —
-                // this is the first moment nameComponents is available for them.
                 cloudKit.seedNameFromShare(share, store: store)
-                // Register the owner immediately so they appear in the roster.
                 await registerMyMembership()
             }
         }
