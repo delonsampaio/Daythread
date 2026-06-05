@@ -7,6 +7,7 @@
 
 import SwiftUI
 import CoreData
+import os
 
 struct AddEditEventSheet: View {
     let trip: Trip?
@@ -108,6 +109,19 @@ struct AddEditEventSheet: View {
                                 Text("Day \(index + 1)").tag(Optional(tripDay))
                             }
                         }
+                    }
+
+                    if category.requiresTransitDetails {
+                        Button("\(category.displayName) Details →") {
+                            if transitDetails == nil {
+                                let td = TransitDetails(context: context)
+                                td.id = UUID()
+                                transitDetails = td
+                                pendingTransitDetails = td
+                            }
+                            showTransitSheet = true
+                        }
+                        .foregroundStyle(ThemeTokens.accent)
                     }
                 }
 
@@ -230,20 +244,6 @@ struct AddEditEventSheet: View {
                     }
                 }
 
-                if category.requiresTransitDetails {
-                    Section {
-                        Button("Edit Transit Details →") {
-                            if transitDetails == nil {
-                                let td = TransitDetails(context: context)
-                                td.id = UUID()
-                                transitDetails = td
-                                pendingTransitDetails = td
-                            }
-                            showTransitSheet = true
-                        }
-                        .foregroundStyle(ThemeTokens.accent)
-                    }
-                }
             }
             .navigationTitle(editingEvent == nil ? "Add Event" : "Edit Event")
             .navigationBarTitleDisplayMode(.inline)
@@ -264,7 +264,7 @@ struct AddEditEventSheet: View {
             }
             .sheet(isPresented: $showTransitSheet) {
                 if let td = transitDetails {
-                    AddEditTransitSheet(details: td)
+                    AddEditTransitSheet(details: td, category: category)
                 }
             }
         }
@@ -475,7 +475,11 @@ struct AddEditEventSheet: View {
             pendingTransitDetails = nil  // committed — don't delete on dismiss
             savedEvent = event
         }
-        try? context.save()
+        do {
+            try context.save()
+        } catch {
+            daythreadLog.error("AddEditEventSheet save failed: \(error.localizedDescription, privacy: .public)")
+        }
 
         // Calendar + notification sync — fire-and-forget so it doesn't delay dismiss.
         let tripName = trip?.name ?? ""

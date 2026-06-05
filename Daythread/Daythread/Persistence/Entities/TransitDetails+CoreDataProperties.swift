@@ -24,6 +24,8 @@ extension TransitDetails {
     @NSManaged public var arrivalGate: String?
     @NSManaged public var seatNumber: String?
     @NSManaged public var baggageClaim: String?
+    @NSManaged public var carriageNumber: String?
+    @NSManaged public var vehicleLicensePlate: String?
     @NSManaged public var departureTZIdentifier: String
     @NSManaged public var arrivalTZIdentifier: String
     @NSManaged public var event: TripEvent?

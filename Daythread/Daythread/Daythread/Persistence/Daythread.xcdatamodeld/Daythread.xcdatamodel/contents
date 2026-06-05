@@ -63,7 +63,9 @@
         <attribute name="arrivalTerminal" optional="YES" attributeType="String" syncable="YES"/>
         <attribute name="arrivalTZIdentifier" optional="YES" attributeType="String" defaultValueString="UTC" syncable="YES"/>
         <attribute name="baggageClaim" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="carriageNumber" optional="YES" attributeType="String" syncable="YES"/>
         <attribute name="carrier" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
+        <attribute name="vehicleLicensePlate" optional="YES" attributeType="String" syncable="YES"/>
         <attribute name="departureCode" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
         <attribute name="departureGate" optional="YES" attributeType="String" syncable="YES"/>
         <attribute name="departureName" optional="YES" attributeType="String" defaultValueString="" syncable="YES"/>
