@@ -2,6 +2,7 @@
 
 import SwiftUI
 import UserNotifications
+import CloudKit
 
 struct OnboardingView: View {
     @Binding var isPresented: Bool
@@ -28,6 +29,11 @@ struct OnboardingView: View {
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .ignoresSafeArea()
+            .onChange(of: page) { _, new in
+                if new == 2 && nameInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    withAnimation { page = 1 }
+                }
+            }
 
             VStack(spacing: 16) {
                 // Page dots
@@ -56,10 +62,40 @@ struct OnboardingView: View {
                 .padding(.horizontal, 24)
             }
             .padding(.bottom, 48)
-            // Ride above the keyboard so the Continue button is always reachable.
-            .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         .background(ThemeTokens.backgroundPrimary.ignoresSafeArea())
+        .task { await prefetchDisplayName() }
+    }
+
+    private func prefetchDisplayName() async {
+        guard nameInput.isEmpty else { return }
+
+        // 1. iCloud KV store — available instantly after reinstall.
+        let kvName = NSUbiquitousKeyValueStore.default.string(forKey: "daythread.userDisplayName") ?? ""
+        if !kvName.isEmpty {
+            nameInput = kvName
+            return
+        }
+
+        // 2. CloudKit query — fallback for users who installed before KV store was added.
+        do {
+            let ckContainer = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
+            let userRecordID = try await ckContainer.userRecordID()
+            let uid = userRecordID.recordName
+            let pred = NSPredicate(format: "CD_appleUserID == %@", uid)
+            let query = CKQuery(recordType: "CD_TripMember", predicate: pred)
+            let (matches, _) = try await ckContainer.privateCloudDatabase.records(matching: query, resultsLimit: 1)
+            for (_, result) in matches {
+                if let record = try? result.get(),
+                   let name = record["CD_displayName"] as? String,
+                   !name.isEmpty, name != "Traveler" {
+                    await MainActor.run { nameInput = name }
+                    return
+                }
+            }
+        } catch {
+            // Leave blank — user will type their name.
+        }
     }
 
     private func advance() {
@@ -71,7 +107,10 @@ struct OnboardingView: View {
         if page < 2 {
             if page == 1 {
                 let trimmed = nameInput.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty { displayName = trimmed }
+                if !trimmed.isEmpty {
+                    displayName = trimmed
+                    NSUbiquitousKeyValueStore.default.set(trimmed, forKey: "daythread.userDisplayName")
+                }
             }
             withAnimation(.easeInOut(duration: 0.3)) { page += 1 }
         } else {
@@ -81,7 +120,10 @@ struct OnboardingView: View {
 
     private func finish() {
         let trimmed = nameInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty { displayName = trimmed }
+        if !trimmed.isEmpty {
+            displayName = trimmed
+            NSUbiquitousKeyValueStore.default.set(trimmed, forKey: "daythread.userDisplayName")
+        }
 
         // Fire the system notification prompt now — after the user has read the
         // "Stay in sync" context screen and tapped "Let's Go". No skip button;

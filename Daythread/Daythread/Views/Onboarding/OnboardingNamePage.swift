@@ -12,9 +12,14 @@ struct OnboardingNamePage: View {
     }
 
     var body: some View {
-        // Not a ScrollView — fixed layout that collapses when the keyboard appears.
         VStack(spacing: 0) {
-            Spacer()
+            // When focused, anchor content near the top (fixed inset clears the
+            // status bar / Dynamic Island). When not focused, center vertically.
+            if focused {
+                Spacer().frame(height: 60)
+            } else {
+                Spacer()
+            }
 
             // Icon + headline collapse when typing to keep the field visible.
             if !focused {
@@ -50,7 +55,22 @@ struct OnboardingNamePage: View {
                     .transition(.opacity)
             }
 
-            // Preview bubble — always visible.
+            // Name field — above the preview so it stays high when the keyboard
+            // is open and won't be obscured by the button or keyboard.
+            TextField("Tap to enter your name", text: $nameInput)
+                .textContentType(.name)
+                .autocorrectionDisabled()
+                .font(.system(size: 17))
+                .padding(16)
+                .background(RoundedRectangle(cornerRadius: 14).fill(ThemeTokens.backgroundCard))
+                .padding(.horizontal, 32)
+                .padding(.bottom, 20)
+                .focused($focused)
+                .submitLabel(.done)
+                .onSubmit { focused = false }
+
+            // Preview bubble — below the field so the user can watch it update
+            // as they type without the bubble blocking the input area.
             HStack(spacing: 12) {
                 Circle()
                     .fill(ThemeTokens.accent)
@@ -76,19 +96,6 @@ struct OnboardingNamePage: View {
             .padding(.horizontal, 32)
             .padding(.bottom, 20)
 
-            // Name field.
-            TextField("Tap to enter your name", text: $nameInput)
-                .textContentType(.name)
-                .autocorrectionDisabled()
-                .font(.system(size: 17))
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: 14).fill(ThemeTokens.backgroundCard))
-                .padding(.horizontal, 32)
-                .focused($focused)
-                .submitLabel(.done)
-                .onSubmit { focused = false }
-
-            // Space above the Continue button — shrinks when keyboard is open.
             Spacer()
             if !focused { Spacer() }
         }
