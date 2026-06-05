@@ -34,7 +34,7 @@ struct AddEditLodgingSheet: View {
                     DatePicker("Check-out", selection: $checkOut, displayedComponents: .date)
                 }
                 Section("Booking") {
-                    TextField("Confirmation number", text: $confirmationNumber)
+                    TextField("Confirmation #", text: $confirmationNumber)
                         .font(ThemeTokens.monoFont)
                     TextField("Notes", text: $notes, axis: .vertical)
                         .lineLimit(2...4)

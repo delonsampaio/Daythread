@@ -63,7 +63,7 @@ struct GroupSyncSheet: View {
                     Section {
                         HStack(spacing: 10) {
                             ProgressView()
-                            Text("Preparing Share…")
+                            Text("Setting up sharing…")
                                 .font(.subheadline)
                                 .foregroundStyle(ThemeTokens.textSecondary)
                         }
@@ -105,7 +105,7 @@ struct GroupSyncSheet: View {
                         if isPreparing {
                             HStack(spacing: 10) {
                                 ProgressView()
-                                Text("Preparing Share…")
+                                Text("Setting up sharing…")
                                     .foregroundStyle(ThemeTokens.textSecondary)
                             }
                             .padding(.vertical, 4)
@@ -306,7 +306,7 @@ struct GroupSyncSheet: View {
     /// can manage participants and permissions without stopping sharing first.
     private func manageSharing() {
         guard let liveTrip = resolvedLiveTrip() ?? (trip.managedObjectContext != nil ? trip : nil) else {
-            cloudKit.errorMessage = "Share is still being prepared. Please try again in a moment."
+            cloudKit.errorMessage = "Still setting up your share link. Please try again in a moment."
             return
         }
 

@@ -17,7 +17,7 @@ struct OnboardingNotificationsPage: View {
                 .foregroundStyle(ThemeTokens.textPrimary)
                 .padding(.bottom, 12)
 
-            Text("Get notified when your event reminders fire or when a co-editor updates the itinerary.")
+            Text("Get notified when it's time for an event, or when a co-editor updates the itinerary.")
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(ThemeTokens.textSecondary)

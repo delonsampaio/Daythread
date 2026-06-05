@@ -50,7 +50,7 @@ struct SettingsView: View {
             } header: {
                 Text("Your Profile")
             } footer: {
-                Text("Shown to people you share trips with, so they see who's who.")
+                Text("Shown to people you share trips with.")
             }
 
             Section {
@@ -58,7 +58,7 @@ struct SettingsView: View {
             } header: {
                 Text("Calendar")
             } footer: {
-                Text("Adds events to a Daythread calendar in Apple Calendar. Individual events can be excluded from the event's edit screen.")
+                Text("Saves events to a Daythread calendar in Apple Calendar. You can exclude individual events later.")
             }
 
             Section {
@@ -78,7 +78,7 @@ struct SettingsView: View {
             } header: {
                 Text("Notifications")
             } footer: {
-                Text("In-app notifications include Snooze and View Itinerary actions. Apple Calendar alarms fire from the Calendar app. Both fire at the same lead time.")
+                Text("Choose how you want to be reminded. Both in-app and Apple Calendar alerts will use your chosen lead time.")
             }
             Section("Support") {
                 NavigationLink("Help & FAQ") {

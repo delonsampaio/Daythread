@@ -34,12 +34,12 @@ struct AddEditTransitSheet: View {
                     TextField("Carrier (e.g. Air France)", text: $carrier)
                     TextField("Number (e.g. AF447)", text: $flightNumber)
                         .font(ThemeTokens.monoFont)
-                    TextField("Booking Ref / Confirmation #", text: $pnr)
+                    TextField("Confirmation #", text: $pnr)
                         .font(ThemeTokens.monoFont)
                         .textInputAutocapitalization(.characters)
                 }
                 Section("Departure") {
-                    TextField("IATA Code (e.g. CDG)", text: $departureCode)
+                    TextField("Airport Code (e.g. CDG)", text: $departureCode)
                         .font(ThemeTokens.monoFont)
                         .textInputAutocapitalization(.characters)
                     TextField("Airport / Station name", text: $departureName)
@@ -48,7 +48,7 @@ struct AddEditTransitSheet: View {
                     TimeZonePicker(label: "Time Zone", selected: $departureTZ)
                 }
                 Section("Arrival") {
-                    TextField("IATA Code (e.g. JFK)", text: $arrivalCode)
+                    TextField("Airport Code (e.g. JFK)", text: $arrivalCode)
                         .font(ThemeTokens.monoFont)
                         .textInputAutocapitalization(.characters)
                     TextField("Airport / Station name", text: $arrivalName)

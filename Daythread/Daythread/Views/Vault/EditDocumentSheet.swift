@@ -108,7 +108,7 @@ struct EditDocumentSheet: View {
                             isShared = false; sharedWithMemberIDs = []
                         } label: {
                             HStack {
-                                Label("Only me", systemImage: "person")
+                                Label("Only you", systemImage: "person")
                                 Spacer()
                                 if !isShared && sharedWithMemberIDs.isEmpty {
                                     Image(systemName: "checkmark").foregroundStyle(ThemeTokens.accent)
@@ -161,8 +161,8 @@ struct EditDocumentSheet: View {
                         Toggle("Lock document", isOn: $isLocked)
                     } footer: {
                         Text(isLocked
-                            ? "Only you can edit this document's title and expiry date."
-                            : "Anyone on the trip can edit this document's details.")
+                            ? "Only you can edit this document."
+                            : "Anyone on the trip can edit this document.")
                     }
                 }
             }

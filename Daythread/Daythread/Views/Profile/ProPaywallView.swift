@@ -37,11 +37,11 @@ struct ProPaywallView: View {
 
                     // Feature list
                     VStack(alignment: .leading, spacing: 16) {
-                        proRow("✈️ Real-time co-editing", "Share trips with friends and family. Changes sync in seconds.")
-                        proRow("🔗 Group Sync", "Invite co-editors, control who sees what with per-event visibility.")
-                        proRow("💸 Expense Splitting", "Log costs, split fairly, and settle up with one tap.")
+                        proRow("✈️ Real-time Co-editing", "Share trips with friends and family. Changes sync in seconds.")
+                        proRow("🔗 Custom Visibility", "Control who sees what with per-event privacy.")
+                        proRow("💸 Expense Splitting", "Log costs, split fairly, and settle up in one tap.")
                         proRow("📎 Receipt Attachments", "Attach photos of receipts and invoices directly to expenses.")
-                        proRow("📄 Unlimited Documents", "Free tier: 5 documents. Pro: unlimited passports, visas, PDFs.")
+                        proRow("📄 Unlimited Documents", "Store as many passports, visas, and PDFs as you need. (Free tier: 5 documents)")
                     }
                     .padding(.horizontal, 24)
 
