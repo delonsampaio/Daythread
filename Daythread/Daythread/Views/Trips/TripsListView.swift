@@ -7,13 +7,13 @@
 
 import SwiftUI
 import CoreData
+import Combine
 
 struct TripsListView: View {
     @Environment(\.managedObjectContext) private var context
     @Environment(TripStore.self) private var store
 
-    @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \Trip.startDate, ascending: true)])
-    private var allTrips: FetchedResults<Trip>
+    @State private var allTrips: [Trip] = []
     @State private var vm = TripsViewModel()
     @State private var cloudKit = CloudKitService()
     @State private var showCreate = false
@@ -100,12 +100,17 @@ struct TripsListView: View {
             }
             .onAppear {
                 now = Date()
-                // Sync participants for every shared trip so avatar stacks on
-                // trip cards populate without the user having to open GroupSync.
+                reloadAllTrips()
                 for trip in deduplicatedTrips where trip.cloudKitShareID != nil {
                     cloudKit.syncParticipants(for: trip, context: context)
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .dayThreadRemoteChangeDidApply)) { _ in reloadAllTrips() }
+            .onReceive(
+                NotificationCenter.default
+                    .publisher(for: .NSManagedObjectContextObjectsDidChange, object: context)
+                    .throttle(for: .milliseconds(250), scheduler: DispatchQueue.main, latest: true)
+            ) { _ in reloadAllTrips() }
         }
     }
 
@@ -147,6 +152,12 @@ struct TripsListView: View {
                 }
             }
         }
+    }
+
+    private func reloadAllTrips() {
+        let request = Trip.fetchRequest()
+        request.sortDescriptors = [NSSortDescriptor(keyPath: \Trip.startDate, ascending: true)]
+        allTrips = (try? context.fetch(request)) ?? []
     }
 
     private var emptyState: some View {
