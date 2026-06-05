@@ -141,7 +141,7 @@ struct HelpView: View {
             )
             FAQRow(
                 question: "Can I get reminders before my events?",
-                answer: "Yes. Enable event reminders in Profile → Settings → Notifications and choose your lead time: 15 minutes, 30 minutes, 1 hour, or 1 day before. Two reminders fire: a Daythread app notification and an Apple Calendar alarm on the calendar event. The lead time applies to both."
+                answer: "Yes. Enable event reminders in Profile → Settings → Notifications and choose your lead time: 15 minutes, 30 minutes, 1 hour, or 1 day before. Two reminders are sent: a Daythread app notification and an Apple Calendar alarm. The lead time applies to both."
             )
             FAQRow(
                 question: "What can I do from a reminder notification?",
@@ -214,8 +214,8 @@ struct HelpView: View {
                 answer: "Yes. Every document has a Lock toggle (on by default). When locked, only the person who added the document can change its title or expiry date — the Edit Details option is hidden for everyone else. As the originator you can unlock it at any time from Edit Details. The lock only controls editing; it does not affect who can view the document."
             )
             FAQRow(
-                question: "Can I share specific documents with trip co-editors?",
-                answer: "Yes. When adding or editing a document, use the 'Share with trip members' toggle. When off (the default), only you can see the document. When on, all co-editors with access to the trip can view it. Only the originator of the document can change this setting.",
+                question: "Can I control who sees my documents?",
+                answer: "Yes. When adding or editing a document on a shared trip, use the Visibility picker to choose: Everyone on the trip (all co-editors can view), Specific people (pick individual co-editors from the list), or Only you (private — default). Only the originator can change this setting.",
                 isPro: true
             )
             FAQRow(
@@ -345,7 +345,7 @@ struct HelpView: View {
         .init(section: "Calendar & Notifications", question: "Does Daythread sync my events to Apple Calendar?", answer: "Yes. Events are added to a Daythread: [trip name] calendar in Apple Calendar. Toggle off globally in Settings → Calendar or per-event in the Add/Edit Event sheet."),
         .init(section: "Calendar & Notifications", question: "Why is there a Daythread calendar in Apple Calendar?", answer: "Daythread creates one calendar per trip to keep your itinerary separate from personal events."),
         .init(section: "Calendar & Notifications", question: "Can I exclude a specific event from Apple Calendar?", answer: "Yes. Turn off the 'Add to Apple Calendar' toggle in the Add/Edit Event sheet. Device-local — co-editors control their own calendars independently."),
-        .init(section: "Calendar & Notifications", question: "Can I get reminders before my events?", answer: "Yes. Enable in Settings → Notifications and choose 15 min, 30 min, 1 hour, or 1 day before. Fires as both a Daythread app notification and an Apple Calendar alarm."),
+        .init(section: "Calendar & Notifications", question: "Can I get reminders before my events?", answer: "Yes. Enable in Settings → Notifications and choose 15 min, 30 min, 1 hour, or 1 day before. Sends both a Daythread app notification and an Apple Calendar alarm."),
         .init(section: "Calendar & Notifications", question: "What can I do from a reminder notification?", answer: "Snooze 15 min (background, no app launch) or View Itinerary (opens Daythread). Notifications group by trip on the lock screen."),
         .init(section: "Calendar & Notifications", question: "Daythread notifications not coming through during Focus mode?", answer: "Daythread sends time-sensitive notifications designed to break through Focus. Check iOS Settings → Focus → your Focus → Apps → Allow Daythread."),
         .init(section: "Calendar & Notifications", question: "Does Daythread look different on iPad?", answer: "Yes. On iPad the four sections appear in a collapsible sidebar. On iPhone and narrow windows the standard bottom tab bar is used."),
@@ -367,7 +367,7 @@ struct HelpView: View {
         .init(section: "Vault (Documents & Expenses)", question: "Can I switch between a grid and a list view for documents?", answer: "Yes. Tap the grid/list toggle icon in the top-right toolbar. The list view shows each document's thumbnail, title, notes, and expiry date at a glance."),
         .init(section: "Vault (Documents & Expenses)", question: "How do I sort documents?", answer: "Tap the sort icon (↑↓ arrows) in the Documents toolbar to choose: Expiry soonest first, Name A–Z, Date added newest, or Date added oldest."),
         .init(section: "Vault (Documents & Expenses)", question: "Can I prevent others from editing my documents?", answer: "Yes. Every document has a Lock toggle (on by default). When locked, only the person who added the document can edit its title, notes, or expiry date. As the originator you can unlock it at any time from Edit Details."),
-        .init(section: "Vault (Documents & Expenses)", question: "Can I share specific documents with trip co-editors?", answer: "Yes. When adding or editing a document, use the 'Share with trip members' toggle. When off (the default), only you can see the document. When on, all co-editors can view it. Only the originator can change this setting.", isPro: true),
+        .init(section: "Vault (Documents & Expenses)", question: "Can I control who sees my documents?", answer: "Yes. Use the Visibility picker when adding or editing a document: Everyone on the trip, Specific people, or Only you (default). Only the originator can change this setting.", isPro: true),
         .init(section: "Vault (Documents & Expenses)", question: "How do I share a document?", answer: "Tap the tile to open the viewer, then tap the share icon in the top-left to send via Messages, email, AirDrop, or any other app."),
         .init(section: "Vault (Documents & Expenses)", question: "What does the expiry badge on a document tile mean?", answer: "Red means expired or expiring within 30 days. Amber means expiring within 90 days — time to act before international entry requirements kick in."),
         .init(section: "Vault (Documents & Expenses)", question: "How many documents can I store for free?", answer: "Free users can store up to 5 documents per trip. Upgrade to Pro for unlimited document storage."),
