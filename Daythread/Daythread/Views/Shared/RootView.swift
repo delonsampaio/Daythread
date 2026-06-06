@@ -13,7 +13,7 @@ struct RootView: View {
     @Environment(TripStore.self) private var store
     @Environment(\.managedObjectContext) private var context
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @State private var activeTrips: [Trip] = []
+    @FetchRequest(sortDescriptors: [], predicate: NSPredicate(format: "isArchived == NO")) private var activeTrips: FetchedResults<Trip>
     @State private var cloudKit = CloudKitService()
     @State private var selectedTab: DaythreadTab = .timeline
     @AppStorage("daythread.onboardingComplete") private var onboardingComplete = false
@@ -28,9 +28,8 @@ struct RootView: View {
             }
         }
         .onAppear {
-            reloadActiveTrips()
             selectedTab = .timeline
-            store.selectInitialTripIfNeeded(from: activeTrips)
+            store.selectInitialTripIfNeeded(from: Array(activeTrips))
         }
         .onAppear {
             if !onboardingComplete { showOnboarding = true }
@@ -69,13 +68,13 @@ struct RootView: View {
             // "Publishing changes from background threads" warning.
             Task { @MainActor in
                 if let active = store.activeTrip, active.managedObjectContext == nil {
-                    store.activeTrip = activeTrips.first(where: { $0.managedObjectContext != nil })
+                    store.activeTrip = Array(activeTrips).first(where: { $0.managedObjectContext != nil })
                 }
                 // Resolve a pending share-join after every CloudKit import. This is
                 // the most reliable trigger: the import-complete event fires after
                 // NSPersistentCloudKitContainer has written the accepted shared trip
                 // into the store, so activeTrips is guaranteed to include it.
-                store.resolvePendingJoin(in: activeTrips)
+                store.resolvePendingJoin(in: Array(activeTrips))
                 // Sync participants after every CloudKit import. The
                 // onChange(of: objectIDs) trigger misses participant-acceptance
                 // events because accepting a CKShare invite doesn't change the
@@ -94,7 +93,7 @@ struct RootView: View {
         // compactMap with value(forKey:) so partially-synced CloudKit records
         // (whose @NSManaged id UUID may still be nil) don't crash the bridge.
         .onChange(of: activeTrips.compactMap { $0.value(forKey: "id") as? UUID }) { _, _ in
-            let trips = activeTrips
+            let trips = Array(activeTrips)
             // A freshly accepted shared trip may have just synced in — switch to
             // it before the generic fallback logic picks an arbitrary first trip.
             store.resolvePendingJoin(in: trips)
@@ -120,20 +119,8 @@ struct RootView: View {
         // before resolvePendingJoin can find a match. Watch cloudKitShareID too so
         // we retry the moment the matching attribute arrives.
         .onChange(of: activeTrips.compactMap(\.cloudKitShareID)) { _, _ in
-            store.resolvePendingJoin(in: activeTrips)
+            store.resolvePendingJoin(in: Array(activeTrips))
         }
-        .onReceive(NotificationCenter.default.publisher(for: .dayThreadRemoteChangeDidApply)) { _ in reloadActiveTrips() }
-        .onReceive(
-            NotificationCenter.default
-                .publisher(for: .NSManagedObjectContextObjectsDidChange, object: context)
-                .throttle(for: .milliseconds(250), scheduler: DispatchQueue.main, latest: true)
-        ) { _ in reloadActiveTrips() }
-    }
-
-    private func reloadActiveTrips() {
-        let request = Trip.fetchRequest()
-        request.predicate = NSPredicate(format: "isArchived == NO")
-        activeTrips = (try? context.fetch(request)) ?? []
     }
 
     // MARK: — Notification rescheduling after CloudKit sync

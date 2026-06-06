@@ -7,12 +7,11 @@
 
 import SwiftUI
 import CoreData
-import Combine
 
 struct VaultView: View {
     @Environment(TripStore.self) private var store
-    @Environment(\.managedObjectContext) private var context
-    @State private var trips: [Trip] = []
+    @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \Trip.startDate, ascending: false)])
+    private var trips: FetchedResults<Trip>
     @State private var vm = VaultViewModel()
     @State private var selectedSegment: Int = 0
 
@@ -64,17 +63,11 @@ struct VaultView: View {
                 ProPaywallView()
             }
             .task {
-                reloadTrips()
+                // Auto-select the first non-archived trip if nothing is active yet.
                 if store.activeTrip == nil, let first = activeTrips.first {
                     store.activeTrip = first
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: .dayThreadRemoteChangeDidApply)) { _ in reloadTrips() }
-            .onReceive(
-                NotificationCenter.default
-                    .publisher(for: .NSManagedObjectContextObjectsDidChange, object: context)
-                    .throttle(for: .milliseconds(250), scheduler: DispatchQueue.main, latest: true)
-            ) { _ in reloadTrips() }
         }
     }
 
@@ -118,12 +111,6 @@ struct VaultView: View {
                 }
             }
         }
-    }
-
-    private func reloadTrips() {
-        let request = Trip.fetchRequest()
-        request.sortDescriptors = [NSSortDescriptor(keyPath: \Trip.startDate, ascending: false)]
-        trips = (try? context.fetch(request)) ?? []
     }
 
     private func dateRange(for trip: Trip) -> String {

@@ -13,7 +13,10 @@ struct TimelineView: View {
     @Environment(TripStore.self) private var store
     @Environment(\.managedObjectContext) private var context
 
-    @State private var trips: [Trip] = []
+    @FetchRequest(
+        sortDescriptors: [NSSortDescriptor(keyPath: \Trip.startDate, ascending: true)],
+        predicate: NSPredicate(format: "isArchived == NO")
+    ) private var trips: FetchedResults<Trip>
 
     /// Deduplicated trip list for the picker — same logic as TripsListView.
     /// Prevents the trip picker from showing the NSPCKC original AND the
@@ -145,13 +148,6 @@ struct TimelineView: View {
         .task {
             vm.refresh(days: days, lodging: lodging)
         }
-        .onAppear { reloadTrips() }
-        .onReceive(NotificationCenter.default.publisher(for: .dayThreadRemoteChangeDidApply)) { _ in reloadTrips() }
-        .onReceive(
-            NotificationCenter.default
-                .publisher(for: .NSManagedObjectContextObjectsDidChange, object: context)
-                .throttle(for: .milliseconds(250), scheduler: DispatchQueue.main, latest: true)
-        ) { _ in reloadTrips() }
         } // NavigationStack
     }
 
@@ -225,13 +221,6 @@ struct TimelineView: View {
                 .cardShadow()
         }
         .glassEffect(.regular, in: Circle())
-    }
-
-    private func reloadTrips() {
-        let request = Trip.fetchRequest()
-        request.predicate = NSPredicate(format: "isArchived == NO")
-        request.sortDescriptors = [NSSortDescriptor(keyPath: \Trip.startDate, ascending: true)]
-        trips = (try? context.fetch(request)) ?? []
     }
 
     // MARK: — Empty state
