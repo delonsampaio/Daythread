@@ -128,6 +128,15 @@ struct AddEditEventSheet: View {
                             } else {
                                 td = TransitDetails(context: context)
                                 td.id = UUID()
+                                // Assign to the SAME store as the trip. A new object with no
+                                // relationship defaults into the private store; for a shared
+                                // trip the event lands in shared.sqlite (via its day), so an
+                                // unassigned TransitDetails creates a cross-store/cross-zone
+                                // object graph that poisons NSPCKC export (NSCocoaError 134060)
+                                // and halts ALL CloudKit sync until the event is deleted.
+                                if let store = (trip ?? day?.trip)?.objectID.persistentStore {
+                                    context.assign(td, to: store)
+                                }
                                 transitDetails = td
                                 pendingTransitDetails = td
                             }

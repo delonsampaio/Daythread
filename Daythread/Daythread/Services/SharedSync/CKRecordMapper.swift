@@ -159,13 +159,28 @@ enum CKRecordMapper {
     }
 
     /// Find the zone for a new (never-synced) object by borrowing it from a related
-    /// object that already has system fields (participants only create children of
-    /// already-shared objects, so a parent with a known zone always exists).
-    nonisolated private static func zoneIDForNewChild(of object: NSManagedObject) -> CKRecordZone.ID? {
+    /// object that already has system fields. Recurses up the parent chain so a new
+    /// child whose immediate parent is ALSO new-in-this-batch can still resolve the
+    /// zone: a TransitDetails created alongside its TripEvent has no synced parent
+    /// (the TripEvent's system fields aren't written back until after upload), so we
+    /// climb to the grandparent (TripDay/Trip) which is already shared. Without this,
+    /// ckRecord(for:) returned nil and the TransitDetails was silently never pushed —
+    /// the event synced but its details didn't. `visited` guards the TripEvent⇄
+    /// TransitDetails inverse-relationship cycle.
+    nonisolated private static func zoneIDForNewChild(
+        of object: NSManagedObject,
+        visited: Set<NSManagedObjectID> = []
+    ) -> CKRecordZone.ID? {
+        guard !visited.contains(object.objectID) else { return nil }
+        var visited = visited
+        visited.insert(object.objectID)
         for (relName, rel) in object.entity.relationshipsByName where !rel.isToMany {
             guard let parent = object.value(forKey: relName) as? NSManagedObject else { continue }
             if let rec = record(fromSystemFields: parent.value(forKey: "ckSystemFields") as? Data) {
                 return rec.recordID.zoneID
+            }
+            if let zone = zoneIDForNewChild(of: parent, visited: visited) {
+                return zone
             }
         }
         return nil
