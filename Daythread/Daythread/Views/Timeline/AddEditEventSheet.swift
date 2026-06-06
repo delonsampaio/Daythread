@@ -9,6 +9,15 @@ import SwiftUI
 import CoreData
 import os
 
+/// Identifiable wrapper so the transit details sheet can present via `.sheet(item:)`
+/// instead of `.sheet(isPresented:) + if let`. The latter evaluated `transitDetails`
+/// before the newly-created object had propagated, presenting a blank sheet that only
+/// filled in on a later (CloudKit-driven) re-render seconds afterward.
+private struct TransitDetailsRef: Identifiable {
+    let id = UUID()
+    let details: TransitDetails
+}
+
 struct AddEditEventSheet: View {
     let trip: Trip?
     let day: TripDay?
@@ -28,7 +37,7 @@ struct AddEditEventSheet: View {
     @State private var notes: String = ""
     @State private var isTimeLocked: Bool = false
     @State private var selectedDay: TripDay?
-    @State private var showTransitSheet: Bool = false
+    @State private var transitSheetItem: TransitDetailsRef?
     @State private var transitDetails: TransitDetails?
     @State private var pendingTransitDetails: TransitDetails?
     @State private var showConflictAlert: Bool = false
@@ -113,13 +122,18 @@ struct AddEditEventSheet: View {
 
                     if category.requiresTransitDetails {
                         Button("\(category.displayName) Details →") {
-                            if transitDetails == nil {
-                                let td = TransitDetails(context: context)
+                            let td: TransitDetails
+                            if let existing = transitDetails {
+                                td = existing
+                            } else {
+                                td = TransitDetails(context: context)
                                 td.id = UUID()
                                 transitDetails = td
                                 pendingTransitDetails = td
                             }
-                            showTransitSheet = true
+                            // .sheet(item:) presents only once the object exists, with the
+                            // value handed in directly — no blank-then-fill race.
+                            transitSheetItem = TransitDetailsRef(details: td)
                         }
                         .foregroundStyle(ThemeTokens.accent)
                     }
@@ -262,10 +276,8 @@ struct AddEditEventSheet: View {
                         .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
-            .sheet(isPresented: $showTransitSheet) {
-                if let td = transitDetails {
-                    AddEditTransitSheet(details: td, category: category)
-                }
+            .sheet(item: $transitSheetItem) { ref in
+                AddEditTransitSheet(details: ref.details, category: category)
             }
         }
         .onAppear { populateIfEditing() }
