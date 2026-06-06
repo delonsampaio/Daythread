@@ -89,53 +89,21 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         completionHandler(.newData)
     }
 
-    /// Called when the app is ALREADY RUNNING and the user taps "Accept" on a CKShare
-    /// invite. Unlike windowScene(_:userDidAcceptCloudKitShareWith:) — which only fires
-    /// for newly created scenes (cold launch via share link) — this method fires on the
-    /// existing UIApplicationDelegate when the app is already in the foreground or
-    /// background, so it is the only reliable place to handle share acceptance.
-    func application(_ application: UIApplication, userDidAcceptCloudKitShareWith metadata: CKShare.Metadata) {
-        guard PersistenceController.useCustomSharedSync else { return }
-        daythreadLog.log("CKShare accepted (app was running) — fetching joined zone via custom engine")
-        let containerID = "iCloud.com.delonsampaio.daythread"
-        let operation = CKAcceptSharesOperation(shareMetadatas: [metadata])
-        operation.qualityOfService = .userInitiated
-        operation.acceptSharesResultBlock = { result in
-            switch result {
-            case .success:
-                daythreadLog.log("CKShare accepted (app-running path) — fetching joined zone")
-                let zoneID = metadata.share.recordID.zoneID
-                Task { @MainActor in
-                    await SharedSyncEngine.shared.fetchJoinedZone(zoneID)
-                }
-                DispatchQueue.main.async {
-                    NotificationCenter.default.post(
-                        name: .daythreadDidAcceptShare,
-                        object: nil,
-                        userInfo: ["recordName": metadata.share.recordID.recordName]
-                    )
-                }
-            case .failure(let error):
-                daythreadLog.error("CKShare accept failed (app-running path): \(error.localizedDescription, privacy: .public)")
-            }
-        }
-        CKContainer(identifier: containerID).add(operation)
-    }
-
     func application(
         _ application: UIApplication,
         configurationForConnecting connectingSceneSession: UISceneSession,
         options: UIScene.ConnectionOptions
     ) -> UISceneConfiguration {
         let config = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
-        // Only set a custom delegate when the system is routing a CloudKit share
-        // acceptance into this scene. For normal launches, leaving delegateClass nil
-        // lets SwiftUI install its own internal scene delegate, which creates the
-        // UIWindow. Always overriding it replaces SwiftUI's delegate and prevents
-        // the window from being created on a cold process launch from Xcode.
-        if options.cloudKitShareMetadata != nil {
-            config.delegateClass = ShareSceneDelegate.self
-        }
+        // Always install ShareSceneDelegate so it is the active UIWindowSceneDelegate
+        // for the main scene. When the UIScene lifecycle is active, iOS ignores
+        // UIApplicationDelegate.application(_:userDidAcceptCloudKitShareWith:) entirely
+        // and routes the callback exclusively to the existing UIWindowSceneDelegate.
+        // Installing it only on cold launch (options.cloudKitShareMetadata != nil) leaves
+        // SwiftUI's hidden default delegate in place for warm launches — which drops the
+        // callback silently. ShareSceneDelegate only implements the share callback, so
+        // SwiftUI's window/hosting setup is unaffected by always being installed.
+        config.delegateClass = ShareSceneDelegate.self
         return config
     }
 }
