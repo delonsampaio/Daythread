@@ -113,6 +113,21 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 final class ShareSceneDelegate: NSObject, UIWindowSceneDelegate {
     private let containerID = "iCloud.com.delonsampaio.daythread"
 
+    /// Cold-start path: the app was killed and opened via a share link.
+    /// cloudKitShareMetadata is in connectionOptions; windowScene(_:userDidAcceptCloudKitShareWith:)
+    /// may or may not fire afterward — handling it here guarantees cold starts work.
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+        guard let metadata = connectionOptions.cloudKitShareMetadata else { return }
+        daythreadLog.log("CKShare metadata in willConnectTo (cold start) — accepting")
+        if PersistenceController.useCustomSharedSync {
+            acceptViaCustomEngine(metadata)
+        } else {
+            acceptViaNSPCKC(metadata)
+        }
+    }
+
+    /// Warm-start path: the app was already running (foreground or background)
+    /// when the user tapped "Accept" on the iOS share prompt.
     func windowScene(
         _ windowScene: UIWindowScene,
         userDidAcceptCloudKitShareWith metadata: CKShare.Metadata
@@ -127,6 +142,8 @@ final class ShareSceneDelegate: NSObject, UIWindowSceneDelegate {
     /// Path A: the shared store is severed from NSPCKC, so `acceptShareInvitations`
     /// won't work. Accept the share with a raw CKAcceptSharesOperation, then trigger
     /// the custom engine to pull the newly-joined zone into shared.sqlite.
+    /// postAcceptance fires AFTER fetchJoinedZone so navigation only happens once
+    /// records are actually in Core Data (prevents "trip not found" on immediate open).
     private func acceptViaCustomEngine(_ metadata: CKShare.Metadata) {
         let operation = CKAcceptSharesOperation(shareMetadatas: [metadata])
         operation.qualityOfService = .userInitiated
@@ -137,8 +154,8 @@ final class ShareSceneDelegate: NSObject, UIWindowSceneDelegate {
                 let zoneID = metadata.share.recordID.zoneID
                 Task { @MainActor in
                     await SharedSyncEngine.shared.fetchJoinedZone(zoneID)
+                    self.postAcceptance(metadata)
                 }
-                self.postAcceptance(metadata)
             case .failure(let error):
                 daythreadLog.error("CKShare accept failed: \(error.localizedDescription, privacy: .public)")
             }
