@@ -14,6 +14,7 @@ import CloudKit
 struct DaythreadApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store = TripStore()
+    @State private var appleSignIn = AppleSignInService()
     private let persistence = PersistenceController.shared
     @AppStorage("daythread.userDisplayName") private var userDisplayName: String = ""
     @Environment(\.scenePhase) private var scenePhase
@@ -79,8 +80,12 @@ struct DaythreadApp: App {
                         SharedSyncEngine.shared.stopPeriodicSync()
                     }
                 }
+                // Re-check Apple ID credential validity every cold launch. Apple
+                // requires this — credentials can be revoked from iOS Settings.
+                .task { await appleSignIn.checkCredentialState() }
                 .environment(\.managedObjectContext, persistence.viewContext)
                 .environment(store)
+                .environment(appleSignIn)
             // Co-editing: ShareSceneDelegate accepts the tapped CKShare invite
             // and posts .daythreadDidAcceptShare with the share record name. We
             // stash it on TripStore so RootTabView can switch to the joined trip

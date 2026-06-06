@@ -89,6 +89,39 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         completionHandler(.newData)
     }
 
+    /// Called when the app is ALREADY RUNNING and the user taps "Accept" on a CKShare
+    /// invite. Unlike windowScene(_:userDidAcceptCloudKitShareWith:) — which only fires
+    /// for newly created scenes (cold launch via share link) — this method fires on the
+    /// existing UIApplicationDelegate when the app is already in the foreground or
+    /// background, so it is the only reliable place to handle share acceptance.
+    func application(_ application: UIApplication, userDidAcceptCloudKitShareWith metadata: CKShare.Metadata) {
+        guard PersistenceController.useCustomSharedSync else { return }
+        daythreadLog.log("CKShare accepted (app was running) — fetching joined zone via custom engine")
+        let containerID = "iCloud.com.delonsampaio.daythread"
+        let operation = CKAcceptSharesOperation(shareMetadatas: [metadata])
+        operation.qualityOfService = .userInitiated
+        operation.acceptSharesResultBlock = { result in
+            switch result {
+            case .success:
+                daythreadLog.log("CKShare accepted (app-running path) — fetching joined zone")
+                let zoneID = metadata.share.recordID.zoneID
+                Task { @MainActor in
+                    await SharedSyncEngine.shared.fetchJoinedZone(zoneID)
+                }
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: .daythreadDidAcceptShare,
+                        object: nil,
+                        userInfo: ["recordName": metadata.share.recordID.recordName]
+                    )
+                }
+            case .failure(let error):
+                daythreadLog.error("CKShare accept failed (app-running path): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        CKContainer(identifier: containerID).add(operation)
+    }
+
     func application(
         _ application: UIApplication,
         configurationForConnecting connectingSceneSession: UISceneSession,

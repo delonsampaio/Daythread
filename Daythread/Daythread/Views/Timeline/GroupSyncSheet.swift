@@ -52,6 +52,10 @@ struct GroupSyncSheet: View {
     /// UICloudSharingController deletes the share BEFORE cloudSharingControllerDidStopSharing
     /// fires, so checking isOwner inside that callback always returns false.
     @State private var isOwnerBeforeSheetOpen = false
+    /// True if this trip had real participants (non-owner) before the sheet opened.
+    /// On iOS 26 cloudSharingControllerDidStopSharing fires even on cancellation when
+    /// no participants have been added yet — we must not delete the zone in that case.
+    @State private var hadParticipantsBeforeSheet = false
 
     var body: some View {
         LiveContent(isDead: !trip.isAlive) {
@@ -164,12 +168,17 @@ struct GroupSyncSheet: View {
                     title: trip.name,
                     onStopSharing: {
                         sharingSheet = nil
-                        cloudKit.stopSharing(trip, modelContext: context)
-                        // Participants: navigate away before NSPersistentCloudKitContainer
-                        // purges the shared zone. Owners: trip stays in the private
-                        // store so keep it selected.
-                        if !isOwnerBeforeSheetOpen, store.activeTrip?.objectID == trip.objectID {
-                            store.activeTrip = nil
+                        // Only run the full stop-sharing flow (zone deletion) if there
+                        // were real participants before the sheet opened. On iOS 26,
+                        // cloudSharingControllerDidStopSharing fires even when the user
+                        // dismisses a freshly-created share that has no participants yet.
+                        // In that case keep the zone alive so the user can try again
+                        // without a full re-migration.
+                        if hadParticipantsBeforeSheet {
+                            cloudKit.stopSharing(trip, modelContext: context)
+                            if !isOwnerBeforeSheetOpen, store.activeTrip?.objectID == trip.objectID {
+                                store.activeTrip = nil
+                            }
                         }
                     }
                 )
@@ -258,6 +267,7 @@ struct GroupSyncSheet: View {
     private func inviteePeople() {
         isPreparing = true
         isOwnerBeforeSheetOpen = true
+        hadParticipantsBeforeSheet = members.contains { !$0.appleUserID.isEmpty }
         // Capture the trip ID now — before the Task runs — so we can recover
         // the live clone even if `trip` becomes a zombie during migration.
         let capturedTripID = trip.id
@@ -316,6 +326,7 @@ struct GroupSyncSheet: View {
         // deletes the CKShare before cloudSharingControllerDidStopSharing fires,
         // so checking inside the callback always returns false.
         isOwnerBeforeSheetOpen = share?.currentUserParticipant?.role == .owner
+        hadParticipantsBeforeSheet = members.contains { !$0.appleUserID.isEmpty }
         isPreparing = false
         if let share {
             sharingSheet = IdentifiableShare(share: share)
@@ -326,6 +337,7 @@ struct GroupSyncSheet: View {
                 let share = await fetchShareForManagement(liveTrip)
                 if let share {
                     isOwnerBeforeSheetOpen = share.currentUserParticipant?.role == .owner
+                    hadParticipantsBeforeSheet = members.contains { !$0.appleUserID.isEmpty }
                     sharingSheet = IdentifiableShare(share: share)
                 } else {
                     cloudKit.errorMessage = "Could not load sharing details."

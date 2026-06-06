@@ -83,11 +83,14 @@ struct TimelineView: View {
                 LodgingBannerView(lodging: activeLodging)
             }
         }
-        .overlay(alignment: .bottomTrailing) {
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             if store.activeTrip != nil {
-                fabButton
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 24)
+                HStack {
+                    Spacer()
+                    fabButton
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 16)
+                }
             }
         }
         // Screen-level undo toast: pinned to the bottom of the timeline rather
@@ -284,9 +287,7 @@ private struct TripTimelineList: View {
                     )
                 }
             }
-            // iPhone: clears FAB (56pt) + tab bar + home indicator.
-            // iPad: no tab bar, so use a smaller clearance for the FAB only.
-            .padding(.bottom, horizontalSizeClass == .regular ? 80 : 140)
+            .padding(.bottom, 16)
         }
         .refreshable { await PersistenceController.shared.manualRefresh() }
         .onAppear { reloadDays() }

@@ -114,8 +114,34 @@ final class SharedSyncEngine {
                 for deletion in dbChanges.deletions {
                     purgeZone(deletion.zoneID)
                 }
-                let zoneIDs = dbChanges.modifications.map(\.zoneID)
+                var zoneIDs = dbChanges.modifications.map(\.zoneID)
                 var anyChanges = false
+
+                // Full zone enumeration fallback: after CKAcceptSharesOperation the new
+                // zone can take up to ~60s to appear in databaseChanges due to CloudKit
+                // server propagation, and the saved token advances past it in the meantime.
+                // Enumerating all zones and fetching any Zone-* zones not yet seen by the
+                // change-token path catches newly joined zones within one poll tick.
+                // The enumeration is one lightweight request; per-zone record fetches use
+                // their own tokens so already-current zones add no extra round trips.
+                if let allIDs = try? await fetchAllSharedZoneIDs() {
+                    let knownNames = Set(zoneIDs.map(\.zoneName))
+                    // Only zones that: (a) use our Zone-* prefix, (b) weren't returned by
+                    // databaseChanges, AND (c) have no saved per-zone token (truly new).
+                    // Zones with an existing token were already fetched before and would
+                    // return 0 records — including them here wastes one API call per zone
+                    // per poll tick.
+                    let newIDs = allIDs.filter {
+                        $0.zoneName.hasPrefix("Zone-") &&
+                        !knownNames.contains($0.zoneName) &&
+                        loadToken(zoneName: $0.zoneName, databaseScope: "shared") == nil
+                    }
+                    if !newIDs.isEmpty {
+                        daythreadLog.log("SharedSync: zone enumeration found \(newIDs.count, privacy: .public) new shared zone(s) not in change token")
+                        zoneIDs.append(contentsOf: newIDs)
+                    }
+                }
+
                 for zoneID in zoneIDs {
                     let n = await fetchZone(zoneID, in: sharedDB, databaseScope: "shared")
                     if n > 0 { anyChanges = true }
@@ -129,6 +155,25 @@ final class SharedSyncEngine {
                 daythreadLog.error("SharedSync fetchAll failed: \(error.localizedDescription, privacy: .public)")
             }
         } while pendingFetchShared
+    }
+
+    /// Returns all zone IDs currently visible in the shared database.
+    /// Uses CKFetchRecordZonesOperation (lightweight — zone metadata only, no records).
+    private func fetchAllSharedZoneIDs() async throws -> [CKRecordZone.ID] {
+        try await withCheckedThrowingContinuation { continuation in
+            var zoneIDs: [CKRecordZone.ID] = []
+            let op = CKFetchRecordZonesOperation.fetchAllRecordZonesOperation()
+            op.perRecordZoneResultBlock = { zoneID, result in
+                if case .success = result { zoneIDs.append(zoneID) }
+            }
+            op.fetchRecordZonesResultBlock = { result in
+                switch result {
+                case .success: continuation.resume(returning: zoneIDs)
+                case .failure(let error): continuation.resume(throwing: error)
+                }
+            }
+            sharedDB.add(op)
+        }
     }
 
     /// Pull changes for all custom zones the owner created in their private DB.

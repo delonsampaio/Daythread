@@ -51,21 +51,35 @@ struct TransitCardView: View {
             }
 
             // Route: departure → arrival
+            // Flights use large IATA codes; other transport promotes the station/stop
+            // name to the primary display since departureCode/arrivalCode are empty.
             HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(details.departureCode)
-                        .font(.system(size: 26, weight: .black, design: .rounded))
-                        .foregroundStyle(ThemeTokens.textPrimary)
+                    if details.departureCode.isEmpty {
+                        Text(details.departureName)
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(ThemeTokens.textPrimary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text(details.departureCode)
+                            .font(.system(size: 26, weight: .black, design: .rounded))
+                            .foregroundStyle(ThemeTokens.textPrimary)
+                    }
                     if let time = event.startTime {
                         Text(TimezoneEngine.displayTime(date: time, in: departureTZ))
                             .font(.system(size: 13, weight: .medium, design: .monospaced))
                             .foregroundStyle(ThemeTokens.textSecondary)
                     }
-                    Text(details.departureName)
-                        .font(.caption)
-                        .foregroundStyle(ThemeTokens.textMuted)
-                        .lineLimit(1)
+                    if !details.departureCode.isEmpty, !details.departureName.isEmpty {
+                        Text(details.departureName)
+                            .font(.caption)
+                            .foregroundStyle(ThemeTokens.textMuted)
+                            .lineLimit(1)
+                    }
                 }
+
+                Spacer(minLength: 8)
 
                 VStack(spacing: 4) {
                     Image(systemName: "arrow.right")
@@ -78,16 +92,35 @@ struct TransitCardView: View {
                 }
                 .padding(.top, 6)
 
+                Spacer(minLength: 8)
+
                 VStack(alignment: .trailing, spacing: 2) {
-                    HStack(alignment: .top, spacing: 4) {
-                        Text(details.arrivalCode)
-                            .font(.system(size: 26, weight: .black, design: .rounded))
-                            .foregroundStyle(ThemeTokens.textPrimary)
-                        if isOvernight {
-                            Text("+1")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(ThemeTokens.warningAmber)
-                                .baselineOffset(16)
+                    if details.arrivalCode.isEmpty {
+                        HStack(alignment: .top, spacing: 4) {
+                            if isOvernight {
+                                Text("+1")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(ThemeTokens.warningAmber)
+                                    .padding(.top, 4)
+                            }
+                            Text(details.arrivalName)
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .foregroundStyle(ThemeTokens.textPrimary)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    } else {
+                        HStack(alignment: .top, spacing: 4) {
+                            Text(details.arrivalCode)
+                                .font(.system(size: 26, weight: .black, design: .rounded))
+                                .foregroundStyle(ThemeTokens.textPrimary)
+                            if isOvernight {
+                                Text("+1")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(ThemeTokens.warningAmber)
+                                    .baselineOffset(16)
+                            }
                         }
                     }
                     if let time = event.endTime {
@@ -95,24 +128,31 @@ struct TransitCardView: View {
                             .font(.system(size: 13, weight: .medium, design: .monospaced))
                             .foregroundStyle(ThemeTokens.textSecondary)
                     }
-                    Text(details.arrivalName)
-                        .font(.caption)
-                        .foregroundStyle(ThemeTokens.textMuted)
-                        .lineLimit(1)
+                    if !details.arrivalCode.isEmpty, !details.arrivalName.isEmpty {
+                        Text(details.arrivalName)
+                            .font(.caption)
+                            .foregroundStyle(ThemeTokens.textMuted)
+                            .lineLimit(1)
+                    }
                 }
-                .frame(maxWidth: .infinity, alignment: .trailing)
             }
 
             // Terminal / Gate / PNR chips
             FlowLayout(spacing: 6) {
                 if let terminal = details.departureTerminal, !terminal.isEmpty {
-                    transitChip("Terminal \(terminal)", color: ThemeTokens.textSecondary)
+                    transitChip("\(terminalLabel) \(terminal)", color: ThemeTokens.textSecondary)
                 }
                 if let gate = details.departureGate, !gate.isEmpty {
                     transitChip("Gate \(gate)", color: ThemeTokens.textSecondary)
                 }
+                if let carriage = details.carriageNumber, !carriage.isEmpty {
+                    transitChip("Coach \(carriage)", color: ThemeTokens.textSecondary)
+                }
                 if let seat = details.seatNumber, !seat.isEmpty {
                     transitChip(seat, color: ThemeTokens.textSecondary)
+                }
+                if let plate = details.vehicleLicensePlate, !plate.isEmpty {
+                    transitChip(plate, color: ThemeTokens.textSecondary)
                 }
                 if !details.pnr.isEmpty {
                     Text(details.pnr)
@@ -134,6 +174,14 @@ struct TransitCardView: View {
         .clipShape(RoundedRectangle(cornerRadius: ThemeTokens.cardCornerRadius, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: ThemeTokens.cardCornerRadius))
         .cardShadow()
+        }
+    }
+
+    private var terminalLabel: String {
+        switch event.category {
+        case .train: return "Platform"
+        case .bus:   return "Bay"
+        default:     return "Terminal"
         }
     }
 

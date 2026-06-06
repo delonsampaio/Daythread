@@ -9,7 +9,9 @@ struct OnboardingView: View {
     @AppStorage("daythread.userDisplayName") private var displayName = ""
     @State private var page = 0
     @State private var nameInput = ""
+    @State private var keyboardVisible = false
     @FocusState private var keyboardFocused: Bool
+    @Environment(AppleSignInService.self) private var appleSignIn
 
     /// Continue is disabled on the name page until the user types something.
     private var canAdvance: Bool {
@@ -36,6 +38,28 @@ struct OnboardingView: View {
             }
 
             VStack(spacing: 16) {
+                // SIWA button lives here — outside TabView — to avoid UIScrollView's
+                // delaysContentTouches, which caused a "hold to activate" delay in
+                // the paging TabView. Only shown on name page, keyboard dismissed.
+                if page == 1 && !appleSignIn.isLinked && !keyboardVisible {
+                    DaythreadSignInWithAppleButton()
+                        .padding(.horizontal, 24)
+                        .transition(.opacity)
+                    HStack(spacing: 12) {
+                        Rectangle()
+                            .fill(Color(.separator))
+                            .frame(height: 0.5)
+                        Text("or")
+                            .font(.caption)
+                            .foregroundStyle(ThemeTokens.textSecondary)
+                        Rectangle()
+                            .fill(Color(.separator))
+                            .frame(height: 0.5)
+                    }
+                    .padding(.horizontal, 24)
+                    .transition(.opacity)
+                }
+
                 // Page dots
                 HStack(spacing: 8) {
                     ForEach(0..<3) { i in
@@ -63,8 +87,25 @@ struct OnboardingView: View {
             }
             .padding(.bottom, 48)
         }
+        .animation(.easeInOut(duration: 0.2), value: keyboardVisible)
+        .animation(.easeInOut(duration: 0.2), value: appleSignIn.isLinked)
         .background(ThemeTokens.backgroundPrimary.ignoresSafeArea())
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            keyboardVisible = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardVisible = false
+        }
         .task { await prefetchDisplayName() }
+        // When SIWA succeeds, the service writes the Apple ID name into AppStorage.
+        // Mirror it into nameInput so canAdvance passes without the user typing.
+        .onChange(of: appleSignIn.credentialState) { _, state in
+            guard state == .signedIn else { return }
+            let name = UserDefaults.standard.string(forKey: "daythread.userDisplayName") ?? ""
+            if !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                nameInput = name
+            }
+        }
     }
 
     private func prefetchDisplayName() async {

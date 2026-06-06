@@ -100,6 +100,6 @@ struct OnboardingNamePage: View {
             if !focused { Spacer() }
         }
         .animation(.easeInOut(duration: 0.2), value: focused)
-        .onTapGesture { focused = false }
+        .simultaneousGesture(TapGesture().onEnded { focused = false })
     }
 }
