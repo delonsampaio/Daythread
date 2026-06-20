@@ -61,6 +61,9 @@ struct DaythreadApp: App {
                     await TripStoreMigrator.shared.resumeInterruptedMigrations()
                     await SharedSyncEngine.shared.fetchAllSharedZones()
                     await SharedSyncEngine.shared.fetchAllOwnedZones()
+                    // Remove any NSPCKC-recreated originals of migrated trips that may
+                    // have arrived in private.sqlite before or during our fetch above.
+                    PersistenceController.purgeStaleNSPCKCOriginals(in: persistence.viewContext)
                 }
                 // Pull on foreground, and poll while active (push alone is throttled
                 // by iOS and eventually stops delivering). Stop polling in the background.
@@ -68,10 +71,12 @@ struct DaythreadApp: App {
                     if phase == .active {
                         Task {
                             let ck = CloudKitService()
-                            // Retry identity seeding every foreground until the profile
-                            // name is populated — covers first-install devices that had
-                            // no shares at cold launch.
                             await ck.seedIdentityIfNeeded(store: store)
+                            // Retry subscription registration every foreground: the initial
+                            // attempt at cold launch may have failed (e.g. new-container 503).
+                            // CKModifySubscriptionsOperation is idempotent — safe to repeat.
+                            ck.ensureSharedDatabaseSubscription()
+                            ck.ensurePrivateDatabaseSubscription()
                             await SharedSyncEngine.shared.fetchAllSharedZones()
                             await SharedSyncEngine.shared.fetchAllOwnedZones()
                         }

@@ -125,7 +125,10 @@ final class TripStoreMigrator {
             c.trip = clonedTrip
         }
 
-        try context.save()
+        // Suppress the push observer: cloned objects have ckSystemFields = nil, so the
+        // observer would push them with fresh UUIDs — racing with uploadClone's direct
+        // CKModifyRecordsOperation and producing duplicate CloudKit records.
+        try SharedSyncEngine.performSuppressingPush { try context.save() }
         daythreadLog.log("TripStoreMigrator: cloned trip '\(trip.name, privacy: .public)' → shared store")
         return clonedTrip
     }
@@ -175,6 +178,14 @@ final class TripStoreMigrator {
             guard !Self.skipped.contains(key) else { continue }
             dest.setValue(source.value(forKey: key), forKey: key)
         }
+        // Carry over device-local fields: the shared-store clone needs ekEventIdentifier
+        // so CalendarService can find and update the existing EKEvent after the NSPCKC
+        // original is purged. Without this, the EKEvent is orphaned and the next sync
+        // call creates a duplicate. showInCalendar/hasReminder preserve the owner's
+        // calendar and reminder preferences through the migration.
+        dest.ekEventIdentifier = source.ekEventIdentifier
+        dest.showInCalendar    = source.showInCalendar
+        dest.hasReminder       = source.hasReminder
     }
 
     private func copyTransitDetailsAttributes(from source: TransitDetails, to dest: TransitDetails) {
@@ -231,7 +242,7 @@ final class TripStoreMigrator {
             // which resumeInterruptedMigrations will finish.
             clone.migration = .uploaded
             clone.cloudKitShareID = share.recordID.recordName
-            try context.save()
+            try SharedSyncEngine.performSuppressingPush { try context.save() }
             freshShare = share
         }
 
@@ -239,7 +250,7 @@ final class TripStoreMigrator {
         if clone.migration == .uploaded {
             try purgeNSPCKCOriginals(of: trip, context: context)
             clone.migration = .done
-            try context.save()
+            try SharedSyncEngine.performSuppressingPush { try context.save() }
             daythreadLog.log("TripStoreMigrator: migration complete for '\(clone.name, privacy: .public)'")
         }
 
@@ -272,7 +283,7 @@ final class TripStoreMigrator {
         // Build CKRecords. Since these are brand-new clones with no system fields
         // yet, we set the zoneID explicitly by constructing each record directly.
         let zoneID = SharedZoneSharing.zoneID(for: tripID)
-        let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
+        let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread.shared")
         let privateDB = container.privateCloudDatabase
 
         var records: [CKRecord] = []
@@ -308,7 +319,8 @@ final class TripStoreMigrator {
             privateDB.add(op)
         }
         daythreadLog.log("TripStoreMigrator: upload confirmed")
-        try context.save()   // persist updated ckSystemFields
+        // Suppress: ckSystemFields were set by uploadClone directly — no push needed.
+        try SharedSyncEngine.performSuppressingPush { try context.save() }
     }
 
     /// Deletes the original Trip graph from the NSPCKC store.
@@ -323,8 +335,12 @@ final class TripStoreMigrator {
         daythreadLog.log("TripStoreMigrator: purging NSPCKC original '\(trip.name, privacy: .public)'")
         // Cascade deletes handle all children (days → events → transitDetails,
         // documents, expenses, lodging, members, preTripTasks).
+        // Suppress the push observer: these objects are in the NSPCKC private store
+        // (not shared.sqlite) so isSharedSynced filters them anyway, but suppressing
+        // is defensive and prevents any shared-store objects from being dragged along
+        // if they happen to be dirty in viewContext at this moment.
         context.delete(trip)
-        try context.save()
+        try SharedSyncEngine.performSuppressingPush { try context.save() }
         daythreadLog.log("TripStoreMigrator: NSPCKC original purged")
     }
 
@@ -369,7 +385,7 @@ final class TripStoreMigrator {
             } else if clone.migration == .uploaded {
                 // Original was purged but state not updated — finish.
                 clone.migration = .done
-                try? context.save()
+                SharedSyncEngine.performSuppressingPush { try? context.save() }
             }
         }
     }

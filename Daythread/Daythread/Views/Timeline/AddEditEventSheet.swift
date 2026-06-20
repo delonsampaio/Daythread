@@ -60,6 +60,21 @@ struct AddEditEventSheet: View {
         trip?.daysArray ?? []
     }
 
+    /// Timezone for the start-time picker: departure city TZ when transit details
+    /// are set, otherwise device local. Keeps stored times in sync with the display.
+    private var departureTZ: TimeZone {
+        guard let id = transitDetails?.departureTZIdentifier, !id.isEmpty,
+              let tz = TimeZone(identifier: id) else { return .current }
+        return tz
+    }
+
+    /// Timezone for the end-time picker: arrival city TZ when transit details are set.
+    private var arrivalTZ: TimeZone {
+        guard let id = transitDetails?.arrivalTZIdentifier, !id.isEmpty,
+              let tz = TimeZone(identifier: id) else { return .current }
+        return tz
+    }
+
     /// Trip members other than the current user — shown in the "also visible to" picker.
     private var otherMembers: [TripMember] {
         let myID = store.currentUserCloudKitID ?? ""
@@ -152,18 +167,29 @@ struct AddEditEventSheet: View {
                     Toggle("Set a time", isOn: $hasStartTime)
                     if hasStartTime {
                         // UIDatePicker-backed pickers: wheel snaps to 5-minute marks.
+                        // For transit events, use the departure/arrival timezone so
+                        // "10:30 AM" is stored as 10:30 AM in the TRANSIT timezone,
+                        // matching how TransitCardView displays it.
                         HStack {
                             Text("Start")
                             Spacer()
-                            MinuteIntervalTimePicker(label: "Start", selection: $startTime)
+                            MinuteIntervalTimePicker(
+                                label: "Start",
+                                selection: $startTime,
+                                timeZone: departureTZ
+                            )
                         }
                         HStack {
                             Text("End")
                             Spacer()
-                            MinuteIntervalTimePicker(label: "End", selection: Binding(
-                                get: { endTime },
-                                set: { userEditedEndTime = true; endTime = $0 }
-                            ))
+                            MinuteIntervalTimePicker(
+                                label: "End",
+                                selection: Binding(
+                                    get: { endTime },
+                                    set: { userEditedEndTime = true; endTime = $0 }
+                                ),
+                                timeZone: arrivalTZ
+                            )
                         }
                     }
 
@@ -189,6 +215,7 @@ struct AddEditEventSheet: View {
                 .onChange(of: hasStartTime) { _, newValue in
                     if !newValue {
                         isTimeLocked = false
+                        showInCalendar = false
                     } else if editingEvent == nil {
                         isTimeLocked = true
                     }
@@ -209,10 +236,12 @@ struct AddEditEventSheet: View {
                         .lineLimit(3...6)
                 }
 
-                Section {
-                    Toggle("Add to Apple Calendar", isOn: $showInCalendar)
-                    if notificationsEnabled && hasStartTime {
-                        Toggle("Remind me", isOn: $hasReminder)
+                if hasStartTime {
+                    Section {
+                        Toggle("Add to Apple Calendar", isOn: $showInCalendar)
+                        if notificationsEnabled {
+                            Toggle("Remind me", isOn: $hasReminder)
+                        }
                     }
                 }
 
@@ -440,7 +469,22 @@ struct AddEditEventSheet: View {
     }
 
     private func save() {
-        let targetDay = selectedDay ?? tripDays.first
+        // selectedDay may be a zombie: the TripDay was live when the sheet opened but
+        // was deleted while the sheet was open (e.g. owner stopped sharing, zone deleted).
+        // A zombie has managedObjectContext == nil, which causes "different contexts" when
+        // assigned to event.day. Re-fetch by objectID to get the live viewContext instance,
+        // or bail gracefully if the trip itself was deleted.
+        let rawTarget = selectedDay ?? tripDays.first
+        let targetDay: TripDay?
+        if let raw = rawTarget, !raw.isAlive, !raw.objectID.isTemporaryID {
+            targetDay = (try? context.existingObject(with: raw.objectID)) as? TripDay
+        } else {
+            targetDay = rawTarget
+        }
+        guard targetDay?.isAlive == true else {
+            dismiss()
+            return
+        }
         let savedEvent: TripEvent
         if let event = editingEvent {
             event.title = title
@@ -451,8 +495,8 @@ struct AddEditEventSheet: View {
             event.startTime = hasStartTime ? startTime : nil
             event.endTime = hasStartTime ? endTime : nil
             if let td = transitDetails { event.transitDetails = td }
-            event.showInCalendar = showInCalendar
-            event.hasReminder    = hasReminder
+            event.showInCalendar = hasStartTime && showInCalendar
+            event.hasReminder    = hasStartTime && hasReminder
             if canTogglePrivacy {
                 event.isPrivate = isPrivate
                 event.visibleToMemberIDs = isPrivate
@@ -482,8 +526,8 @@ struct AddEditEventSheet: View {
             event.isTimeLocked = isTimeLocked
             event.sortOrder = nextOrder
             event.notes = notes
-            event.showInCalendar      = showInCalendar
-            event.hasReminder         = hasReminder
+            event.showInCalendar      = hasStartTime && showInCalendar
+            event.hasReminder         = hasStartTime && hasReminder
             event.isPrivate           = isPrivate
             event.visibleToMemberIDs  = isPrivate
                 ? sharedWithMemberIDs.sorted().joined(separator: ",")

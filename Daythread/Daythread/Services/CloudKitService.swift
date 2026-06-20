@@ -362,7 +362,7 @@ final class CloudKitService {
     ) async {
         guard trip.cloudKitShareID != nil else { return }
         guard let uid = await currentUserRecordName() else { return }
-        store?.currentUserCloudKitID = uid
+        await MainActor.run { store?.currentUserCloudKitID = uid }
 
         // Fetch the live share once — used for both role and name resolution.
         // The SyncState cache was encoded at zone-creation time (before participants
@@ -395,23 +395,15 @@ final class CloudKitService {
 
     // MARK: — Shared-database push subscription
 
-    /// NSPersistentCloudKitContainer reliably creates the silent-push subscription
-    /// for the PRIVATE database but is notorious for failing to create one for the
-    /// SHARED database — so participants never get pushed when a co-editor changes
-    /// something, and only sync at launch.
-    ///
-    /// CRITICAL: the subscription ID MUST be Core Data's own internal shared-DB
-    /// subscription ID. The container's swizzled push handler inspects the incoming
-    /// push for that exact subscriptionID and DROPS any push whose ID doesn't match —
-    /// so a custom-ID subscription wakes the device but never triggers an import.
-    /// Using the internal ID makes the container treat our push as its own and run
-    /// the shared-DB import. CKModifySubscriptionsOperation is idempotent, so saving
-    /// over the container's (possibly missing) subscription is safe.
+    /// Registers a silent-push subscription on the SHARED database so participants
+    /// receive pushes when the owner or a co-editor changes something. Uses a
+    /// custom subscription ID (safe because the new custom-sync container has no
+    /// NSPCKC swizzle to satisfy — any subscription ID wakes the app).
     nonisolated func ensureSharedDatabaseSubscription() {
-        let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
+        let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread.shared")
         let sharedDB = container.sharedCloudDatabase
 
-        let subscription = CKDatabaseSubscription(subscriptionID: "com.apple.coredata.cloudkit.shared.subscription")
+        let subscription = CKDatabaseSubscription(subscriptionID: "com.delonsampaio.daythread.shared.subscription")
         let info = CKSubscription.NotificationInfo()
         info.shouldSendContentAvailable = true   // silent push that wakes the app
         subscription.notificationInfo = info
@@ -424,7 +416,7 @@ final class CloudKitService {
         op.modifySubscriptionsResultBlock = { result in
             switch result {
             case .success:
-                daythreadLog.log("shared-DB silent-push subscription registered (internal ID)")
+                daythreadLog.log("shared-DB silent-push subscription registered")
             case .failure(let error):
                 daythreadLog.error("shared-DB subscription FAILED: \(error.localizedDescription, privacy: .public)")
             }
@@ -435,7 +427,7 @@ final class CloudKitService {
     /// Registers a silent-push subscription on the PRIVATE database so the owner
     /// receives pushes when participants edit records in the owner's custom share zones.
     nonisolated func ensurePrivateDatabaseSubscription() {
-        let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
+        let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread.shared")
         let privateDB = container.privateCloudDatabase
 
         let subscription = CKDatabaseSubscription(subscriptionID: "com.delonsampaio.daythread.private.subscription")
@@ -461,7 +453,7 @@ final class CloudKitService {
 
     /// DIAGNOSTIC: logs whether the shared database has any push subscriptions.
     nonisolated func verifySharedDatabaseSubscription() {
-        let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
+        let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread.shared")
         container.sharedCloudDatabase.fetchAllSubscriptions { subs, error in
             if let error {
                 daythreadLog.error("error fetching shared subscriptions: \(error.localizedDescription, privacy: .public)")

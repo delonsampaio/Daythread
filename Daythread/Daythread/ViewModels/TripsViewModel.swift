@@ -57,7 +57,10 @@ final class TripsViewModel {
         try? context.save()
     }
 
+    @MainActor
     func deleteTrip(_ trip: Trip, context: NSManagedObjectContext) {
+        // Remove calendar entries before deleting so ekEventIdentifiers are still accessible.
+        CalendarService.shared.removeAllEvents(for: trip)
         // Delete the CloudKit zone so participants are notified and the zone
         // doesn't become permanently orphaned in the owner's private database.
         if trip.cloudKitShareID != nil, let tripID = trip.id {

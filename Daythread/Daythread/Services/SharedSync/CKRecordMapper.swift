@@ -63,6 +63,13 @@ enum CKRecordMapper {
                 object = NSEntityDescription.insertNewObject(forEntityName: entityName, into: context)
                 context.assign(object, to: sharedStore)
                 object.setValue(recordName, forKey: "ckRecordName")
+                // Device-local fields that the Core Data model may default to true.
+                // Explicitly set them false on first insert so new shared events don't
+                // inherit the owner's preferences — each participant manages their own.
+                if entityName == "TripEvent" {
+                    object.setValue(false, forKey: "showInCalendar")
+                    object.setValue(false, forKey: "hasReminder")
+                }
             }
             applyAttributes(from: record, to: object)
             // Preserve the record's CloudKit identity + change tag for safe push updates.
@@ -93,7 +100,17 @@ enum CKRecordMapper {
             for entityName in syncedEntities {
                 let req = NSFetchRequest<NSManagedObject>(entityName: entityName)
                 req.predicate = NSPredicate(format: "ckRecordName IN %@", deletionNames)
-                for obj in (try? context.fetch(req)) ?? [] { context.delete(obj) }
+                for obj in (try? context.fetch(req)) ?? [] {
+                    // Capture the EKEvent identifier BEFORE deleting so the calendar
+                    // entry can be cleaned up on the main actor after the fact.
+                    if entityName == "TripEvent",
+                       let ekID = obj.value(forKey: "ekEventIdentifier") as? String,
+                       !ekID.isEmpty {
+                        let capturedID = ekID
+                        Task { @MainActor in CalendarService.shared.remove(identifier: capturedID) }
+                    }
+                    context.delete(obj)
+                }
             }
         }
 
@@ -142,8 +159,13 @@ enum CKRecordMapper {
                 out[key] = (((value as? Bool) == true) ? 1 : 0) as CKRecordValue
             case .UUIDAttributeType:
                 if let u = value as? UUID { out[key] = u.uuidString as CKRecordValue }
+                else { out[key] = nil }
             default:
+                // Explicitly nil the field when the local value is nil so the push
+                // clears it on the server. Without this, the CKRecord decoded from
+                // ckSystemFields carries the old value and the push restores it.
                 if let v = value as? CKRecordValue { out[key] = v }
+                else { out[key] = nil }
             }
         }
 
@@ -209,7 +231,16 @@ enum CKRecordMapper {
                 continue
             }
 
-            guard let raw = record[key] else { continue }
+            guard let raw = record[key] else {
+                // If the attribute is optional and the server sent nil, explicitly
+                // clear the local value. Without this, a field removal (e.g. startTime
+                // set to nil by the owner) is silently skipped and the participant
+                // retains the old value.
+                if attr.isOptional && attr.attributeType != .binaryDataAttributeType {
+                    object.setValue(nil, forKey: attrName)
+                }
+                continue
+            }
             switch attr.attributeType {
             case .UUIDAttributeType:
                 if let s = raw as? String, let uuid = UUID(uuidString: s) {

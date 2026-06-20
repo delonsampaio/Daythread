@@ -19,7 +19,7 @@ struct CloudKitTripSharingBackend: TripSharingBackend {
     private let sharing: SharedZoneSharing
     private let migrator: TripStoreMigrator
 
-    init(containerIdentifier: String = "iCloud.com.delonsampaio.daythread") {
+    init(containerIdentifier: String = "iCloud.com.delonsampaio.daythread.shared") {
         self.container = CKContainer(identifier: containerIdentifier)
         self.sharing = SharedZoneSharing(containerIdentifier: containerIdentifier)
         self.migrator = TripStoreMigrator.shared

@@ -137,6 +137,11 @@ struct PersistenceController {
             }
             guard event.type == .import, event.endDate != nil, event.succeeded else { return }
             MainActor.assumeIsolated {
+                // On reinstall, NSPCKC may recreate a trip in private.sqlite that was
+                // previously migrated to shared.sqlite (the deletion tombstone may not have
+                // reached CloudKit before reinstall). Purge stale copies before signaling
+                // views so the duplicate never becomes visible.
+                Self.purgeStaleNSPCKCOriginals(in: container.viewContext)
                 // automaticallyMergesChangesFromParent already applied the changes
                 // into viewContext; just signal views to re-evaluate relationship
                 // arrays. refreshAllObjects() is intentionally omitted — it blocks
@@ -144,6 +149,52 @@ struct PersistenceController {
                 NotificationCenter.default.post(name: .dayThreadRemoteChangeDidApply, object: nil)
                 daythreadLog.log("import applied — UI refresh posted")
             }
+        }
+    }
+
+    /// Removes trips in private.sqlite (NSPCKC-managed) that were migrated to
+    /// shared.sqlite. On reinstall, NSPCKC can recreate the original trip if the
+    /// deletion tombstone hadn't propagated to CloudKit before the reinstall. A zone
+    /// token in UserDefaults for "Zone-<tripID>" is the reliable indicator that the
+    /// custom engine owns this trip — but we only purge the private copy when the
+    /// shared store already has the trip. Without this guard, a store wipe + purge
+    /// deletes the trip from the private store before the custom engine re-fetches it,
+    /// leaving the user with no copy. They then recreate it (new UUID), the engine
+    /// later re-fetches the old one, and both appear in the list simultaneously.
+    @MainActor
+    static func purgeStaleNSPCKCOriginals(in context: NSManagedObjectContext) {
+        guard let privateStore = context.persistentStoreCoordinator?.persistentStores
+            .first(where: { $0.url?.lastPathComponent != "shared.sqlite" &&
+                            $0.url?.lastPathComponent.hasSuffix(".sqlite") == true }),
+              let sharedStore = context.persistentStoreCoordinator?.persistentStores
+            .first(where: { $0.url?.lastPathComponent == "shared.sqlite" }) else { return }
+        let request = Trip.fetchRequest()
+        request.affectedStores = [privateStore]
+        guard let trips = try? context.fetch(request), !trips.isEmpty else { return }
+        var purged = false
+        for trip in trips {
+            guard let tripID = trip.id else { continue }
+            let zone = "Zone-\(tripID.uuidString)"
+            let isManaged =
+                UserDefaults.standard.data(forKey: "SharedSync.zoneToken.\(zone).private") != nil ||
+                UserDefaults.standard.data(forKey: "SharedSync.zoneToken.\(zone).shared") != nil
+            guard isManaged else { continue }
+            // Only purge when the shared store already has this trip. If the shared
+            // store was wiped and hasn't re-fetched yet, skip — we'd erase the only copy.
+            let sharedReq = Trip.fetchRequest()
+            sharedReq.predicate = NSPredicate(format: "id == %@", tripID as CVarArg)
+            sharedReq.affectedStores = [sharedStore]
+            sharedReq.fetchLimit = 1
+            guard (try? context.fetch(sharedReq))?.isEmpty == false else {
+                daythreadLog.log("PersistenceController: skipping purge of '\(trip.name, privacy: .public)' — not yet in shared store")
+                continue
+            }
+            daythreadLog.log("PersistenceController: purging stale NSPCKC original '\(trip.name, privacy: .public)'")
+            context.delete(trip)
+            purged = true
+        }
+        if purged {
+            SharedSyncEngine.performSuppressingPush { try? context.save() }
         }
     }
 

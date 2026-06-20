@@ -21,7 +21,7 @@ struct SharedZoneSharing {
     private let container: CKContainer
     private var privateDB: CKDatabase { container.privateCloudDatabase }
 
-    init(containerIdentifier: String = "iCloud.com.delonsampaio.daythread") {
+    init(containerIdentifier: String = "iCloud.com.delonsampaio.daythread.shared") {
         self.container = CKContainer(identifier: containerIdentifier)
     }
 

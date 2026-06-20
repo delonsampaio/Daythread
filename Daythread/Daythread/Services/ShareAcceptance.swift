@@ -111,7 +111,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 /// Scene delegate whose sole job is to receive accepted CloudKit shares.
 /// SwiftUI continues to own the window and view hierarchy.
 final class ShareSceneDelegate: NSObject, UIWindowSceneDelegate {
-    private let containerID = "iCloud.com.delonsampaio.daythread"
+    private let containerID = "iCloud.com.delonsampaio.daythread.shared"
 
     /// Cold-start path: the app was killed and opened via a share link.
     /// cloudKitShareMetadata is in connectionOptions; windowScene(_:userDidAcceptCloudKitShareWith:)

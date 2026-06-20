@@ -56,6 +56,9 @@ struct GroupSyncSheet: View {
     /// On iOS 26 cloudSharingControllerDidStopSharing fires even on cancellation when
     /// no participants have been added yet — we must not delete the zone in that case.
     @State private var hadParticipantsBeforeSheet = false
+    /// Guards against iOS 26 firing cloudSharingControllerDidStopSharing twice for a
+    /// single stop-sharing action, which would call stopSharing (zone deletion) twice.
+    @State private var hasStoppedThisSession = false
 
     var body: some View {
         LiveContent(isDead: !trip.isAlive) {
@@ -174,6 +177,10 @@ struct GroupSyncSheet: View {
                         // dismisses a freshly-created share that has no participants yet.
                         // In that case keep the zone alive so the user can try again
                         // without a full re-migration.
+                        // hasStoppedThisSession guards against iOS 26 firing this callback
+                        // twice for a single stop-sharing action.
+                        guard !hasStoppedThisSession else { return }
+                        hasStoppedThisSession = true
                         if hadParticipantsBeforeSheet {
                             cloudKit.stopSharing(trip, modelContext: context)
                             if !isOwnerBeforeSheetOpen, store.activeTrip?.objectID == trip.objectID {
@@ -268,6 +275,7 @@ struct GroupSyncSheet: View {
         isPreparing = true
         isOwnerBeforeSheetOpen = true
         hadParticipantsBeforeSheet = members.contains { !$0.appleUserID.isEmpty }
+        hasStoppedThisSession = false
         // Capture the trip ID now — before the Task runs — so we can recover
         // the live clone even if `trip` becomes a zombie during migration.
         let capturedTripID = trip.id
@@ -327,6 +335,7 @@ struct GroupSyncSheet: View {
         // so checking inside the callback always returns false.
         isOwnerBeforeSheetOpen = share?.currentUserParticipant?.role == .owner
         hadParticipantsBeforeSheet = members.contains { !$0.appleUserID.isEmpty }
+        hasStoppedThisSession = false
         isPreparing = false
         if let share {
             sharingSheet = IdentifiableShare(share: share)
@@ -338,6 +347,7 @@ struct GroupSyncSheet: View {
                 if let share {
                     isOwnerBeforeSheetOpen = share.currentUserParticipant?.role == .owner
                     hadParticipantsBeforeSheet = members.contains { !$0.appleUserID.isEmpty }
+                    hasStoppedThisSession = false
                     sharingSheet = IdentifiableShare(share: share)
                 } else {
                     cloudKit.errorMessage = "Could not load sharing details."

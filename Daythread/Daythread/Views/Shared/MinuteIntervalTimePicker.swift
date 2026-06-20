@@ -17,6 +17,10 @@ struct MinuteIntervalTimePicker: UIViewRepresentable {
     let label: String
     @Binding var selection: Date
     var minuteInterval: Int = 5
+    /// The timezone the picker displays and interprets times in.
+    /// Pass the transit's departure or arrival timezone for transit events so
+    /// "10:30 AM" is stored as 10:30 AM in THAT timezone, not the device timezone.
+    var timeZone: TimeZone = .current
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -25,6 +29,7 @@ struct MinuteIntervalTimePicker: UIViewRepresentable {
         picker.datePickerMode           = .time
         picker.preferredDatePickerStyle = .compact
         picker.minuteInterval           = minuteInterval
+        picker.timeZone                 = timeZone
         picker.addTarget(context.coordinator,
                          action: #selector(Coordinator.dateChanged(_:)),
                          for: .valueChanged)
@@ -36,6 +41,7 @@ struct MinuteIntervalTimePicker: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UIDatePicker, context: Context) {
+        uiView.timeZone = timeZone
         // Snap the bound date to the nearest interval so the wheel always
         // shows a valid tick mark even if the value arrived from elsewhere.
         let snapped = snap(selection, to: minuteInterval)
@@ -71,18 +77,18 @@ struct MinuteIntervalTimePicker: UIViewRepresentable {
 
     // MARK: — Helpers
 
-    /// Rounds `date` to the nearest `interval` minutes.
+    /// Rounds `date` to the nearest `interval` minutes, interpreted in `timeZone`.
     private func snap(_ date: Date, to interval: Int) -> Date {
         guard interval > 0 else { return date }
-        var c = Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute], from: date
-        )
+        var cal = Calendar.current
+        cal.timeZone = timeZone
+        var c = cal.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         let m      = c.minute ?? 0
         let ticks  = Int((Double(m) / Double(interval)).rounded())
         let capped = ticks * interval
         c.minute   = capped % 60
         c.second   = 0
         if capped >= 60 { c.hour = (c.hour ?? 0) + 1 }
-        return Calendar.current.date(from: c) ?? date
+        return cal.date(from: c) ?? date
     }
 }

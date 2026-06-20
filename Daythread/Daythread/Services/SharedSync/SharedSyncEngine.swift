@@ -6,6 +6,16 @@ import os
 /// push results, so the SYNCHRONOUS local-save observer doesn't re-push them. Only
 /// touched on the main thread; file-scope so the @Sendable observer block can read it.
 nonisolated(unsafe) private var sharedSyncApplyingRemote = false
+/// Record names received as remote deletions from fetchZone. When automaticallyMergesChangesFromParent
+/// later promotes those bgContext deletions into viewContext, they surface in the NEXT
+/// viewContext save's `deleted` set. Without filtering, the push observer would re-push them
+/// to CloudKit, causing all recipients to see the deletions a second time. Consumed lazily
+/// (each entry is removed when the push observer encounters it).
+nonisolated(unsafe) private var pendingRemoteDeleteIDs: Set<String> = []
+/// Pre-save changed-key snapshot used to filter to-many-only updates from the push.
+/// Populated by the WillSave observer (before changedValues() resets) and consumed by
+/// the DidSave observer. Only accessed on the main thread alongside viewContext saves.
+nonisolated(unsafe) private var willSaveChangedKeys: [NSManagedObjectID: Set<String>] = [:]
 
 /// Custom sync engine for the SHARED CloudKit database (Path A). Replaces
 /// NSPersistentCloudKitContainer's deferred shared-store mirroring with direct
@@ -20,7 +30,7 @@ nonisolated(unsafe) private var sharedSyncApplyingRemote = false
 final class SharedSyncEngine {
     static let shared = SharedSyncEngine()
 
-    private let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread")
+    private let container = CKContainer(identifier: "iCloud.com.delonsampaio.daythread.shared")
     private var sharedDB: CKDatabase { container.sharedCloudDatabase }
     private var privateDB: CKDatabase { container.privateCloudDatabase }
     private var isSyncingShared = false
@@ -62,15 +72,64 @@ final class SharedSyncEngine {
     func start() {
         guard PersistenceController.useCustomSharedSync else { return }
         let viewContext = PersistenceController.shared.viewContext
+
+        // WillSave fires while changedValues() is still populated (DidSave fires after the
+        // context resets them). We capture which keys changed so DidSave can filter objects
+        // whose only changes are to-many relationship inverses — e.g., TripDay.events when an
+        // event moves between days. Those produce no CloudKit field changes (only the child
+        // encodes the to-one reference) and pushing them creates spurious serverRecordChanged
+        // conflicts that can corrupt the shared trip on the participant's device.
+        NotificationCenter.default.addObserver(
+            forName: .NSManagedObjectContextWillSave, object: viewContext, queue: nil
+        ) { _ in
+            willSaveChangedKeys.removeAll()
+            for obj in viewContext.updatedObjects where SharedSyncEngine.isSharedSynced(obj) {
+                willSaveChangedKeys[obj.objectID] = Set(obj.changedValues().keys)
+            }
+        }
+
         NotificationCenter.default.addObserver(
             forName: .NSManagedObjectContextDidSave, object: viewContext, queue: nil
         ) { note in
+            defer { willSaveChangedKeys.removeAll() }
             guard !sharedSyncApplyingRemote else { return }   // synchronous echo suppression
             let inserted = (note.userInfo?[NSInsertedObjectsKey] as? Set<NSManagedObject>) ?? []
             let updated  = (note.userInfo?[NSUpdatedObjectsKey]  as? Set<NSManagedObject>) ?? []
             let deleted  = (note.userInfo?[NSDeletedObjectsKey]  as? Set<NSManagedObject>) ?? []
-            let saveIDs = inserted.union(updated).filter(SharedSyncEngine.isSharedSynced).map(\.objectID)
-            let deleteIDs = deleted.filter(SharedSyncEngine.isSharedSynced).compactMap(SharedSyncEngine.recordID(forDeleted:))
+
+            // Only push updated objects that have real CloudKit field changes. Skip objects
+            // whose only changes are:
+            //   • to-many relationship inverses (e.g., TripDay.events when an event moves)
+            //   • ckSystemFields / ckRecordName (internal metadata, in CKRecordMapper.skippedAttributes)
+            // If willSaveChangedKeys has no entry (WillSave didn't fire — shouldn't happen),
+            // include the object to be safe.
+            // All fields in CKRecordMapper.skippedAttributes are device-local and must
+            // never trigger a push even if saved without suppressingPush. Mirror any
+            // changes to skippedAttributes here to keep the two sets in sync.
+            let internalKeys: Set<String> = [
+                "ckSystemFields", "ckRecordName",
+                "ekEventIdentifier", "showInCalendar", "hasReminder", "migrationState"
+            ]
+            let filteredUpdated = updated.filter { obj in
+                let changed = willSaveChangedKeys[obj.objectID] ?? []
+                if changed.isEmpty { return true }
+                let toManyKeys = Set(obj.entity.relationshipsByName.filter { $0.value.isToMany }.map(\.key))
+                return !changed.subtracting(toManyKeys).subtracting(internalKeys).isEmpty
+            }
+
+            let saveIDs = inserted.union(filteredUpdated).filter(SharedSyncEngine.isSharedSynced).map(\.objectID)
+            // Filter out remote-received deletions: records that arrived via fetchZone and
+            // were merged into viewContext by automaticallyMergesChangesFromParent. Without
+            // this, saving ANY local change after a fetch would echo those deletions back to
+            // CloudKit, causing all devices to see the records disappear a second time.
+            let deleteIDs = deleted.filter(SharedSyncEngine.isSharedSynced)
+                .compactMap(SharedSyncEngine.recordID(forDeleted:))
+                .filter { pendingRemoteDeleteIDs.remove($0.recordName) == nil }
+            if !deleteIDs.isEmpty {
+                for id in deleteIDs {
+                    daythreadLog.log("SharedSync push observer DELETION: \(id.recordName, privacy: .public) zone=\(id.zoneID.zoneName, privacy: .public)")
+                }
+            }
             guard !saveIDs.isEmpty || !deleteIDs.isEmpty else { return }
             Task { @MainActor in
                 await SharedSyncEngine.shared.pushLocalChanges(saveObjectIDs: saveIDs, toDelete: deleteIDs)
@@ -83,6 +142,15 @@ final class SharedSyncEngine {
         sharedSyncApplyingRemote = true
         body()
         sharedSyncApplyingRemote = false
+    }
+
+    /// Static variant for use by TripStoreMigrator (and other classes that upload
+    /// directly to CloudKit and must not trigger a second push via the observer).
+    /// Wrap any context.save() that is already covered by a direct CKModifyRecordsOperation.
+    static func performSuppressingPush(_ body: () throws -> Void) rethrows {
+        sharedSyncApplyingRemote = true
+        defer { sharedSyncApplyingRemote = false }
+        try body()
     }
 
     // MARK: — Public entry point
@@ -234,38 +302,74 @@ final class SharedSyncEngine {
     private func fetchZone(_ zoneID: CKRecordZone.ID, in db: CKDatabase, databaseScope: String) async -> Int {
         let context = PersistenceController.shared.viewContext
         guard let sharedStore = Self.sharedStore(in: context) else { return 0 }
-        let token = loadToken(zoneName: zoneID.zoneName, databaseScope: databaseScope)
+        var sinceToken = loadToken(zoneName: zoneID.zoneName, databaseScope: databaseScope)
+        var checkpointToken: CKServerChangeToken? = nil
+        var totalRecords = 0
+        var totalDeletions = 0
+        var lastShare: CKShare? = nil
         do {
-            let changes = try await db.recordZoneChanges(inZoneWith: zoneID, since: token)
-            let allRecords = changes.modificationResultsByID.values.compactMap { try? $0.get().record }
-            // Separate the CKShare (system record, not a CD_ entity) from data records.
-            let share = allRecords.first(where: { $0.recordType == CKRecord.SystemType.share }) as? CKShare
-            let records = allRecords.filter { $0.recordType != CKRecord.SystemType.share }
-            let deletions = changes.deletions.map(\.recordID)
-            guard !records.isEmpty || !deletions.isEmpty || share != nil else { return 0 }
+            // Paginate: CloudKit may return moreComing = true when there are more
+            // records than fit in a single response. Loop until all pages are consumed
+            // so we always save a final "checkpoint" token, not a mid-page cursor.
+            var moreComing = false
+            repeat {
+                let changes = try await db.recordZoneChanges(inZoneWith: zoneID, since: sinceToken)
+                let allRecords = changes.modificationResultsByID.values.compactMap { try? $0.get().record }
+                let share = allRecords.first(where: { $0.recordType == CKRecord.SystemType.share }) as? CKShare
+                let records = allRecords.filter { $0.recordType != CKRecord.SystemType.share }
+                let deletions = changes.deletions.map(\.recordID)
+                if share != nil { lastShare = share }
 
-            // CKRecordMapper.apply is the expensive part: it iterates and inserts/updates
-            // potentially hundreds of records. Run it on a background context so the main
-            // thread is never blocked. Token + dedup are lightweight (single-row fetch) and
-            // stay on viewContext where @MainActor-isolated NSManagedObject APIs are safe.
-            let bgContext = PersistenceController.shared.container.newBackgroundContext()
-            bgContext.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
-            await bgContext.perform {
-                guard let bgStore = Self.sharedStore(in: bgContext) else { return }
-                // Push observer only watches viewContext — no suppressingPush needed here.
-                CKRecordMapper.apply(modifications: records, deletions: deletions, into: bgContext, sharedStore: bgStore, autoSave: true)
+                if !records.isEmpty || !deletions.isEmpty || share != nil {
+                    let bgContext = PersistenceController.shared.container.newBackgroundContext()
+                    bgContext.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
+                    let modifiedEventNames = records
+                        .filter { $0.recordType == "CD_TripEvent" }
+                        .map(\.recordID.recordName)
+                    await bgContext.perform {
+                        guard let bgStore = Self.sharedStore(in: bgContext) else { return }
+                        CKRecordMapper.apply(modifications: records, deletions: deletions, into: bgContext, sharedStore: bgStore, autoSave: true)
+                    }
+                    // Re-sync calendar for remotely modified events (respects showInCalendar).
+                    // MUST run inside performSuppressingPush: CalendarService.sync() calls
+                    // context.save() to persist ekEventIdentifier, which would otherwise fire
+                    // the push observer and create an infinite push→fetch→push echo loop.
+                    if !modifiedEventNames.isEmpty {
+                        await MainActor.run {
+                            SharedSyncEngine.performSuppressingPush {
+                                let req = NSFetchRequest<TripEvent>(entityName: "TripEvent")
+                                req.predicate = NSPredicate(format: "ckRecordName IN %@", modifiedEventNames)
+                                let events = (try? context.fetch(req)) ?? []
+                                for event in events where event.showInCalendar {
+                                    let tripName = event.day?.trip?.name ?? ""
+                                    CalendarService.shared.sync(event, tripName: tripName, context: context)
+                                }
+                            }
+                        }
+                    }
+                    for id in deletions { pendingRemoteDeleteIDs.insert(id.recordName) }
+                    totalRecords += records.count
+                    totalDeletions += deletions.count
+                }
+
+                // Advance the token for the next page (or persist it as the checkpoint).
+                sinceToken = changes.changeToken
+                checkpointToken = changes.changeToken
+                moreComing = changes.moreComing
+                if moreComing {
+                    daythreadLog.log("SharedSync: zone '\(zoneID.zoneName, privacy: .public)' moreComing — fetching next page")
+                }
+            } while moreComing
+
+            guard totalRecords > 0 || totalDeletions > 0 || lastShare != nil else { return 0 }
+
+            if let checkpointToken {
+                saveToken(checkpointToken, zoneName: zoneID.zoneName, ownerName: zoneID.ownerName, databaseScope: databaseScope, share: lastShare)
             }
-
-            // Lightweight main-thread work: persist the change token and collapse any
-            // duplicate TripMember rows that arrived before each device's record synced.
-            saveToken(changes.changeToken, zoneName: zoneID.zoneName, ownerName: zoneID.ownerName, databaseScope: databaseScope, share: share)
             deduplicateMembersForZone(zoneID.zoneName, in: context, sharedStore: sharedStore)
             if context.hasChanges { suppressingPush { try? context.save() } }
-            // Notification is posted by the caller (fetchAllSharedZones/fetchAllOwnedZones/
-            // fetchJoinedZone) once after ALL zones finish, not once per zone, to avoid
-            // N×sections synchronous reload() calls on the main thread per poll tick.
-            daythreadLog.log("SharedSync: zone '\(zoneID.zoneName, privacy: .public)' merged \(records.count, privacy: .public) record(s), \(deletions.count, privacy: .public) deletion(s)")
-            return records.count + deletions.count
+            daythreadLog.log("SharedSync: zone '\(zoneID.zoneName, privacy: .public)' merged \(totalRecords, privacy: .public) record(s), \(totalDeletions, privacy: .public) deletion(s)")
+            return totalRecords + totalDeletions
         } catch let error as CKError where error.code == .zoneNotFound {
             daythreadLog.log("SharedSync: zone '\(zoneID.zoneName, privacy: .public)' deleted — purging local data")
             purgeZone(zoneID)
@@ -321,6 +425,7 @@ final class SharedSyncEngine {
     /// trip has already had its cloudKitShareID cleared by stopSharing(), skip the
     /// delete. If it hasn't (e.g. a forced purge), clear the ID instead of deleting.
     private func purgeZone(_ zoneID: CKRecordZone.ID) {
+        daythreadLog.log("SharedSync purgeZone CALLED: \(zoneID.zoneName, privacy: .public) owner=\(zoneID.ownerName, privacy: .public)")
         let context = PersistenceController.shared.viewContext
         guard let sharedStore = Self.sharedStore(in: context) else { return }
 
@@ -351,9 +456,18 @@ final class SharedSyncEngine {
                     }
                     daythreadLog.log("SharedSync purgeZone: owner stopped sharing zone \(zoneName, privacy: .public) — trip retained")
                 } else {
-                    // Participant device: cascade delete removes the whole trip.
+                    // Participant device: collect EKEvent IDs synchronously BEFORE deleting
+                    // the trip. The Task below runs async on the main actor — if we passed
+                    // the NSManagedObject itself, context.save() would fault it out before
+                    // the Task can iterate daysArray, giving us nothing to remove.
+                    let ekIDs = trip.daysArray
+                        .flatMap { $0.eventsArray.map(\.ekEventIdentifier) }
+                        .filter { !$0.isEmpty }
                     context.delete(trip)
                     daythreadLog.log("SharedSync purgeZone: deleted trip for zone \(zoneName, privacy: .public)")
+                    if !ekIDs.isEmpty {
+                        Task { @MainActor in ekIDs.forEach { CalendarService.shared.remove(identifier: $0) } }
+                    }
                 }
             }
         } else {
@@ -397,7 +511,13 @@ final class SharedSyncEngine {
         databaseScope: String,
         share: CKShare? = nil
     ) {
-        let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true)
+        // Do NOT call UserDefaults.set(nil, forKey:) on archiving failure — that
+        // would REMOVE the key, causing the next loadToken to return nil and
+        // triggering a full re-fetch of all zone records instead of a delta fetch.
+        guard let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) else {
+            daythreadLog.error("SharedSync: failed to archive zone token for \(zoneName, privacy: .public) — keeping existing token")
+            return
+        }
         UserDefaults.standard.set(tokenData, forKey: "SharedSync.zoneToken.\(zoneName).\(databaseScope)")
         UserDefaults.standard.set(ownerName, forKey: "SharedSync.zoneOwner.\(zoneName).\(databaseScope)")
         if let share {
@@ -435,9 +555,16 @@ final class SharedSyncEngine {
         // creating zones. After a fetch CloudKit returns the real owner record name
         // in system fields — so we must also accept the cached real ID. Otherwise
         // pushes after the first fetchAllOwnedZones would be routed to the shared DB.
+        //
+        // Third check: if we have a saved "private" scope zone token for this zone,
+        // we fetched it as an owned zone — use the private DB even before seedIdentity
+        // has populated currentUserCloudKitID. This covers the window between
+        // uploadClone (which assigns the real server ownerName to ckSystemFields) and
+        // the seedIdentity call that caches the ID in UserDefaults.
         if zoneID.zoneName.hasPrefix("Zone-") {
             let myID = UserDefaults.standard.string(forKey: "daythread.currentUserCloudKitID")
-            if zoneID.ownerName == CKCurrentUserDefaultName || zoneID.ownerName == myID {
+            let hasPrivateToken = UserDefaults.standard.data(forKey: "SharedSync.zoneToken.\(zoneID.zoneName).private") != nil
+            if zoneID.ownerName == CKCurrentUserDefaultName || zoneID.ownerName == myID || hasPrivateToken {
                 return container.privateCloudDatabase
             }
         }
@@ -465,6 +592,13 @@ final class SharedSyncEngine {
             objectByName[record.recordID.recordName] = object
         }
         guard !records.isEmpty || !recordIDs.isEmpty else { return }
+
+        for record in records {
+            daythreadLog.log("SharedSync push item: \(record.recordType, privacy: .public) name=\(record.recordID.recordName, privacy: .public) zone=\(record.recordID.zoneID.zoneName, privacy: .public) owner=\(record.recordID.zoneID.ownerName, privacy: .public) tag=\(record.recordChangeTag ?? "nil", privacy: .public)")
+        }
+        for rid in recordIDs {
+            daythreadLog.log("SharedSync delete item: \(rid.recordName, privacy: .public) zone=\(rid.zoneID.zoneName, privacy: .public) owner=\(rid.zoneID.ownerName, privacy: .public)")
+        }
 
         // Group saves and deletes by their target database.
         var savesByDB: [ObjectIdentifier: (CKDatabase, [CKRecord])] = [:]

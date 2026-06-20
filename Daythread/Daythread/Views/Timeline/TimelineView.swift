@@ -309,7 +309,7 @@ private struct TripTimelineList: View {
         let request = TripDay.fetchRequest()
         request.predicate = NSPredicate(format: "trip == %@", trip)
         request.sortDescriptors = [NSSortDescriptor(keyPath: \TripDay.sortOrder, ascending: true)]
-        days = ((try? context.fetch(request)) ?? []).filter { $0.isAlive }
+        days = ((try? context.fetch(request)) ?? []).filter { $0.isAlive && $0.id != nil }
     }
 }
 
@@ -381,6 +381,11 @@ private struct DayTimelineSection: View {
                 .throttle(for: .milliseconds(250), scheduler: DispatchQueue.main, latest: true)
         ) { _ in
             reload()
+            // reload() returns the same NSManagedObject pointers so @State equality
+            // may not trigger a re-render of dayContent. Bumping visibilityVersion
+            // forces dayContent to re-evaluate and pick up property changes (e.g.
+            // startTime/endTime set to nil) on existing events.
+            visibilityVersion &+= 1
         }
         // currentUserCloudKitID is set asynchronously at launch. Re-evaluate
         // isVisible when it arrives so Limit Visibility filters correctly
@@ -431,6 +436,10 @@ private struct DayTimelineSection: View {
                         lockAction: {
                             vm.lockEvent(event, context: context)
                             HapticManager.shared.lockToggle()
+                            // Force immediate re-render — don't wait for the 250ms
+                            // NSManagedObjectContextObjectsDidChange throttle.
+                            reload()
+                            visibilityVersion &+= 1
                         },
                         deleteAction: {
                             vm.pendingEventDelete = PendingDelete(
@@ -467,11 +476,10 @@ private struct DayTimelineSection: View {
                 }
             }
 
-            // End-of-day drop zone. Height is generous on empty days (gives a
-            // comfortable drag target); compact when events exist so the gap to
-            // the next day header stays tight (~24pt total).
+            // End-of-day drop zone. 64pt on empty days for a comfortable first-drop
+            // target; 32pt when events exist to stay tight without being fiddly.
             Color.clear
-                .frame(maxWidth: .infinity, minHeight: 8)
+                .frame(maxWidth: .infinity, minHeight: events.isEmpty ? 64 : 32)
                 .contentShape(Rectangle())
                 .dropDestination(for: String.self) { items, _ in
                     guard let draggedID = items.first else { return false }

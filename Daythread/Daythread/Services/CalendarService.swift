@@ -131,6 +131,17 @@ final class CalendarService {
         try? store.remove(event, span: .thisEvent, commit: true)
     }
 
+    /// Removes all EKEvents for every event in the trip. Call before deleting the
+    /// trip from Core Data so the ekEventIdentifiers are still accessible.
+    func removeAllEvents(for trip: Trip) {
+        guard isAuthorized else { return }
+        for day in trip.daysArray {
+            for event in day.eventsArray where !event.ekEventIdentifier.isEmpty {
+                remove(identifier: event.ekEventIdentifier)
+            }
+        }
+    }
+
     // MARK: — Per-trip calendar
 
     private func dayThreadCalendar(for tripName: String) -> EKCalendar {
